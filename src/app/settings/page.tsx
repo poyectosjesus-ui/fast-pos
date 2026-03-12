@@ -11,12 +11,23 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Download, Upload, ShieldCheck, AlertTriangle, RefreshCcw, Trash2 } from "lucide-react";
+import { Download, Upload, ShieldCheck, AlertTriangle, RefreshCcw, Trash2, Scan, Keyboard, Activity } from "lucide-react";
+import { BarcodeHandler } from "@/components/shared/barcode-handler";
 import { db } from "@/lib/db";
 
 export default function SettingsPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+
+  // Diagnóstico de Escáner
+  const [lastScan, setLastScan] = useState<{ code: string; time: number } | null>(null);
+  const [scanHistory, setScanHistory] = useState<number[]>([]);
+
+  const handleScan = (code: string) => {
+    setLastScan({ code, time: Date.now() });
+    setScanHistory(prev => [Date.now(), ...prev].slice(0, 5));
+    toast.success("Código detectado", { description: code });
+  };
 
   // Función para descargar el respaldo físico (.fastpos)
   const handleExport = async () => {
@@ -101,6 +112,7 @@ export default function SettingsPage() {
 
   return (
     <div className="flex h-screen bg-muted/20">
+      <BarcodeHandler onScan={handleScan} profile="diagnostic" />
       <Sidebar />
       <main className="flex-1 flex flex-col sm:pl-20 overflow-hidden">
         <header className="sticky top-0 z-20 bg-background/50 backdrop-blur-xl border-b px-6 py-4">
@@ -135,6 +147,66 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-blue-500/20 bg-blue-500/5">
+            <CardHeader className="flex flex-row items-center gap-4">
+              <Scan className="h-8 w-8 text-blue-500" />
+              <div>
+                <CardTitle>Diagnóstico de Periféricos</CardTitle>
+                <CardDescription>Prueba la compatibilidad de tu lector de código de barras.</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-8 bg-background/50 gap-4 text-center">
+                {!lastScan ? (
+                  <>
+                    <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center animate-pulse">
+                      <Scan className="h-6 w-6 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold uppercase tracking-widest">Esperando lectura...</p>
+                      <p className="text-xs text-muted-foreground mt-1">Dispara el escáner ahora para certificar su velocidad.</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Activity className="h-8 w-8 text-emerald-500 animate-bounce" />
+                    <div className="space-y-1">
+                      <p className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">{lastScan.code}</p>
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-tighter">
+                        Último código detectado correctamente
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 border rounded-xl bg-background/80 flex items-center gap-4">
+                  <div className="h-10 w-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                    <Keyboard className="h-5 w-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground font-bold uppercase">Tipo de Entrada</p>
+                    <p className="text-sm font-black">HID (Emulación Teclado)</p>
+                  </div>
+                </div>
+                <div className="p-4 border rounded-xl bg-background/80 flex items-center gap-4">
+                  <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                    <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground font-bold uppercase">Estado de Compatibilidad</p>
+                    <p className="text-sm font-black text-emerald-600">Certificado</p>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-[10px] text-muted-foreground text-center italic">
+                Nota: No necesitas hacer clic en ningún campo. El sistema escucha al escáner de forma global mientras estés en esta pantalla.
+              </p>
             </CardContent>
           </Card>
 

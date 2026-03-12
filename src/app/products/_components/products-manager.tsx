@@ -3,6 +3,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Edit2, PackagePlus, Trash2, SearchX, PlusCircle, MinusCircle, EyeOff, Eye, ImageIcon } from "lucide-react";
 
+import { BarcodeHandler } from "@/components/shared/barcode-handler";
+
 import { db } from "@/lib/db";
 import { Product } from "@/lib/schema";
 import { ProductService } from "@/lib/services/products";
@@ -177,15 +179,25 @@ export function ProductsManager() {
   };
 
   const handleBarcodeScanned = (code: string) => {
-    // Si viene de un scanner externo, limpiamos el tab activo para buscar en todo el catálogo
+    const upperCode = code.toUpperCase();
+
+    // SMART FOCUS: Si el formulario está abierto, llenamos el SKU del formulario
+    if (isOpen) {
+      setSku(upperCode);
+      toast.success("Código capturado", { description: "SKU actualizado en el formulario." });
+      return;
+    }
+
+    // Si el formulario NO está abierto, filtramos la lista principal
     setActiveTab("ALL");
     setCurrentPage(1);
-    // Buscamos el producto por SKU exacto para dar un feedback rápido
-    db.products.where("sku").equals(code.toUpperCase()).first().then((found) => {
+    setSearchTerm(upperCode);
+    
+    db.products.where("sku").equals(upperCode).first().then((found) => {
       if (found) {
         toast.success("Producto encontrado", { description: found.name });
       } else {
-        toast.error("Sin resultado", { description: `No encontramos el código "${code}". ¿Está registrado?` });
+        toast.error("Sin resultado", { description: `El código "${code}" no existe.` });
       }
     });
   };
@@ -236,6 +248,7 @@ export function ProductsManager() {
 
   return (
     <Card>
+      <BarcodeHandler onScan={handleBarcodeScanned} profile="catalog" />
       <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b">
         <div className="flex flex-col gap-1 flex-1">
           <CardTitle>Mi Catálogo</CardTitle>

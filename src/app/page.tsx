@@ -12,7 +12,9 @@
 
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, Scan } from "lucide-react";
+import { toast } from "sonner";
+import { BarcodeHandler } from "@/components/shared/barcode-handler";
 
 import { db } from "@/lib/db";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -31,8 +33,10 @@ export default function POSPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
   const [isProcessing, setIsProcessing] = useState(false);
+  const [lastScanTime, setLastScanTime] = useState(0);
 
   const cartItemCount = useCartStore(s => s.items.reduce((acc, i) => acc + i.quantity, 0));
+  const addItem = useCartStore(s => s.addItem);
 
   // Categorías (pocas, se pueden traer todas)
   const categories = useLiveQuery(() => db.categories.orderBy("name").toArray(), []);
@@ -81,16 +85,40 @@ export default function POSPage() {
   };
 
   const handleBarcodeScanned = (code: string) => {
-    // Para el scanner seguimos queriendo buscar en toda la DB por SKU
+    // Buscar en toda la DB por SKU
     db.products.where("sku").equals(code.toUpperCase()).first().then((product) => {
-      if (product && product.isVisible) {
-        // La lógica de agregar al carrito está en el store
+      if (product) {
+        if (!product.isVisible) {
+          toast.error("Producto oculto", { description: "Este artículo no está marcado como visible." });
+          return;
+        }
+        
+        const result = addItem(product);
+        if (result.success) {
+          toast.success("¡Lectura Correcta!", { 
+            description: `${product.name} añadido.`,
+            duration: 1200,
+            icon: "✅"
+          });
+        } else {
+          toast.warning("Atención en Caja", { description: result.message });
+        }
+      } else {
+        toast.error("Producto no identificado", { 
+          description: `El código ${code} no está en el catálogo.`,
+          icon: "❌"
+        });
       }
     });
   };
 
   return (
     <div className="flex h-screen bg-muted/40">
+      <BarcodeHandler 
+        onScan={handleBarcodeScanned}
+        profile="pos"
+        enabled={!isCheckoutOpen && !isProcessing}
+      />
       <Sidebar />
 
       {/* Área principal del POS */}
@@ -98,6 +126,16 @@ export default function POSPage() {
         {/* Barra de herramientas */}
         <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b">
           <div className="flex items-center gap-3 px-4 py-3">
+             {/* Indicador de Salud del Escáner */}
+             <div className={cn(
+               "flex items-center justify-center h-8 w-8 rounded-full border transition-all duration-300 shrink-0",
+               Date.now() - lastScanTime < 1000 
+                ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-600 animate-pulse" 
+                : "bg-muted/30 border-border text-muted-foreground/50"
+             )}>
+                <Scan className="h-4 w-4" />
+             </div>
+
             <SearchInput
               value={searchTerm}
               onChange={handleSearchChange}
