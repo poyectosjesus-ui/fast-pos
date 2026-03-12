@@ -239,34 +239,65 @@ export default function SettingsPage() {
                     del grid y de las analíticas en condiciones de estrés.
                   </p>
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={async () => {
-                    const confirmSeed = confirm("¿Generar +2000 registros nuevos de prueba?");
-                    if (!confirmSeed) return;
-                    
-                    const id = toast.loading("Poblando base de datos...");
-                    try {
-                      const { generateMassiveData } = await import("@/lib/seed");
-                      const result = await generateMassiveData((msg) => toast.loading(msg, { id }));
-                      if (result.success) {
-                        toast.success("¡Seeding Completo!", { 
-                          description: "Base de datos con +1000 productos cargada.",
-                          id 
-                        });
-                        setTimeout(() => window.location.reload(), 2000);
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex-1"
+                    onClick={async () => {
+                      const confirmSeed = confirm("¿Generar +2000 registros nuevos de prueba?");
+                      if (!confirmSeed) return;
+                      
+                      const id = toast.loading("Poblando base de datos...");
+                      try {
+                        const { generateMassiveData } = await import("@/lib/seed");
+                        const result = await generateMassiveData((msg) => toast.loading(msg, { id }));
+                        if (result.success) {
+                          toast.success("¡Seeding Completo!", { 
+                            description: "Base de datos con +1000 productos cargada.",
+                            id 
+                          });
+                          setTimeout(() => window.location.reload(), 2000);
+                        }
+                      } catch (err) {
+                        toast.error("Error en el proceso de seeding", { id });
                       }
-                    } catch (err) {
-                      toast.error("Error en el proceso de seeding", { id });
-                    }
-                  }}
-                >
-                  <RefreshCcw className="h-4 w-4 mr-2" /> Generar Seed
-                </Button>
+                    }}
+                  >
+                    <RefreshCcw className="h-4 w-4 mr-2" /> Carga Masiva (Stress)
+                  </Button>
+                  
+                  <Button 
+                    variant="default" 
+                    size="sm" 
+                    className="flex-1 bg-blue-600 hover:bg-blue-700"
+                    onClick={async () => {
+                      const confirmSeed = confirm("¿Poblar con catálogo real e imágenes? (Borrará lo actual)");
+                      if (!confirmSeed) return;
+                      
+                      const id = toast.loading("Descargando fotos y catálogo Pro...");
+                      try {
+                        const { seedDemoData } = await import("@/lib/seed");
+                        const result = await seedDemoData((msg) => toast.loading(msg, { id }));
+                        if (result.success) {
+                          toast.success("¡Demo Pro Lista!", { 
+                            description: "Catálogo con imágenes reales cargado.",
+                            id 
+                          });
+                          setTimeout(() => window.location.reload(), 2000);
+                        }
+                      } catch (err) {
+                        toast.error("Fallo al descargar imágenes", { id });
+                      }
+                    }}
+                  >
+                    <Activity className="h-4 w-4 mr-2" /> Generar Demo Pro (Fotos)
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
+
         </div>
       </main>
     </div>
