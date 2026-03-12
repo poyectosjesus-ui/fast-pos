@@ -57,7 +57,7 @@ export default function AnalyticsPage() {
   }, [orderWatcher]); // Se recarga solito cada vez que entra o sale una orden
 
   return (
-    <div className="flex min-h-screen bg-muted/20">
+    <div className="flex h-screen bg-muted/20">
       <Sidebar />
 
       <main className="flex-1 flex flex-col sm:pl-20 overflow-hidden relative">

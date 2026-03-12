@@ -59,7 +59,7 @@ export default function POSPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-muted/40">
+    <div className="flex h-screen bg-muted/40">
       <Sidebar />
 
       {/* Área principal del POS */}
