@@ -113,4 +113,148 @@ export const OrderService = {
   async getAll(): Promise<Order[]> {
     return await db.orders.orderBy('createdAt').reverse().toArray();
   },
+
+  /**
+   * Calcula todas las métricas del día actual de forma optimizada.
+   * CA-4.1.1: Solo consulta las órdenes de hoy usando un índice, no hace full-scan.
+   * CA-4.1.3: Usa .where('createdAt').above(startOfDay) para eficiencia.
+   *
+   * Retorna:
+   * - totalNet:       Suma de todos los 'subtotals' (venta sin IVA — "Lo facturado")
+   * - totalWithTax:   Suma de todos los 'totals'   (venta con IVA — "Dinero cobrado")
+   * - cashTotal:      Solo las órdenes en Efectivo  ("Efectivo a entregar")
+   * - cardTotal:      Solo las órdenes con Tarjeta
+   * - orderCount:     Número de tickets generados   ("Flujo de gente")
+   * - avgTicket:      totalWithTax / orderCount     ("Gasto por cliente")
+   */
+  async getStatsForDay(date: Date = new Date()): Promise<{
+    totalNet: number;
+    totalWithTax: number;
+    cashTotal: number;
+    cardTotal: number;
+    orderCount: number;
+    avgTicket: number;
+    todayOrders: Order[];
+  }> {
+    // Calculamos el rango de timestamps para el día seleccionado
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Consulta indexada — solo lee las órdenes del rango de tiempo. Eficiente y rápido.
+    const todayOrders = await db.orders
+      .where('createdAt')
+      .between(startOfDay.getTime(), endOfDay.getTime(), true, true)
+      .and(o => o.status === 'COMPLETED')
+      .toArray();
+
+    if (todayOrders.length === 0) {
+      return { totalNet: 0, totalWithTax: 0, cashTotal: 0, cardTotal: 0, orderCount: 0, avgTicket: 0, todayOrders: [] };
+    }
+
+    const totalNet = todayOrders.reduce((acc, o) => acc + o.subtotal, 0);
+    const totalWithTax = todayOrders.reduce((acc, o) => acc + o.total, 0);
+    const cashTotal = todayOrders
+      .filter(o => o.paymentMethod === 'CASH')
+      .reduce((acc, o) => acc + o.total, 0);
+    const cardTotal = todayOrders
+      .filter(o => o.paymentMethod === 'CARD')
+      .reduce((acc, o) => acc + o.total, 0);
+    const orderCount = todayOrders.length;
+    // Math.round para nunca retornar centavos fraccionarios
+    const avgTicket = Math.round(totalWithTax / orderCount);
+
+    return { totalNet, totalWithTax, cashTotal, cardTotal, orderCount, avgTicket, todayOrders };
+  },
+
+  /**
+   * Calcula el Top-N de productos más vendidos en el día (por monto generado).
+   * CA-4.2.1: Los datos se derivan de las órdenes ya filtradas, sin nueva consulta a DB.
+   * CA-4.2.3: Retorna también el stock actual para detectar artículos en riesgo.
+   *
+   * @param orders     - Lista de órdenes del día (resultado de getStatsForDay)
+   * @param limit      - Cuántos productos traer en el ranking (default: 5)
+   */
+  async getTopProducts(
+    orders: Order[],
+    limit: number = 5
+  ): Promise<Array<{ productId: string; name: string; unitsSold: number; revenue: number; currentStock: number }>> {
+    // Agregamos todos los ítems de todas las órdenes en un mapa por productId
+    const aggregation = new Map<string, { name: string; unitsSold: number; revenue: number }>();
+
+    for (const order of orders) {
+      for (const item of order.items) {
+        const existing = aggregation.get(item.productId);
+        if (existing) {
+          existing.unitsSold += item.quantity;
+          existing.revenue += item.subtotal;
+        } else {
+          aggregation.set(item.productId, {
+            name: item.name,
+            unitsSold: item.quantity,
+            revenue: item.subtotal,
+          });
+        }
+      }
+    }
+
+    // Ordenamos por monto generado (revenue) de mayor a menor y tomamos el top N
+    const sorted = Array.from(aggregation.entries())
+      .map(([productId, data]) => ({ productId, ...data, currentStock: 0 }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, limit);
+
+    // CA-4.2.3: Enriquecemos con el stock actual para detectar artículos en riesgo
+    for (const item of sorted) {
+      const product = await db.products.get(item.productId);
+      item.currentStock = product?.stock ?? 0;
+    }
+
+    return sorted;
+  },
+
+  /**
+   * CA-4.3.3: Anular Venta (Void Order).
+   * Operación atómica que marca la orden como CANCELLED y devuelve
+   * todas las unidades de los productos al inventario (stock).
+   *
+   * @param orderId   - El UUID de la orden a anular
+   */
+  async voidOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      await db.transaction('rw', db.products, db.orders, async () => {
+        const order = await db.orders.get(orderId);
+
+        if (!order) {
+          throw new Error('El ticket no existe o ya fue eliminado.');
+        }
+
+        if (order.status === 'CANCELLED') {
+          throw new Error('Esta venta ya había sido anulada previamente.');
+        }
+
+        // 1. Devolver el inventario de cada artículo
+        for (const item of order.items) {
+          const product = await db.products.get(item.productId);
+          if (product) {
+            await db.products.update(item.productId, {
+              stock: product.stock + item.quantity,
+              updatedAt: Date.now(),
+            });
+          }
+        }
+
+        // 2. Marcar la orden como cancelada
+        await db.orders.update(orderId, {
+          status: 'CANCELLED',
+        });
+      });
+
+      return { success: true };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error desconocido al anular el ticket.';
+      return { success: false, error: message };
+    }
+  },
 };

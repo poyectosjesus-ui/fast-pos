@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Coffee, Home, Package2, PieChart, Settings, ShoppingBag } from "lucide-react";
+import { Coffee, Home, Package2, PieChart, Settings, ShoppingBag, ReceiptText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function Sidebar() {
@@ -20,8 +20,11 @@ export function Sidebar() {
           <Link href="/products" aria-label="Products" className="flex h-12 w-12 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground">
             <Package2 className="h-6 w-6" />
           </Link>
-          <Link href="/reports" aria-label="Reports" className="flex h-12 w-12 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground">
+          <Link href="/analytics" aria-label="Analítica" className="flex h-12 w-12 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground">
             <PieChart className="h-6 w-6" />
+          </Link>
+          <Link href="/history" aria-label="Historial" className="flex h-12 w-12 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground">
+            <ReceiptText className="h-6 w-6" />
           </Link>
           <Link href="/settings" aria-label="Settings" className="flex h-12 w-12 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground">
             <Settings className="h-6 w-6" />
