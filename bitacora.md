@@ -35,3 +35,4 @@ Este documento registra cronológicamente las acciones realizadas, decisiones to
 | 12-Mar | Historial | Optimización 12.0 | Rediseño de `/history` a Grid responsivo con Stats Cards (Hoy, Total, Promedio) y filtros avanzados (Status, Pago). |
 | 12-Mar | Imágenes| Compresión 13.1 | Implementación de `compressImage` (Canvas/WebP) en cliente. Reducción de peso de fotos de 500KB a <40KB. |
 | 12-Mar | Datos | **Demo Pro 15.0** | Integración de servicio de demostración con imágenes de Unsplash y generación de historial de ventas realista para respaldos. |
+| 12-Mar | Datos | Style: Boutique | Actualización del catálogo Demo Pro a estilo Boutique (Vestidos, Lujo y Accesorios). |

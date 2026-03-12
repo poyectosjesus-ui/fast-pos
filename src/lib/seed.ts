@@ -33,37 +33,37 @@ export async function seedDemoData(progressCallback?: (msg: string) => void) {
   await db.orders.clear();
 
   const demoCategories = [
-    { id: uuidv4(), name: "Cafetería" },
-    { id: uuidv4(), name: "Panadería" },
-    { id: uuidv4(), name: "Bebidas" }
+    { id: uuidv4(), name: "Vestidos y Ropa" },
+    { id: uuidv4(), name: "Calzado" },
+    { id: uuidv4(), name: "Accesorios y Lujo" }
   ];
 
-  progressCallback?.("Creando categorías curadas...");
+  progressCallback?.("Creando categorías de moda...");
   await db.categories.bulkAdd(demoCategories.map(c => ({ 
     id: c.id, name: c.name, createdAt: Date.now(), updatedAt: Date.now() 
   })));
 
   const demoProducts = [
-    { name: "Espresso Doble", cat: "Cafetería", price: 4500, sku: "CAF-001", img: "https://images.unsplash.com/photo-1510591509098-f4fdc6d0ff04?w=400&q=80" },
-    { name: "Capuccino Latte", cat: "Cafetería", price: 5500, sku: "CAF-002", img: "https://images.unsplash.com/photo-1536939459926-301728717817?w=400&q=80" },
-    { name: "Croissant Mantequilla", cat: "Panadería", price: 3500, sku: "PAN-001", img: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=400&q=80" },
-    { name: "Muffin Arándanos", cat: "Panadería", price: 3800, sku: "PAN-002", img: "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=400&q=80" },
-    { name: "Jugo Naranja Natural", cat: "Bebidas", price: 4200, sku: "BEB-001", img: "https://images.unsplash.com/photo-1557800636-894a64c1696f?w=400&q=80" },
-    { name: "Té Matcha Especial", cat: "Cafetería", price: 6200, sku: "CAF-003", img: "https://images.unsplash.com/photo-1515823064-d6e0c04616a7?w=400&q=80" },
-    { name: "Bagel de Queso", cat: "Panadería", price: 4800, sku: "PAN-003", img: "https://images.unsplash.com/photo-1585476108011-15555fc62947?w=400&q=80" },
-    { name: "Agua Mineral 500ml", cat: "Bebidas", price: 2000, sku: "BEB-002", img: "https://images.unsplash.com/photo-1560023907-5f339617ea30?w=400&q=80" },
-    { name: "Smoothie Tropical", cat: "Bebidas", price: 7500, sku: "BEB-003", img: "https://images.unsplash.com/photo-1502741224143-90386d7cd8c9?w=400&q=80" },
-    { name: "Brownie de Chocolate", cat: "Panadería", price: 3200, sku: "PAN-004", img: "https://images.unsplash.com/photo-1461023058943-07fcbebc6d7a?w=400&q=80" },
-    { name: "Flat White", cat: "Cafetería", price: 5200, sku: "CAF-004", img: "https://images.unsplash.com/photo-1459755486867-b55449bb39ff?w=400&q=80" },
-    { name: "Pay de Limón", cat: "Panadería", price: 5800, sku: "PAN-005", img: "https://images.unsplash.com/photo-1519915028121-7d3463d20b13?w=400&q=80" },
-    { name: "Refresco de Cola", cat: "Bebidas", price: 3000, sku: "BEB-004", img: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=400&q=80" },
-    { name: "Cookie Chispas", cat: "Panadería", price: 2500, sku: "PAN-006", img: "https://images.unsplash.com/photo-1499636136210-6f4ee915583e?w=400&q=80" },
-    { name: "Donas Pack x2", cat: "Panadería", price: 4200, sku: "PAN-007", img: "https://images.unsplash.com/photo-1551024601-bec78aea704b?w=400&q=80" },
-    { name: "Vino Tinto (Copa)", cat: "Bebidas", price: 12000, sku: "BEB-005", img: "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=400&q=80" },
-    { name: "Sandwich Prosciutto", cat: "Panadería", price: 9500, sku: "PAN-008", img: "https://images.unsplash.com/photo-1559466273-d95e72debaf8?w=400&q=80" },
-    { name: "Frappé Chocolate", cat: "Cafetería", price: 7200, sku: "CAF-006", img: "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=400&q=80" },
-    { name: "Kombucha Frutos", cat: "Bebidas", price: 8500, sku: "BEB-006", img: "https://images.unsplash.com/photo-1594411124403-12d8a4f9aeee?w=400&q=80" },
-    { name: "Cheesecake Berries", cat: "Panadería", price: 6500, sku: "PAN-009", img: "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=400&q=80" }
+    { name: "Vestido Gala Seda", cat: "Vestidos y Ropa", price: 125000, sku: "MOD-001", img: "https://images.unsplash.com/photo-1539008835657-9e8e9680c956?w=400&q=80" },
+    { name: "Zapatos Tacón Aguja", cat: "Calzado", price: 85000, sku: "ZAP-001", img: "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=400&q=80" },
+    { name: "Bolso Cuero Italiano", cat: "Accesorios y Lujo", price: 150000, sku: "ACC-001", img: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=400&q=80" },
+    { name: "Chaqueta Denim Premium", cat: "Vestidos y Ropa", price: 45000, sku: "MOD-002", img: "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=400&q=80" },
+    { name: "Reloj Oro Rosa", cat: "Accesorios y Lujo", price: 210000, sku: "ACC-002", img: "https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=400&q=80" },
+    { name: "Gafas de Sol Design", cat: "Accesorios y Lujo", price: 25000, sku: "ACC-003", img: "https://images.unsplash.com/photo-1511499767390-945c2329bc75?w=400&q=80" },
+    { name: "Sneakers Urban White", cat: "Calzado", price: 62000, sku: "ZAP-002", img: "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400&q=80" },
+    { name: "Falda Plisada Floral", cat: "Vestidos y Ropa", price: 32000, sku: "MOD-003", img: "https://images.unsplash.com/photo-1583496661160-fb5889a053f1?w=400&q=80" },
+    { name: "Perfume Signature 50ml", cat: "Accesorios y Lujo", price: 95000, sku: "ACC-004", img: "https://images.unsplash.com/photo-1541643600914-78b084683601?w=400&q=80" },
+    { name: "Pañuelo Seda Estampado", cat: "Accesorios y Lujo", price: 15000, sku: "ACC-005", img: "https://images.unsplash.com/photo-1520903920243-00d872a2d1c9?w=400&q=80" },
+    { name: "Blusa Lino Blanca", cat: "Vestidos y Ropa", price: 28000, sku: "MOD-004", img: "https://images.unsplash.com/photo-1564584285871-9b1eb827a5fc?w=400&q=80" },
+    { name: "Botas Cuero Vintage", cat: "Calzado", price: 110000, sku: "ZAP-003", img: "https://images.unsplash.com/photo-1520639889457-393275713807?w=400&q=80" },
+    { name: "Cinturón Piel Slim", cat: "Accesorios y Lujo", price: 12000, sku: "ACC-006", img: "https://images.unsplash.com/photo-1624222247344-550fb8ecf7c4?w=400&q=80" },
+    { name: "Abrigo Lana Invierno", cat: "Vestidos y Ropa", price: 185000, sku: "MOD-005", img: "https://images.unsplash.com/photo-1539533018447-63fcce2678e3?w=400&q=80" },
+    { name: "Sandalias Resort Gold", cat: "Calzado", price: 42000, sku: "ZAP-004", img: "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=400&q=80" },
+    { name: "Pendientes Diamante Sim", cat: "Accesorios y Lujo", price: 55000, sku: "ACC-007", img: "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400&q=80" },
+    { name: "Pantalón Sastre Negro", cat: "Vestidos y Ropa", price: 52000, sku: "MOD-006", img: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400&q=80" },
+    { name: "Cartera Clutch Noche", cat: "Accesorios y Lujo", price: 38000, sku: "ACC-008", img: "https://images.unsplash.com/photo-1566150192880-3067c096389c?w=400&q=80" },
+    { name: "Sweater Cashmere", cat: "Vestidos y Ropa", price: 78000, sku: "MOD-007", img: "https://images.unsplash.com/photo-1556905081-8a713a18ef58?w=400&q=80" },
+    { name: "Sombrero Ala Ancha", cat: "Accesorios y Lujo", price: 18000, sku: "ACC-009", img: "https://images.unsplash.com/photo-1514327605112-b887c0e61c0a?w=400&q=80" }
   ];
 
   progressCallback?.("Procesando imágenes reales (Downloading 20 items)...");
