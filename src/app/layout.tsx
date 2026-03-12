@@ -5,11 +5,12 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Fast POS System",
-  description: "Next Generation POS Progressive Web App",
+  title: "Fast POS — Motor de Ventas",
+  description: "Sistema de Punto de Venta ligero, offline-first y ultra rápido.",
+  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "FastPOS",
   },
 };
@@ -22,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="es" className="dark">
       <body className={`${inter.className} bg-background text-foreground overflow-hidden selection:bg-primary selection:text-primary-foreground`}>
         {children}
         <Toaster />
