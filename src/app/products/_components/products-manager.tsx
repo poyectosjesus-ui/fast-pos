@@ -1,6 +1,8 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 import { toast } from "sonner";
+import { compressImage } from "@/lib/image-processing";
+
 import { Edit2, PackagePlus, Trash2, SearchX, PlusCircle, MinusCircle, EyeOff, Eye, ImageIcon } from "lucide-react";
 
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
@@ -202,19 +204,19 @@ export function ProductsManager() {
     });
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Limitamos el tamaño para no saturar IndexedDB (Normativa 5: Resiliencia Offline)
-    if (file.size > 500 * 1024) {
-      toast.error("Imagen demasiado grande", { description: "Elige una foto de menos de 500KB para que no ocupe demasiado espacio en este dispositivo." });
-      return;
+
+    const id = toast.loading("Procesando imagen...", { description: "Optimizando para almacenamiento rápido." });
+    try {
+      // Redimensionamos a 400px (suficiente para miniaturas de POS)
+      const compressedBase64 = await compressImage(file, { maxWidth: 400, maxHeight: 400, quality: 0.7 });
+      setImageBase64(compressedBase64);
+      toast.success("Imagen optimizada", { id, description: "Lista para guardar." });
+    } catch (error) {
+      toast.error("Error al procesar imagen", { id });
     }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setImageBase64(event.target?.result as string);
-    };
-    reader.readAsDataURL(file);
   };
 
   // UI Rule 5: Bloqueos Preventivos

@@ -9,7 +9,7 @@
  * y anular ventas en caso de error (CA-4.3.3) regresando el stock.
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { formatCurrency, BUSINESS_NAME } from "@/lib/constants";
 import { OrderService } from "@/lib/services/orders";
@@ -27,7 +27,11 @@ import {
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { AlertCircle, FileText, Ban, Printer, CircleCheck, CircleX } from "lucide-react";
+import { 
+  AlertCircle, FileText, Ban, Printer, CircleCheck, CircleX, 
+  TrendingUp, Calendar, Wallet, CreditCard, Filter, ChevronRight, ChevronLeft,
+  ArrowUpRight, ShoppingBag, Banknote
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,158 +42,281 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 export default function HistoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 12;
+  const itemsPerPage = 9; // Cambiado a 9 para mejor ajuste en grid 3x3
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'COMPLETED' | 'CANCELLED'>('ALL');
+  const [filterPayment, setFilterPayment] = useState<'ALL' | 'CASH' | 'CARD'>('ALL');
   
-  // Cargamos órdenes de forma paginada REAL (Fase 10.3)
-  const allOrders = useLiveQuery(
-    () => OrderService.getAll(itemsPerPage, (currentPage - 1) * itemsPerPage),
-    [currentPage]
+  // Cargamos órdenes filtradas y paginadas (Fase 12.2)
+  const queryResult = useLiveQuery(
+    () => OrderService.searchOrders({
+      status: filterStatus,
+      paymentMethod: filterPayment,
+      limit: itemsPerPage,
+      offset: (currentPage - 1) * itemsPerPage
+    }),
+    [currentPage, filterStatus, filterPayment]
   );
   
-  // Necesitamos saber el total para la paginación
-  const totalOrders = useLiveQuery(() => db.orders.count(), []);
-  const totalPages = Math.ceil((totalOrders ?? 0) / itemsPerPage);
+  const allOrders = queryResult?.items;
+  const totalOrders = queryResult?.total ?? 0;
+  const totalPages = Math.ceil(totalOrders / itemsPerPage);
+
+  // Estadísticas (Fase 12.1)
+  const todayStats = useLiveQuery(() => OrderService.getStatsForDay(), []);
+  const overallStats = useLiveQuery(() => OrderService.getOverallStats(), []);
 
   const handleNextPage = () => setCurrentPage(p => Math.min(totalPages, p + 1));
   const handlePrevPage = () => setCurrentPage(p => Math.max(1, p - 1));
 
-  // Estado para el visor del ticket digital (Detalle rápido)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  
-  // Estado para la alerta de confirmación de anulación
   const [voidCandidate, setVoidCandidate] = useState<Order | null>(null);
   const [isVoiding, setIsVoiding] = useState(false);
 
   const handleVoidOrder = async () => {
-    // Prevenimos ejecución si el usuario cerró el modal antes o si el candidato es nulo
     if (!voidCandidate) return;
-    
-    // Bloqueamos la interfaz visualmente para prevenir dobles clics accidentales
-    // que podrían causar inconsistencias o múltiples llamadas a la base de datos
     setIsVoiding(true);
     try {
       const result = await OrderService.voidOrder(voidCandidate.id);
-      
       if (!result.success) {
         toast.error("No pudimos anular este ticket", { description: result.error });
         return;
       }
-      
-      toast.success("Venta anulada correctamente", { description: "El dinero ha sido descontado y los artículos ya están de vuelta en tu mostrador." });
+      toast.success("Venta anulada correctamente");
       setVoidCandidate(null);
-      // Cerramos el modal de detalle para no dejar al usuario viendo un ticket ahora obsoleto
       setSelectedOrder(null); 
     } finally {
       setIsVoiding(false);
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const handlePrint = () => window.print();
 
   return (
-    <div className="flex h-screen bg-muted/20">
+    <div className="flex h-screen bg-muted/40 font-sans">
       <Sidebar />
 
       <main className="flex-1 flex flex-col sm:pl-20 overflow-hidden relative">
-        {/* Glassmorphism requerido por frontend_guidelines.md */}
-        <header className="sticky top-0 z-20 bg-background/50 backdrop-blur-xl border-b px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight uppercase">Diario de Ventas</h1>
-            <p className="text-sm text-muted-foreground italic">Revisa qué has cobrado hoy o en días anteriores.</p>
+        <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b px-6 py-4">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-black tracking-tight uppercase flex items-center gap-2">
+                <FileText className="h-6 w-6 text-primary" />
+                Diario de Ventas
+              </h1>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider opacity-70">
+                Historial de operaciones y arqueo rápido
+              </p>
+            </div>
+            
+            {/* Quick Stats Grid (Fase 12.1) */}
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-xl flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                  <TrendingUp className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-tighter">Ventas Hoy</p>
+                  <p className="text-sm font-black text-emerald-700">{formatCurrency(todayStats?.totalWithTax ?? 0)}</p>
+                </div>
+              </div>
+              <div className="bg-primary/5 border border-primary/10 px-3 py-2 rounded-xl flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/20">
+                  <ShoppingBag className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">Histórico Total</p>
+                  <p className="text-sm font-black text-primary">{formatCurrency(overallStats?.totalRevenue ?? 0)}</p>
+                </div>
+              </div>
+              <div className="hidden lg:flex bg-blue-500/10 border border-blue-500/20 px-3 py-2 rounded-xl items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-blue-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+                  <ArrowUpRight className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">Ticket Promedio</p>
+                  <p className="text-sm font-black text-blue-700">{formatCurrency(overallStats?.avgTicket ?? 0)}</p>
+                </div>
+              </div>
+            </div>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 max-w-5xl mx-auto w-full flex flex-col">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto w-full">
+          {/* Filters Bar (Fase 12.2) */}
+          <div className="flex flex-wrap items-center gap-3 bg-card border px-4 py-3 rounded-2xl shadow-sm">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase text-muted-foreground mr-2">
+              <Filter className="h-3.5 w-3.5" /> Filtrar por:
+            </div>
+            
+            <div className="flex bg-muted p-1 rounded-lg">
+              <Button 
+                variant={filterStatus === 'ALL' ? 'secondary' : 'ghost'} 
+                size="sm" className="h-7 text-[10px] uppercase font-bold"
+                onClick={() => { setFilterStatus('ALL'); setCurrentPage(1); }}
+              >Todos</Button>
+              <Button 
+                variant={filterStatus === 'COMPLETED' ? 'secondary' : 'ghost'} 
+                size="sm" className="h-7 text-[10px] uppercase font-bold"
+                onClick={() => { setFilterStatus('COMPLETED'); setCurrentPage(1); }}
+              >Exitosos</Button>
+              <Button 
+                variant={filterStatus === 'CANCELLED' ? 'secondary' : 'ghost'} 
+                size="sm" className="h-7 text-[10px] uppercase font-bold"
+                onClick={() => { setFilterStatus('CANCELLED'); setCurrentPage(1); }}
+              >Anulados</Button>
+            </div>
+
+            <Separator orientation="vertical" className="h-6 hidden sm:block" />
+
+            <div className="flex bg-muted p-1 rounded-lg">
+              <Button 
+                variant={filterPayment === 'ALL' ? 'secondary' : 'ghost'} 
+                size="sm" className="h-7 text-[10px] uppercase font-bold px-3"
+                onClick={() => { setFilterPayment('ALL'); setCurrentPage(1); }}
+              >Cualquier Pago</Button>
+              <Button 
+                variant={filterPayment === 'CASH' ? 'secondary' : 'ghost'} 
+                size="sm" className="h-7 text-[10px] uppercase font-bold px-3 gap-1.5"
+                onClick={() => { setFilterPayment('CASH'); setCurrentPage(1); }}
+              ><Banknote className="h-3 w-3" /> Efectivo</Button>
+              <Button 
+                variant={filterPayment === 'CARD' ? 'secondary' : 'ghost'} 
+                size="sm" className="h-7 text-[10px] uppercase font-bold px-3 gap-1.5"
+                onClick={() => { setFilterPayment('CARD'); setCurrentPage(1); }}
+              ><CreditCard className="h-3 w-3" /> Tarjeta</Button>
+            </div>
+            
+            <div className="ml-auto text-[10px] font-black uppercase text-muted-foreground/50 tracking-widest hidden lg:block">
+              {totalOrders} Registros Encontrados
+            </div>
+          </div>
+
           {allOrders === undefined ? (
-            <div className="flex flex-col gap-3">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="w-full h-16 rounded-xl border bg-muted/40 animate-pulse" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="aspect-[4/3] rounded-2xl border bg-card/50 animate-pulse" />
               ))}
             </div>
           ) : allOrders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center flex-1 p-12 text-center border rounded-2xl bg-card border-dashed">
-              <FileText className="h-12 w-12 mb-4 text-muted-foreground/30" />
-              <p className="text-lg font-bold">Sin movimientos aún</p>
-              <p className="text-sm text-muted-foreground max-w-xs mt-1">Cuando realices tu primer cobro, el ticket aparecerá en esta lista.</p>
+            <div className="flex flex-col items-center justify-center py-20 text-center bg-card border-2 border-dashed rounded-3xl opacity-60">
+              <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center mb-4">
+                <FileText className="h-10 w-10 text-muted-foreground/40" />
+              </div>
+              <h3 className="text-xl font-black uppercase tracking-tight">Sin Movimientos</h3>
+              <p className="text-sm text-muted-foreground max-w-xs mx-auto mt-2">
+                No hay ventas que coincidan con los filtros seleccionados actualmente.
+              </p>
+              <Button variant="link" onClick={() => { setFilterStatus('ALL'); setFilterPayment('ALL'); }} className="mt-4 uppercase text-xs font-bold">Limpiar Filtros</Button>
             </div>
           ) : (
             <>
-              <div className="flex flex-col gap-3 flex-1">
+              {/* Grid de Ventas Responsivo (Fase 12.3) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {allOrders.map((order) => {
                   const isCancelled = order.status === "CANCELLED";
+                  const dateObj = new Date(order.createdAt);
+                  
                   return (
                     <div 
                       key={order.id} 
-                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border bg-card transition-all duration-200 gap-3 cursor-pointer ${isCancelled ? "opacity-75 bg-muted/30 grayscale" : "hover:bg-muted/10 hover:shadow-md hover:scale-[1.01]" } shadow-sm`}
                       onClick={() => setSelectedOrder(order)}
+                      className={cn(
+                        "group relative flex flex-col p-5 rounded-2xl border bg-card transition-all duration-300 cursor-pointer overflow-hidden",
+                        "hover:shadow-2xl hover:shadow-black/5 hover:-translate-y-1 active:scale-95 border-border/50",
+                        isCancelled && "opacity-80 bg-muted/20 grayscale border-dashed"
+                      )}
                     >
-                      <div className="flex items-center gap-4 flex-1">
-                        <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${isCancelled ? "bg-rose-100/50 text-rose-500" : "bg-emerald-100/50 text-emerald-600"}`}>
-                          {isCancelled ? <CircleX className="h-5 w-5" /> : <CircleCheck className="h-5 w-5" />}
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-bold text-sm">
-                            {isCancelled ? "Ticket anulado" : "Venta exitosa"}
-                          </span>
-                          <span className="text-xs text-muted-foreground font-mono">
-                            {new Date(order.createdAt).toLocaleString("es-MX")}
-                          </span>
-                        </div>
+                      {/* Badge de Estado flotante */}
+                      <div className="absolute top-4 right-4 group-hover:scale-110 transition-transform">
+                        {isCancelled ? (
+                          <div className="h-8 w-8 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-lg shadow-rose-500/20">
+                            <Ban className="h-4 w-4" />
+                          </div>
+                        ) : (
+                          <div className="h-8 w-8 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                            <CircleCheck className="h-4 w-4" />
+                          </div>
+                        )}
                       </div>
 
-                      <div className="flex items-center gap-6 sm:ml-auto">
-                        <div className="flex flex-col items-end">
-                          <span className={`font-black text-lg ${isCancelled ? "text-muted-foreground line-through" : "text-primary"}`}>
-                            {formatCurrency(order.total)}
-                          </span>
-                          <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded uppercase tracking-widest">
-                            {order.paymentMethod === "CASH" ? "Efectivo" : "Tarjeta"}
-                          </span>
+                      <div className="flex flex-col h-full gap-4">
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Ticket #{order.id.slice(0, 8)}</p>
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              "text-2xl font-black tracking-tighter",
+                              isCancelled ? "text-muted-foreground line-through" : "text-foreground"
+                            )}>
+                              {formatCurrency(order.total)}
+                            </span>
+                          </div>
                         </div>
-                        <div className="text-xs text-muted-foreground hidden sm:block w-16 text-right font-medium">
-                          {order.items.length} art.
+
+                        <div className="mt-auto pt-4 border-t border-muted/50 flex items-end justify-between">
+                          <div className="space-y-0.5">
+                            <p className="text-[10px] font-bold text-muted-foreground flex items-center gap-1">
+                              <Calendar className="h-3 w-3" /> {dateObj.toLocaleDateString()}
+                            </p>
+                            <p className="text-xs font-black uppercase text-foreground/80">
+                              {dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1.5">
+                            <Badge variant={isCancelled ? "outline" : "secondary"} className="text-[9px] h-5 font-black uppercase tracking-widest px-2">
+                              {order.paymentMethod === "CASH" ? "Efectivo" : "Tarjeta"}
+                            </Badge>
+                            <p className="text-[9px] font-bold text-muted-foreground uppercase">{order.items.length} artículos</p>
+                          </div>
                         </div>
                       </div>
+                      
+                      {/* Efecto hover decorativo */}
+                      <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
                   );
                 })}
               </div>
 
-              {/* PAGINACIÓN ESTRICTA (CA-10.3) */}
-              <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-background/50 rounded-2xl border border-border/50 backdrop-blur-sm shadow-sm ring-1 ring-black/5">
-                <div className="text-xs text-muted-foreground font-medium order-2 sm:order-1">
-                  Mostrando <span className="text-foreground">{Math.min(totalOrders || 0, (currentPage - 1) * itemsPerPage + 1)}</span> - <span className="text-foreground">{Math.min(totalOrders || 0, currentPage * itemsPerPage)}</span> de <span className="text-foreground font-bold">{(totalOrders || 0).toLocaleString()}</span> tickets
+              {/* PAGINACIÓN PREMIUM */}
+              <div className="mt-10 flex flex-col sm:flex-row items-center justify-between gap-6 p-4 sm:p-2 bg-card/50 backdrop-blur border rounded-full px-6 shadow-sm">
+                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                  Página {currentPage} de {totalPages || 1}
                 </div>
                 
-                <div className="flex items-center gap-2 order-1 sm:order-2">
+                <div className="flex items-center gap-1 bg-muted rounded-full p-1">
                   <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-8 p-0 rounded-lg"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-full"
                     onClick={handlePrevPage}
                     disabled={currentPage === 1}
                   >
-                    &lt;
+                    <ChevronLeft className="h-4 w-4" />
                   </Button>
                   
-                  <div className="flex items-center gap-1.5 px-4 h-8 bg-muted/80 rounded-lg text-xs font-black tracking-widest uppercase">
-                    Página {currentPage} de {totalPages || 1}
+                  {/* Números de página simples */}
+                  <div className="flex items-center gap-0.5 px-4 h-8 bg-background rounded-full text-xs font-black shadow-sm ring-1 ring-black/5">
+                    {currentPage}
                   </div>
 
                   <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-8 p-0 rounded-lg"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-full"
                     onClick={handleNextPage}
                     disabled={currentPage >= totalPages}
                   >
-                    &gt;
+                    <ChevronRight className="h-4 w-4" />
                   </Button>
+                </div>
+                
+                <div className="hidden sm:block text-[10px] font-bold uppercase text-muted-foreground italic">
+                  Viendo {(allOrders.length).toLocaleString()} tickets de {totalOrders}
                 </div>
               </div>
             </>
@@ -197,79 +324,91 @@ export default function HistoryPage() {
         </div>
       </main>
 
-      {/* MODAL DEL RECIBO (CA-4.3.2) */}
+      {/* MODAL DEL RECIBO PREMIUM */}
       <Dialog open={!!selectedOrder} onOpenChange={(open) => { if (!open) setSelectedOrder(null); }}>
-        {/* Usamos Glassmorphism estricto dictaminado por la guía */}
-        <DialogContent className="sm:max-w-md bg-background/50 backdrop-blur-xl">
+        <DialogContent className="sm:max-w-md bg-background/95 backdrop-blur-2xl border-2 shadow-2xl rounded-3xl">
           {selectedOrder && (
-            <div className="space-y-4">
+            <div className="space-y-6 py-2">
               <DialogHeader>
                 <div className="flex items-center justify-between">
-                  <DialogTitle className="text-lg">Recibo del Cliente</DialogTitle>
+                  <div>
+                    <DialogTitle className="text-xl font-black uppercase">Detalle de Venta</DialogTitle>
+                    <DialogDescription className="text-xs font-bold uppercase text-primary/60 tracking-widest">Recibo Digital #{selectedOrder.id.slice(0,8)}</DialogDescription>
+                  </div>
                   {selectedOrder.status === "CANCELLED" && (
-                    <span className="text-[10px] font-bold bg-rose-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">Anulado</span>
+                    <Badge variant="destructive" className="h-6 font-black uppercase tracking-wider scale-110">Anulado</Badge>
                   )}
                 </div>
-                <DialogDescription>
-                  Documento guardado de la venta. No puede ser alterado.
-                </DialogDescription>
               </DialogHeader>
 
-              {/* Área del ticket imprimible */}
-              <div className="border rounded-lg p-5 bg-card" id="print-ticket">
-                <div className="text-center mb-4">
-                  <h3 className="font-bold text-lg">{BUSINESS_NAME}</h3>
-                  <p className="text-xs text-muted-foreground">{new Date(selectedOrder.createdAt).toLocaleString("es-MX")}</p>
-                </div>
+              <div className="bg-card border-x border-y shadow-inner rounded-2xl overflow-hidden">
+                <div className="p-6 space-y-4">
+                  <div className="text-center pb-4 border-b border-dashed">
+                    <h3 className="font-black text-lg tracking-tight uppercase">{BUSINESS_NAME}</h3>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-70">
+                      {new Date(selectedOrder.createdAt).toLocaleString("es-MX", { dateStyle: 'long', timeStyle: 'short' })}
+                    </p>
+                  </div>
 
-                <Separator className="my-3 border-dashed" />
+                  <div className="space-y-3">
+                    {selectedOrder.items.map((item, i) => (
+                      <div key={i} className="flex justify-between items-center text-sm">
+                        <div className="flex flex-col">
+                          <span className="font-bold">{item.name}</span>
+                          <span className="text-[10px] text-muted-foreground uppercase font-black">{item.quantity} uni. × {formatCurrency(item.price)}</span>
+                        </div>
+                        <span className="font-black text-right">{formatCurrency(item.subtotal)}</span>
+                      </div>
+                    ))}
+                  </div>
 
-                <div className="space-y-2 text-sm">
-                  {selectedOrder.items.map((item, i) => (
-                    <div key={i} className="flex justify-between">
-                      <span className="flex-1 truncate pr-2">{item.name} × {item.quantity}</span>
-                      <span className="font-medium">{formatCurrency(item.subtotal)}</span>
+                  <div className="pt-4 border-t border-dashed space-y-2">
+                    <div className="flex justify-between text-xs text-muted-foreground font-bold uppercase">
+                      <span>Subtotal</span><span>{formatCurrency(selectedOrder.subtotal)}</span>
                     </div>
-                  ))}
-                </div>
-
-                <Separator className="my-3 border-dashed" />
-
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Subtotal</span><span>{formatCurrency(selectedOrder.subtotal)}</span>
+                    <div className="flex justify-between text-xs text-muted-foreground font-bold uppercase">
+                      <span>Impuestos</span><span>{formatCurrency(selectedOrder.tax)}</span>
+                    </div>
+                    <div className="flex justify-between font-black text-xl pt-2 text-primary">
+                      <span className="uppercase tracking-tighter">Total Pago</span>
+                      <span>{formatCurrency(selectedOrder.total)}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>IVA</span><span>{formatCurrency(selectedOrder.tax)}</span>
+                  
+                  <div className="bg-muted/50 p-3 rounded-xl flex justify-between items-center mt-4">
+                    <div className="flex items-center gap-2">
+                      <div className="h-6 w-6 rounded bg-background flex items-center justify-center">
+                        {selectedOrder.paymentMethod === "CASH" ? <Banknote className="h-3.5 w-3.5 text-emerald-600" /> : <CreditCard className="h-3.5 w-3.5 text-blue-600" />}
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-widest leading-none">
+                        Metodo: {selectedOrder.paymentMethod === "CASH" ? "Efectivo" : "Tarjeta"}
+                      </span>
+                    </div>
+                    <div className="text-[10px] font-mono text-muted-foreground opacity-50">
+                      SYS_ID: {selectedOrder.id.slice(0, 13)}
+                    </div>
                   </div>
-                  <div className="flex justify-between font-bold text-base pt-2">
-                    <span>Total Pagado</span>
-                    <span>{formatCurrency(selectedOrder.total)}</span>
-                  </div>
-                </div>
-                
-                <div className="mt-4 text-center">
-                   {/* Cero tecnicismos: Preferimos "Folio" en vez de "ID UUID" */}
-                   <p className="text-xs text-muted-foreground font-mono">Folio: {selectedOrder.id.split('-')[0]}</p>
-                   <p className="text-xs text-muted-foreground uppercase mt-1">Pagado con {selectedOrder.paymentMethod === "CASH" ? "Efectivo" : "Tarjeta"}</p>
                 </div>
               </div>
 
-              {/* Controles de Acción */}
-              <div className="flex gap-3 pt-2">
-                <Button variant="outline" className="flex-1" onClick={handlePrint} disabled={selectedOrder.status === "CANCELLED"}>
+              <div className="grid grid-cols-2 gap-3">
+                <Button variant="outline" className="h-12 rounded-xl font-black uppercase text-xs border-2 hover:bg-muted" onClick={handlePrint} disabled={selectedOrder.status === "CANCELLED"}>
                   <Printer className="h-4 w-4 mr-2" />
-                  Imprimir Copia
+                  Imprimir
                 </Button>
                 
-                {selectedOrder.status !== "CANCELLED" && (
+                {selectedOrder.status !== "CANCELLED" ? (
                   <Button 
                     variant="destructive" 
-                    className="flex-1"
+                    className="h-12 rounded-xl font-black uppercase text-xs shadow-lg shadow-rose-500/20"
                     onClick={() => setVoidCandidate(selectedOrder)}
                   >
                     <Ban className="h-4 w-4 mr-2" />
-                    Anular Ticket
+                    Anular Venta
+                  </Button>
+                ) : (
+                  <Button variant="ghost" disabled className="h-12 rounded-xl font-black uppercase text-xs opacity-50">
+                    Ya Anulado
                   </Button>
                 )}
               </div>
@@ -278,31 +417,35 @@ export default function HistoryPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ALERTA DE CONFIRMACIÓN DE ANULACIÓN (Garantía de Integridad) */}
+      {/* CONFIRMACIÓN DE ANULACIÓN */}
       <AlertDialog open={!!voidCandidate} onOpenChange={(open: boolean) => { if (!open) setVoidCandidate(null); }}>
-         {/* Glassmorphism requerido */}
-         <AlertDialogContent className="bg-background/50 backdrop-blur-xl">
+         <AlertDialogContent className="bg-background/95 backdrop-blur-2xl border-2 rounded-3xl shadow-2xl">
            <AlertDialogHeader>
-             <div className="flex items-center gap-3 mb-2">
-                <div className="h-10 w-10 rounded-full bg-rose-100 flex items-center justify-center text-rose-600">
-                   <AlertCircle className="h-5 w-5" />
+             <div className="flex items-center gap-4 mb-4">
+                <div className="h-14 w-14 rounded-2xl bg-rose-500 flex items-center justify-center text-white shadow-xl shadow-rose-500/30">
+                   <AlertCircle className="h-8 w-8" />
                 </div>
-                <AlertDialogTitle className="text-xl">¿Anular este recibo?</AlertDialogTitle>
+                <div>
+                  <AlertDialogTitle className="text-2xl font-black uppercase tracking-tight">Anular Ticket</AlertDialogTitle>
+                  <AlertDialogDescription className="text-rose-500/80 font-bold text-xs uppercase tracking-widest">Proceso Irreversible</AlertDialogDescription>
+                </div>
              </div>
-             <AlertDialogDescription className="text-base">
-               Si confirmas, restaremos <strong>{voidCandidate && formatCurrency(voidCandidate.total)}</strong> de tus ventas de hoy y devolveremos automáticamente <strong>{voidCandidate && voidCandidate.items.length} artículos</strong> a tu inventario físico.
+             <p className="text-sm font-medium leading-relaxed">
+               Al anular este recibo de <span className="font-black text-rose-600">{voidCandidate && formatCurrency(voidCandidate.total)}</span>, el sistema devolverá automáticamente <span className="font-black underline">{voidCandidate && voidCandidate.items.length} artículos</span> al inventario disponible.
                <br/><br/>
-               <span className="font-bold text-foreground">Asegúrate de que estás haciendo lo correcto. Esta acción no se puede deshacer.</span>
-             </AlertDialogDescription>
+               <span className="inline-block p-3 bg-muted rounded-xl text-xs font-bold text-muted-foreground border">
+                 🚨 Se restará del reporte de ventas diario y ya no aparecerá como ingreso activo en caja.
+               </span>
+             </p>
            </AlertDialogHeader>
-           <AlertDialogFooter>
-             <AlertDialogCancel disabled={isVoiding}>No, mantener la venta</AlertDialogCancel>
+           <AlertDialogFooter className="mt-6 gap-3">
+             <AlertDialogCancel disabled={isVoiding} className="rounded-xl font-black uppercase text-xs h-11 border-2">Cancelar</AlertDialogCancel>
              <AlertDialogAction 
                 onClick={(e: React.MouseEvent) => { e.preventDefault(); handleVoidOrder(); }}
                 disabled={isVoiding}
-                className="bg-rose-600 hover:bg-rose-700 text-white"
+                className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black uppercase text-xs h-11 px-6 shadow-lg shadow-rose-600/20 border-none"
              >
-               {isVoiding ? "Anulando transacción..." : "Sí, anular y devolver stock"}
+               {isVoiding ? "Procesando..." : "Sí, Anular Movimiento"}
              </AlertDialogAction>
            </AlertDialogFooter>
          </AlertDialogContent>

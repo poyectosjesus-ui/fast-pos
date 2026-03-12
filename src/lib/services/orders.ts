@@ -119,6 +119,50 @@ export const OrderService = {
       .toArray();
   },
 
+  /** 
+   * Búsqueda avanzada de órdenes con filtros (Fase 12.2)
+   */
+  async searchOrders(params: {
+    status?: 'COMPLETED' | 'CANCELLED' | 'ALL';
+    paymentMethod?: 'CASH' | 'CARD' | 'ALL';
+    limit: number;
+    offset: number;
+  }): Promise<{ items: Order[]; total: number }> {
+    let collection = db.orders.orderBy('createdAt').reverse();
+
+    if (params.status && params.status !== 'ALL') {
+      collection = collection.filter(o => o.status === params.status);
+    }
+
+    if (params.paymentMethod && params.paymentMethod !== 'ALL') {
+      collection = collection.filter(o => o.paymentMethod === params.paymentMethod);
+    }
+
+    const total = await collection.count();
+    const items = await collection
+      .offset(params.offset)
+      .limit(params.limit)
+      .toArray();
+
+    return { items, total };
+  },
+
+  /**
+   * Obtiene estadísticas globales de todo el tiempo (Fase 12.1)
+   */
+  async getOverallStats(): Promise<{
+    totalRevenue: number;
+    totalOrders: number;
+    avgTicket: number;
+  }> {
+    const all = await db.orders.where('status').equals('COMPLETED').toArray();
+    const totalRevenue = all.reduce((acc, o) => acc + o.total, 0);
+    const totalOrders = all.length;
+    const avgTicket = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+
+    return { totalRevenue, totalOrders, avgTicket };
+  },
+
   /**
    * Calcula todas las métricas del día actual de forma optimizada.
    * CA-4.1.1: Solo consulta las órdenes de hoy usando un índice, no hace full-scan.

@@ -62,7 +62,12 @@ export function ProductCard({ product, currentStock }: ProductCardProps) {
       {/* Imagen o Avatar por iniciales */}
       <div className="w-full aspect-square rounded-lg bg-muted/30 flex items-center justify-center overflow-hidden border">
         {product.image ? (
-          <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+          <img 
+            src={product.image} 
+            alt={product.name} 
+            className="w-full h-full object-cover" 
+            loading="lazy"
+          />
         ) : (
           <span className="text-2xl font-black text-muted-foreground/30 uppercase select-none">
             {product.name.slice(0, 2)}
