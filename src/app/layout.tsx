@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Fast POS — Motor de Ventas",
+  title: "Fast POS",
   description: "Sistema de Punto de Venta ligero, offline-first y ultra rápido.",
   manifest: "/manifest.json",
   appleWebApp: {

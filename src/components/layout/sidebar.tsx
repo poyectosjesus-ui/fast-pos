@@ -20,9 +20,13 @@ export function Sidebar() {
       <div className="flex flex-col items-center gap-4 px-2 sm:py-5">
         <Link
           href="/"
-          className="group flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full bg-primary text-lg font-semibold text-primary-foreground md:h-12 md:w-12 md:text-base mb-4"
+          className="group flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full overflow-hidden md:h-12 md:w-12 mb-4 ring-2 ring-primary/20 hover:ring-primary transition-all"
         >
-          <Coffee className="h-5 w-5 transition-all group-hover:scale-110" />
+          <img 
+            src="/icon-192x192.png" 
+            alt="Fast POS Logo" 
+            className="h-full w-full object-cover transition-all group-hover:scale-110" 
+          />
           <span className="sr-only">Fast POS</span>
         </Link>
         <nav className="flex flex-col gap-4">

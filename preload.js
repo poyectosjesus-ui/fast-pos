@@ -1,403 +1,153 @@
 /**
  * ============================================================================
- * PRELOAD SCRIPT - FASTPOS
+ * PRELOAD SCRIPT - FAST-POS
+ * Optimizado para Next.js + Dexie (IndexedDB)
  * ============================================================================
  * 
- * Este script actúa como puente seguro entre el proceso principal (main)
- * y el proceso renderer (React app).
- * 
- * Usa contextBridge para exponer solo los métodos necesarios,
- * manteniendo aislado el contexto de Node.js del renderer.
- * 
- * Seguridad: Se ejecuta con permisos de Node pero en contexto aislado
+ * Expone API segura para comunicación IPC entre Next.js y Electron
  */
 
 const { contextBridge, ipcRenderer } = require("electron");
 
-// ============================================================================
-// VALIDACIÓN DE ENTRADA
-// ============================================================================
-
 /**
- * Valida que los parámetros de entrada sean seguros
- * Previene inyección de código
- */
-function validateInput(input, type = "string") {
-  if (type === "string") {
-    if (typeof input !== "string") {
-      throw new Error("Input debe ser string");
-    }
-    // Evitar inyección HTML
-    return input.replace(/[<>]/g, "");
-  }
-
-  if (type === "number") {
-    const num = Number(input);
-    if (isNaN(num)) {
-      throw new Error("Input debe ser número");
-    }
-    return num;
-  }
-
-  if (type === "object") {
-    if (typeof input !== "object" || input === null) {
-      throw new Error("Input debe ser objeto");
-    }
-    return input;
-  }
-
-  return input;
-}
-
-// ============================================================================
-// CONTEXT BRIDGE - API SEGURA
-// ============================================================================
-
-/**
- * Expone una API segura desde el main process al renderer process
- * Esto permite que React llame funciones del proceso principal de forma segura
+ * API segura expuesta a Next.js
  */
 contextBridge.exposeInMainWorld("electronAPI", {
   // ========================================================================
-  // INFORMACIÓN DEL SISTEMA
+  // RUTAS Y SISTEMA
   // ========================================================================
 
   /**
-   * Obtiene información del sistema
-   * @returns {Promise<Object>} Información del sistema
-   * 
-   * Uso en React:
-   * const sysInfo = await window.electronAPI.getSystemInfo();
+   * Obtener rutas importantes del sistema
    */
-  getSystemInfo: () => {
-    console.log("[Preload] Solicitando información del sistema");
-    return ipcRenderer.invoke("get-system-info");
-  },
+  getPaths: () => ipcRenderer.invoke("get-paths"),
+
+  /**
+   * Obtener información del sistema
+   */
+  getSystemInfo: () => ipcRenderer.invoke("get-system-info"),
 
   // ========================================================================
-  // CONTROL DE APLICACIÓN
+  // SINCRONIZACIÓN OFFLINE-FIRST (Dexie)
   // ========================================================================
 
   /**
-   * Cierra la aplicación de forma segura
-   * @returns {Promise<void>}
-   * 
-   * Uso en React:
-   * await window.electronAPI.closeApp();
+   * Exportar base de datos Dexie a JSON
+   * Útil para backups
    */
-  closeApp: () => {
-    console.log("[Preload] Cerrando aplicación");
-    return ipcRenderer.invoke("close-app");
-  },
+  exportDatabase: (dbExportData) =>
+    ipcRenderer.invoke("export-database", dbExportData),
 
   /**
-   * Obtiene la ruta donde se almacenan los datos del usuario
-   * Útil para guardar configuraciones locales, BD local, etc.
-   * @returns {Promise<string>} Ruta del directorio de datos
-   * 
-   * Uso en React:
-   * const dataPath = await window.electronAPI.getUserDataPath();
+   * Importar base de datos desde JSON
    */
-  getUserDataPath: () => {
-    console.log("[Preload] Obteniendo ruta de datos del usuario");
-    return ipcRenderer.invoke("get-user-data-path");
-  },
+  importDatabase: () => ipcRenderer.invoke("import-database"),
+
+  /**
+   * Sincronizar con servidor (si hay conexión)
+   */
+  syncWithServer: (data) =>
+    ipcRenderer.invoke("sync-with-server", data),
 
   // ========================================================================
   // DIÁLOGOS
   // ========================================================================
 
   /**
-   * Muestra un diálogo de error al usuario
-   * @param {string} title - Título del diálogo
-   * @param {string} message - Mensaje de error
-   * @returns {Promise<void>}
-   * 
-   * Uso en React:
-   * await window.electronAPI.showErrorDialog("Error", "No se pudo guardar");
+   * Mostrar diálogo de confirmación
+   * Retorna: 0 = Cancelar, 1 = Aceptar
    */
-  showErrorDialog: (title, message) => {
-    title = validateInput(title, "string");
-    message = validateInput(message, "string");
-    console.log(`[Preload] Mostrando diálogo de error: ${title}`);
-    return ipcRenderer.invoke("show-error-dialog", title, message);
-  },
+  showConfirmDialog: (title, message, buttons = ["Cancelar", "Aceptar"]) =>
+    ipcRenderer.invoke("show-confirm-dialog", {
+      title,
+      message,
+      buttons,
+      type: "question",
+    }),
 
   /**
-   * Muestra un diálogo de éxito al usuario
-   * @param {string} title - Título del diálogo
-   * @param {string} message - Mensaje de éxito
-   * @returns {Promise<void>}
-   * 
-   * Uso en React:
-   * await window.electronAPI.showSuccessDialog("Éxito", "Venta guardada");
+   * Mostrar diálogo de información
    */
-  showSuccessDialog: (title, message) => {
-    title = validateInput(title, "string");
-    message = validateInput(message, "string");
-    console.log(`[Preload] Mostrando diálogo de éxito: ${title}`);
-    return ipcRenderer.invoke("show-success-dialog", title, message);
-  },
+  showInfoDialog: (title, message, type = "info") =>
+    ipcRenderer.invoke("show-info-dialog", {
+      title,
+      message,
+      type,
+    }),
 
   // ========================================================================
-  // OPERACIONES DE VENTA (POS)
+  // REPORTES Y EXPORTACIÓN
   // ========================================================================
 
   /**
-   * Guarda una venta en la base de datos
-   * @param {Object} saleData - Datos de la venta
-   * @returns {Promise<Object>} Resultado de la operación
-   * 
-   * Formato esperado de saleData:
-   * {
-   *   items: [{product_id, quantity, price, subtotal}],
-   *   total: 1000,
-   *   tax: 160,
-   *   discount: 0,
-   *   payment_method: "cash",
-   *   customer_id: 123,
-   *   timestamp: "2024-01-15T10:30:00Z"
-   * }
-   * 
-   * Uso en React:
-   * const result = await window.electronAPI.saveSale(saleData);
+   * Generar y guardar reporte
    */
-  saveSale: (saleData) => {
-    try {
-      saleData = validateInput(saleData, "object");
-      console.log("[Preload] Guardando venta", saleData);
-      return ipcRenderer.invoke("save-sale", saleData);
-    } catch (error) {
-      console.error("[Preload] Error validando datos de venta:", error);
-      return { success: false, error: error.message };
-    }
-  },
-
-  /**
-   * Obtiene el historial de ventas
-   * @param {Object} filters - Filtros opcionales {dateFrom, dateTo, customerId, status}
-   * @returns {Promise<Object>} {success, sales: []}
-   * 
-   * Uso en React:
-   * const history = await window.electronAPI.getSalesHistory({
-   *   dateFrom: "2024-01-01",
-   *   dateTo: "2024-01-31"
-   * });
-   */
-  getSalesHistory: (filters = {}) => {
-    try {
-      filters = validateInput(filters, "object");
-      console.log("[Preload] Obteniendo historial de ventas", filters);
-      return ipcRenderer.invoke("get-sales-history", filters);
-    } catch (error) {
-      console.error("[Preload] Error validando filtros:", error);
-      return { success: false, error: error.message };
-    }
-  },
+  generateReport: (reportData) =>
+    ipcRenderer.invoke("generate-report", reportData),
 
   // ========================================================================
-  // IMPRESIÓN (POS)
+  // IMPRESIÓN
   // ========================================================================
 
   /**
-   * Imprime un recibo
-   * @param {Object} saleData - Datos de la venta a imprimir
-   * @returns {Promise<boolean>} True si se imprimió exitosamente
-   * 
-   * Uso en React:
-   * const printed = await window.electronAPI.printReceipt(saleData);
+   * Obtener lista de impresoras disponibles
    */
-  printReceipt: (saleData) => {
-    try {
-      saleData = validateInput(saleData, "object");
-      console.log("[Preload] Enviando a imprimir recibo");
-      return ipcRenderer.invoke("print-receipt", saleData);
-    } catch (error) {
-      console.error("[Preload] Error al imprimir:", error);
-      return Promise.reject(error);
-    }
-  },
+  getPrinters: () => ipcRenderer.invoke("get-printers"),
+
+  /**
+   * Imprimir contenido
+   */
+  print: (options = {}) => ipcRenderer.invoke("print", options),
 
   // ========================================================================
-  // EVENTOS Y LISTENERS
+  // LISTENERS DE EVENTOS (Opcional)
   // ========================================================================
 
   /**
-   * Escucha cambios en los productos (sincronización en tiempo real)
-   * @param {Function} callback - Función a ejecutar cuando cambien los productos
-   * 
-   * Uso en React:
-   * useEffect(() => {
-   *   window.electronAPI.onProductsChanged((newProducts) => {
-   *     setProducts(newProducts);
-   *   });
-   * }, []);
+   * Escuchar cambios de conexión
    */
-  onProductsChanged: (callback) => {
-    if (typeof callback !== "function") {
-      throw new Error("Callback debe ser una función");
-    }
-    console.log("[Preload] Escuchando cambios de productos");
-    ipcRenderer.on("products-changed", (event, data) => {
-      callback(data);
-    });
-  },
-
-  /**
-   * Deja de escuchar cambios en productos
-   */
-  offProductsChanged: () => {
-    console.log("[Preload] Dejando de escuchar cambios de productos");
-    ipcRenderer.removeAllListeners("products-changed");
-  },
-
-  /**
-   * Escucha cambios en las ventas
-   * @param {Function} callback - Función a ejecutar cuando cambien las ventas
-   */
-  onSalesUpdated: (callback) => {
-    if (typeof callback !== "function") {
-      throw new Error("Callback debe ser una función");
-    }
-    console.log("[Preload] Escuchando actualizaciones de ventas");
-    ipcRenderer.on("sales-updated", (event, data) => {
-      callback(data);
-    });
-  },
-
-  /**
-   * Deja de escuchar cambios en ventas
-   */
-  offSalesUpdated: () => {
-    console.log("[Preload] Dejando de escuchar actualizaciones de ventas");
-    ipcRenderer.removeAllListeners("sales-updated");
+  onOnlineStatusChanged: (callback) => {
+    window.addEventListener("online", () => callback(true));
+    window.addEventListener("offline", () => callback(false));
   },
 
   // ========================================================================
-  // CONFIGURACIÓN
+  // LOGGING
   // ========================================================================
 
   /**
-   * Obtiene las configuraciones de la aplicación
-   * @returns {Promise<Object>} Configuraciones
-   * 
-   * Ejemplo de respuesta:
-   * {
-   *   storeName: "Mi Tienda",
-   *   taxRate: 0.16,
-   *   currency: "MXN",
-   *   theme: "dark"
-   * }
+   * Log personalizado desde Next.js
    */
-  getConfig: () => {
-    console.log("[Preload] Obteniendo configuración");
-    return ipcRenderer.invoke("get-config");
-  },
-
-  /**
-   * Actualiza las configuraciones de la aplicación
-   * @param {Object} config - Nuevas configuraciones
-   * @returns {Promise<Object>} Configuraciones actualizadas
-   * 
-   * Uso en React:
-   * await window.electronAPI.updateConfig({ theme: "light" });
-   */
-  updateConfig: (config) => {
-    try {
-      config = validateInput(config, "object");
-      console.log("[Preload] Actualizando configuración", config);
-      return ipcRenderer.invoke("update-config", config);
-    } catch (error) {
-      console.error("[Preload] Error validando configuración:", error);
-      return Promise.reject(error);
-    }
-  },
-
-  // ========================================================================
-  // LOGGING (Para debugging)
-  // ========================================================================
-
-  /**
-   * Envía un log al proceso principal
-   * Útil para debugging en producción
-   * @param {string} message - Mensaje a registrar
-   * @param {string} level - Nivel del log (log, warn, error)
-   */
-  log: (message, level = "log") => {
-    ipcRenderer.send("log-message", { level, message, timestamp: new Date().toISOString() });
+  log: (message, level = "info") => {
+    console.log(`[${level.toUpperCase()}] ${message}`);
   },
 });
 
-// ============================================================================
-// LOGGING GLOBAL
-// ============================================================================
-
 /**
- * Intercepta logs de la app React y los envía al proceso principal
- * Permite debugging en producción sin abrir DevTools
+ * Interceptar logs de Next.js y enviarlos a consola de Electron
  */
 const originalLog = console.log;
-const originalWarn = console.warn;
 const originalError = console.error;
 
 console.log = (...args) => {
   originalLog(...args);
-  ipcRenderer.send("log-message", {
-    level: "log",
-    args: args.map(arg =>
-      typeof arg === "object" ? JSON.stringify(arg) : String(arg)
-    ),
-    timestamp: new Date().toISOString(),
-  });
-};
-
-console.warn = (...args) => {
-  originalWarn(...args);
-  ipcRenderer.send("log-message", {
-    level: "warn",
-    args: args.map(arg =>
-      typeof arg === "object" ? JSON.stringify(arg) : String(arg)
-    ),
-    timestamp: new Date().toISOString(),
-  });
+  // Los logs se verán en la consola de Electron en desarrollo
 };
 
 console.error = (...args) => {
   originalError(...args);
-  ipcRenderer.send("log-message", {
-    level: "error",
-    args: args.map(arg =>
-      typeof arg === "object" ? JSON.stringify(arg) : String(arg)
-    ),
-    timestamp: new Date().toISOString(),
-  });
 };
 
-// ============================================================================
-// SEGURIDAD - PREVENTIVOS
-// ============================================================================
-
 /**
- * Bloquea intentos de navegar a URLs externas
+ * Detectar estado de conexión
  */
-window.addEventListener("beforeunload", (event) => {
-  console.warn("[Preload] Intento de navegación bloqueada");
-  // Permitir navegación normal en desarrollo
-  if (process.env.NODE_ENV === "production") {
-    event.preventDefault();
-    event.returnValue = "";
-  }
+window.addEventListener("online", () => {
+  console.log("[NETWORK] Conexión restaurada");
 });
 
-/**
- * Bloquea acceso a ciertas APIs globales peligrosas
- */
-window.eval = undefined;
-window.Function = undefined;
-window.setTimeout = window.setTimeout; // Permitir setTimeout necesario
+window.addEventListener("offline", () => {
+  console.log("[NETWORK] Conexión perdida - modo offline");
+});
 
-/**
- * Log de inicialización
- */
-console.log("[Preload] Script preload cargado correctamente");
-console.log("[Preload] electronAPI expuesta al renderer");
+console.log("[Preload] Script cargado correctamente");
+console.log("[Preload] electronAPI disponible en window.electronAPI");
