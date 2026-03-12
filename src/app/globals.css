@@ -121,9 +121,16 @@
     @apply border-border outline-ring/50;
   }
   body {
+    /* Safe Area para Electron con titleBarStyle: hidden */
+    padding-top: env(safe-area-inset-top, 0);
     @apply bg-background text-foreground;
   }
   html {
     @apply font-sans;
   }
+}
+
+/* Utilidad para pantallas que necesiten padding extra en el header */
+.safe-top-padding {
+  padding-top: max(1.5rem, env(safe-area-inset-top));
 }

@@ -25,7 +25,9 @@ export default function RootLayout({
   return (
     <html lang="es" className="dark">
       <body className={`${inter.className} bg-background text-foreground overflow-hidden selection:bg-primary selection:text-primary-foreground`}>
-        {children}
+        <div className="flex flex-col h-screen">
+          {children}
+        </div>
         <Toaster />
       </body>
     </html>

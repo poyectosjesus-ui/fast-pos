@@ -24,7 +24,7 @@ export default function SettingsPage() {
     try {
       // Importación dinámica para evitar errores de SSR
       const { exportDB } = await import("dexie-export-import");
-      const blob = await exportDB(db, { prettyJson: true });
+      const blob = await exportDB(db as any, { prettyJson: true });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       const date = new Date().toISOString().split('T')[0];
@@ -85,11 +85,11 @@ export default function SettingsPage() {
     if (!c2) return;
 
     try {
-      await db.transaction('rw', [db.products, db.categories, db.orders], async () => {
+      await (db as any).transaction('rw', [(db as any).products, (db as any).categories, (db as any).orders], async () => {
         await Promise.all([
-          db.products.clear(),
-          db.categories.clear(),
-          db.orders.clear()
+          (db.products as any).clear(),
+          (db.categories as any).clear(),
+          (db.orders as any).clear()
         ]);
       });
       toast.success("Sistema limpio");
