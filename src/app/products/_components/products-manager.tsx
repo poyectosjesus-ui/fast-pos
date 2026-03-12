@@ -1,9 +1,7 @@
-"use client";
-
 import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Edit2, PackagePlus, Trash2, SearchX } from "lucide-react";
+import { Edit2, PackagePlus, Trash2, SearchX, PlusCircle, MinusCircle, EyeOff, Eye, ImageIcon } from "lucide-react";
 
 import { ProductService } from "@/lib/services/products";
 import { CategoryService } from "@/lib/services/categories";
@@ -30,6 +28,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { SearchInput } from "@/components/ui/search-input";
 
 export function ProductsManager() {
   const products = useLiveQuery(() => ProductService.getAll(), []);
@@ -39,6 +39,8 @@ export function ProductsManager() {
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState<string>("ALL");
 
   // Form State
   const [name, setName] = useState("");
@@ -46,6 +48,7 @@ export function ProductsManager() {
   const [priceStr, setPriceStr] = useState("");
   const [stockStr, setStockStr] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [imageBase64, setImageBase64] = useState<string | undefined>(undefined);
 
   const handleOpenAlert = (product?: Product) => {
     if (product) {
@@ -56,12 +59,14 @@ export function ProductsManager() {
       setPriceStr((product.price / 100).toFixed(2));
       setStockStr(product.stock.toString());
       setCategoryId(product.categoryId);
+      setImageBase64(product.image);
     } else {
       setEditingId(null);
       setName("");
       setSku("");
       setPriceStr("");
       setStockStr("");
+      setImageBase64(undefined);
       // Setup default fallback para selects en UI
       setCategoryId(categories?.[0]?.id || "");
     }
@@ -87,6 +92,8 @@ export function ProductsManager() {
         price: priceInCents,
         stock,
         categoryId,
+        isVisible: true,
+        image: imageBase64,
       };
 
       if (editingId) {
@@ -115,8 +122,63 @@ export function ProductsManager() {
     }
   };
 
+  const handleQuickStock = async (id: string, currentStock: number, change: number) => {
+    const newStock = currentStock + change;
+    if (newStock < 0) return; // UI Rule 5: Math Block
+    try {
+       await ProductService.adjustStock(id, newStock);
+       toast.success("Inventario listo", { description: change > 0 ? "Añadiste existencias" : "Retiraste existencias" });
+    } catch (error: any) {
+       toast.error("Ocurrió un problema", { description: error.message });
+    }
+  };
+
+  const handleToggleVisibility = async (id: string, currentVal: boolean) => {
+    try {
+       await ProductService.toggleVisibility(id, !currentVal);
+       toast.success("Visibilidad cambiada", { description: !currentVal ? "El producto volverá a verse en ventas." : "Ocultaste el producto del menú público." });
+    } catch (error: any) {
+       toast.error("Ocurrió un problema", { description: error.message });
+    }
+  };
+
+  const handleBarcodeScanned = (code: string) => {
+    // Si viene de un scanner externo, limpiamos el tab activo para buscar en todo el catálogo
+    setActiveTab("ALL");
+    // Buscamos el producto por SKU exacto para dar un feedback rápido
+    const found = products?.find(p => p.sku === code.toUpperCase());
+    if (found) {
+      toast.success("Producto encontrado", { description: found.name });
+    } else {
+      toast.error("Sin resultado", { description: `No encontramos el código "${code}". ¿Está registrado?` });
+    }
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Limitamos el tamaño para no saturar IndexedDB (Normativa 5: Resiliencia Offline)
+    if (file.size > 500 * 1024) {
+      toast.error("Imagen demasiado grande", { description: "Elige una foto de menos de 500KB para que no ocupe demasiado espacio en este dispositivo." });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setImageBase64(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
   // UI Rule 5: Bloqueos Preventivos
   const isSubmitDisabled = isSaving || !name.trim() || !sku.trim() || !categoryId;
+
+  // Filtrado amigable para no frustrar al cajero si tiene cientos de artículos
+  const filteredProducts = products?.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          p.sku.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesTab = activeTab === "ALL" || p.categoryId === activeTab;
+    return matchesSearch && matchesTab;
+  });
 
   // Render condicional a prueba de fallos (Error Boundary Básico)
   if (!categories || categories.length === 0) {
@@ -135,21 +197,29 @@ export function ProductsManager() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div className="flex flex-col gap-1">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b">
+        <div className="flex flex-col gap-1 flex-1">
           <CardTitle>Mi Catálogo</CardTitle>
           <CardDescription>
             Agrega o edita lo que vendes. Asegúrate de ponerle un precio y cuántos tienes.
           </CardDescription>
         </div>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogTrigger 
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 gap-2"
-            onClick={() => handleOpenAlert()}
-          >
-            <PackagePlus className="h-4 w-4" />
-            Añadir Artículo
-          </DialogTrigger>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <SearchInput
+            value={searchTerm}
+            onChange={setSearchTerm}
+            onBarcodeScanned={handleBarcodeScanned}
+            placeholder="Buscar por nombre o código..."
+            className="flex-1 sm:w-64"
+          />
+          <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger 
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 gap-2"
+              onClick={() => handleOpenAlert()}
+            >
+              <PackagePlus className="h-4 w-4" />
+              <span className="hidden sm:inline">Añadir Artículo</span>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{editingId ? "Actualizar detalles" : "Un nuevo artículo"}</DialogTitle>
@@ -158,6 +228,30 @@ export function ProductsManager() {
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-5 py-4">
+              
+              {/* Avatar / Foto del producto */}
+              <div className="flex items-center gap-4">
+                <div className="h-16 w-16 rounded-xl border-2 border-dashed border-border flex items-center justify-center bg-muted/20 overflow-hidden shrink-0">
+                  {imageBase64 ? (
+                    <img src={imageBase64} alt="Vista previa" className="h-full w-full object-cover" />
+                  ) : (
+                    <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+                  )}
+                </div>
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="image" className="text-sm font-medium">Foto del artículo (opcional)</Label>
+                  <Input 
+                    id="image" 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handleImageChange}
+                    disabled={isSaving}
+                    className="text-sm cursor-pointer"
+                  />
+                  <p className="text-[10px] text-muted-foreground">Máx. 500KB. Se guarda en este dispositivo.</p>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="name">¿Cómo se llama tu producto?</Label>
                 <Input id="name" placeholder="Ej. Frappé de Moka Extra Grande" value={name} onChange={(e) => setName(e.target.value)} disabled={isSaving} />
@@ -207,8 +301,35 @@ export function ProductsManager() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </CardHeader>
-      <CardContent className="p-0 sm:p-6 sm:pt-0">
+      
+      {/* Categories Filter Tabs */}
+      {categories && categories.length > 0 && products && products.length > 0 && (
+        <div className="flex items-center flex-nowrap overflow-x-auto gap-2 px-6 py-3 border-b border-border/50 no-scrollbar">
+          <Button 
+            variant={activeTab === "ALL" ? "default" : "secondary"} 
+            size="sm" 
+            className="rounded-full shrink-0 h-8 text-xs px-4"
+            onClick={() => setActiveTab("ALL")}
+          >
+            Todos
+          </Button>
+          {categories.map(cat => (
+            <Button 
+              key={cat.id}
+              variant={activeTab === cat.id ? "default" : "secondary"} 
+              size="sm" 
+              className="rounded-full shrink-0 h-8 text-xs px-4"
+              onClick={() => setActiveTab(cat.id)}
+            >
+              {cat.name}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      <CardContent className="p-0 sm:p-6 sm:pt-6">
         {products === undefined ? (
           <p className="text-muted-foreground text-center py-8 text-sm animate-pulse">Abriendo tu libreta de productos...</p>
         ) : products.length === 0 ? (
@@ -217,14 +338,30 @@ export function ProductsManager() {
             <p className="text-xs text-muted-foreground mb-4 max-w-[250px] mx-auto">Tus estantes están vacíos. Haz clic en "Añadir Artículo" para registrar tus productos, sus precios y poder comenzar a vender.</p>
             <Button onClick={() => handleOpenAlert()} className="h-9">Añadir tu primer artículo</Button>
           </div>
+        ) : filteredProducts?.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center mx-6">
+            <SearchX className="h-8 w-8 text-muted-foreground/30 mb-3" />
+            <p className="text-sm font-medium text-foreground">No encontramos lo que buscas</p>
+            <p className="text-xs text-muted-foreground">Intenta buscar usando otras palabras o recorta el código.</p>
+          </div>
         ) : (
           <div className="flex flex-col w-full divide-y sm:border sm:rounded-md bg-card">
-            {products.map((product) => {
+            {filteredProducts!.map((product) => {
               const catName = categories.find(c => c.id === product.categoryId)?.name || "N/A";
               return (
                 <div key={product.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 hover:bg-muted/10 transition-colors gap-3">
                   <div className="flex items-center gap-3 sm:gap-6 flex-1 min-w-0">
-                    <div className="flex flex-col gap-0.5 w-[50%] sm:w-[220px]">
+                    {/* Avatar: foto real si existe, o iniciales del nombre como fallback */}
+                    <div className="h-10 w-10 rounded-lg border bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
+                      {product.image ? (
+                        <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-xs font-bold text-muted-foreground uppercase">
+                          {product.name.slice(0, 2)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-0.5 w-[50%] sm:w-[180px]">
                       <span className="font-semibold text-sm truncate">{product.name}</span>
                       <span className="text-xs text-muted-foreground font-mono">{product.sku}</span>
                     </div>
@@ -235,20 +372,41 @@ export function ProductsManager() {
                         <span className="font-bold text-primary sm:w-[80px] text-right">
                           ${(product.price / 100).toFixed(2)}
                         </span>
-                        <div className="text-[11px] font-medium sm:w-[60px] text-right sm:text-left">
-                            <span className={product.stock > 5 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}>
-                              {product.stock} un.
-                            </span>
+                        
+                        <div className="flex items-center gap-2 bg-muted/40 rounded-full px-1.5 py-0.5 border border-border/50">
+                           <button onClick={() => handleQuickStock(product.id, product.stock, -1)} disabled={product.stock === 0} className="hover:text-destructive disabled:opacity-30 transition-colors p-1">
+                              <MinusCircle className="h-4 w-4" />
+                           </button>
+                           <span className={`text-[11px] font-bold w-[24px] text-center ${product.stock > 5 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                              {product.stock}
+                           </span>
+                           <button onClick={() => handleQuickStock(product.id, product.stock, 1)} className="hover:text-primary transition-colors p-1">
+                              <PlusCircle className="h-4 w-4" />
+                           </button>
                         </div>
                     </div>
                   </div>
-                  <div className="flex gap-1 justify-end mt-2 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-0 border-border/50">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => handleOpenAlert(product)}>
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(product.id, product.name)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                  <div className="flex items-center gap-4 mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-0 border-border/50">
+                    <div className="flex items-center gap-1.5 px-2">
+                       {product.isVisible !== false ? (
+                           <Eye className="h-3 w-3 text-muted-foreground" />
+                       ) : (
+                           <EyeOff className="h-3 w-3 text-muted-foreground" />
+                       )}
+                       <Switch 
+                          checked={product.isVisible !== false} 
+                          onCheckedChange={() => handleToggleVisibility(product.id, product.isVisible ?? true)} 
+                          className="scale-75"
+                       />
+                    </div>
+                    <div className="flex gap-1 justify-end ml-auto border-l pl-2">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => handleOpenAlert(product)}>
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(product.id, product.name)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )

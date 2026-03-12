@@ -17,6 +17,7 @@ export const ProductSchema = z.object({
   price: z.number().int().nonnegative("El precio no puede ser negativo (valor representará centavos)"),
   stock: z.number().int().nonnegative("El stock no puede ser negativo"),
   sku: z.string().min(3, "El SKU debe tener al menos 3 caracteres").trim(),
+  isVisible: z.boolean().default(true).describe("Define si el producto se muestra en la pantalla de ventas"),
   image: z.string().optional(),
   createdAt: z.number(),
   updatedAt: z.number(),

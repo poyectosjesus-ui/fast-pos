@@ -4,10 +4,37 @@ import { v4 as uuidv4 } from 'uuid';
 
 export const ProductService = {
   /**
-   * Obtiene todos los productos del catálogo.
+   * Obtiene todos los productos, filtrando opcionalmente por visibilidad.
+   * Por defecto, el Dashboard de Inventario los trae todos.
    */
-  async getAll(): Promise<Product[]> {
+  async getAll(onlyVisible: boolean = false): Promise<Product[]> {
+    if (onlyVisible) {
+      return await db.products.filter(p => p.isVisible !== false).toArray();
+    }
     return await db.products.toArray();
+  },
+
+  /**
+   * Búsqueda centralizada de productos por Nombre o SKU.
+   * Al vivir aquí (servicio), cualquier pantalla puede reutilizarla sin duplicar lógica.
+   * La búsqueda ignora mayúsculas/minúsculas para mejorar la experiencia del cajero.
+   * 
+   * @param query - Texto libre o código de barras enviado por el scanner físico
+   * @param onlyVisible - Si true, excluye los productos ocultos del POS
+   */
+  async search(query: string, onlyVisible: boolean = false): Promise<Product[]> {
+    const normalized = query.trim().toLowerCase();
+    
+    if (!normalized) {
+      return this.getAll(onlyVisible);
+    }
+    
+    return await db.products.filter(p => {
+      const matchesName = p.name.toLowerCase().includes(normalized);
+      const matchesSku = p.sku.toLowerCase().includes(normalized);
+      const visibilityOk = onlyVisible ? p.isVisible !== false : true;
+      return (matchesName || matchesSku) && visibilityOk;
+    }).toArray();
   },
 
   /**
@@ -63,6 +90,35 @@ export const ProductService = {
       
       await db.products.put(parsed);
       return parsed;
+    });
+  },
+
+  /**
+   * Actualización atómica rápida exclusiva para cambios numéricos de stock.
+   */
+  async adjustStock(id: string, newStock: number): Promise<void> {
+    if (newStock < 0) throw new Error("Inventario no puede ser menor a cero.");
+    await db.transaction('rw', db.products, async () => {
+       const existing = await db.products.get(id);
+       if (!existing) throw new Error("Producto extraviado en la base de datos local.");
+       
+       const updated = { ...existing, stock: newStock, updatedAt: Date.now() };
+       const parsed = ProductSchema.parse(updated);
+       await db.products.put(parsed);
+    });
+  },
+
+  /**
+   * Actualización atómica rápida exclusiva para visibilidad.
+   */
+  async toggleVisibility(id: string, isVisible: boolean): Promise<void> {
+    await db.transaction('rw', db.products, async () => {
+       const existing = await db.products.get(id);
+       if (!existing) throw new Error("Producto no encontrado.");
+       
+       const updated = { ...existing, isVisible, updatedAt: Date.now() };
+       const parsed = ProductSchema.parse(updated);
+       await db.products.put(parsed);
     });
   },
 
