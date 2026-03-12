@@ -3,9 +3,10 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Edit2, PackagePlus, Trash2, SearchX, PlusCircle, MinusCircle, EyeOff, Eye, ImageIcon } from "lucide-react";
 
+import { db } from "@/lib/db";
+import { Product } from "@/lib/schema";
 import { ProductService } from "@/lib/services/products";
 import { CategoryService } from "@/lib/services/categories";
-import { Product } from "@/lib/schema";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,7 +33,6 @@ import { Switch } from "@/components/ui/switch";
 import { SearchInput } from "@/components/ui/search-input";
 
 export function ProductsManager() {
-  const products = useLiveQuery(() => ProductService.getAll(), []);
   const categories = useLiveQuery(() => CategoryService.getAll(), []);
   
   // UI State Control
@@ -41,6 +41,10 @@ export function ProductsManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<string>("ALL");
+  
+  // PAGINACIÓN (CA-10.6)
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   // Form State
   const [name, setName] = useState("");
@@ -49,6 +53,36 @@ export function ProductsManager() {
   const [stockStr, setStockStr] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [imageBase64, setImageBase64] = useState<string | undefined>(undefined);
+
+  // Consulta reactiva y paginada (Fase 10.6)
+  const { filteredProducts, totalCount } = useLiveQuery(async () => {
+    let collection = db.products.toCollection();
+
+    // Filtro por categoría
+    if (activeTab !== "ALL") {
+      collection = collection.and((p: Product) => p.categoryId === activeTab);
+    }
+
+    // Filtro por búsqueda
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      collection = collection.filter((p: Product) => 
+        p.name.toLowerCase().includes(searchLower) || 
+        p.sku.toLowerCase().includes(searchLower)
+      );
+    }
+
+    const total = await collection.count();
+    const items = await collection
+      .offset((currentPage - 1) * itemsPerPage)
+      .limit(itemsPerPage)
+      .toArray();
+
+    return { filteredProducts: items, totalCount: total };
+  }, [activeTab, searchTerm, currentPage]) ?? { filteredProducts: [], totalCount: 0 };
+
+  const products = filteredProducts; // Alias para mantener compatibilidad con el resto del componente
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   const handleOpenAlert = (product?: Product) => {
     if (product) {
@@ -145,13 +179,15 @@ export function ProductsManager() {
   const handleBarcodeScanned = (code: string) => {
     // Si viene de un scanner externo, limpiamos el tab activo para buscar en todo el catálogo
     setActiveTab("ALL");
+    setCurrentPage(1);
     // Buscamos el producto por SKU exacto para dar un feedback rápido
-    const found = products?.find(p => p.sku === code.toUpperCase());
-    if (found) {
-      toast.success("Producto encontrado", { description: found.name });
-    } else {
-      toast.error("Sin resultado", { description: `No encontramos el código "${code}". ¿Está registrado?` });
-    }
+    db.products.where("sku").equals(code.toUpperCase()).first().then((found) => {
+      if (found) {
+        toast.success("Producto encontrado", { description: found.name });
+      } else {
+        toast.error("Sin resultado", { description: `No encontramos el código "${code}". ¿Está registrado?` });
+      }
+    });
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -172,13 +208,16 @@ export function ProductsManager() {
   // UI Rule 5: Bloqueos Preventivos
   const isSubmitDisabled = isSaving || !name.trim() || !sku.trim() || !categoryId;
 
-  // Filtrado amigable para no frustrar al cajero si tiene cientos de artículos
-  const filteredProducts = products?.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          p.sku.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesTab = activeTab === "ALL" || p.categoryId === activeTab;
-    return matchesSearch && matchesTab;
-  });
+  // Filtrado amigable — Reset de página al cambiar filtros
+  const handleSearchChange = (val: string) => {
+    setSearchTerm(val);
+    setCurrentPage(1);
+  };
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setCurrentPage(1);
+  };
 
   // Render condicional a prueba de fallos (Error Boundary Básico)
   if (!categories || categories.length === 0) {
@@ -207,7 +246,7 @@ export function ProductsManager() {
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <SearchInput
             value={searchTerm}
-            onChange={setSearchTerm}
+            onChange={handleSearchChange}
             onBarcodeScanned={handleBarcodeScanned}
             placeholder="Buscar por nombre o código..."
             className="flex-1 sm:w-64"
@@ -311,7 +350,7 @@ export function ProductsManager() {
             variant={activeTab === "ALL" ? "default" : "secondary"} 
             size="sm" 
             className="rounded-full shrink-0 h-8 text-xs px-4"
-            onClick={() => setActiveTab("ALL")}
+            onClick={() => handleTabChange("ALL")}
           >
             Todos
           </Button>
@@ -321,7 +360,7 @@ export function ProductsManager() {
               variant={activeTab === cat.id ? "default" : "secondary"} 
               size="sm" 
               className="rounded-full shrink-0 h-8 text-xs px-4"
-              onClick={() => setActiveTab(cat.id)}
+              onClick={() => handleTabChange(cat.id)}
             >
               {cat.name}
             </Button>
@@ -345,73 +384,108 @@ export function ProductsManager() {
             <p className="text-xs text-muted-foreground">Intenta buscar usando otras palabras o recorta el código.</p>
           </div>
         ) : (
-          <div className="flex flex-col w-full divide-y sm:border sm:rounded-md bg-card">
-            {filteredProducts!.map((product) => {
-              const catName = categories.find(c => c.id === product.categoryId)?.name || "N/A";
-              return (
-                <div key={product.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 hover:bg-muted/10 transition-colors gap-3">
-                  <div className="flex items-center gap-3 sm:gap-6 flex-1 min-w-0">
-                    {/* Avatar: foto real si existe, o iniciales del nombre como fallback */}
-                    <div className="h-10 w-10 rounded-lg border bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
-                      {product.image ? (
-                        <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
-                      ) : (
-                        <span className="text-xs font-bold text-muted-foreground uppercase">
-                          {product.name.slice(0, 2)}
-                        </span>
-                      )}
+          <>
+            <div className="flex flex-col w-full divide-y sm:border sm:rounded-md bg-card">
+              {filteredProducts!.map((product: Product) => {
+                const catName = categories.find(c => c.id === product.categoryId)?.name || "N/A";
+                return (
+                  <div key={product.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 hover:bg-muted/10 transition-colors gap-3">
+                    <div className="flex items-center gap-3 sm:gap-6 flex-1 min-w-0">
+                      {/* Avatar: foto real si existe, o iniciales del nombre como fallback */}
+                      <div className="h-10 w-10 rounded-lg border bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
+                        {product.image ? (
+                          <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="text-xs font-bold text-muted-foreground uppercase">
+                            {product.name.slice(0, 2)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-0.5 w-[50%] sm:w-[180px]">
+                        <span className="font-semibold text-sm truncate">{product.name}</span>
+                        <span className="text-xs text-muted-foreground font-mono">{product.sku}</span>
+                      </div>
+                      <Badge variant="secondary" className="hidden sm:flex text-[10px] w-fit font-medium">
+                        {catName}
+                      </Badge>
+                      <div className="flex flex-col items-end sm:items-center sm:flex-row ml-auto sm:ml-0 gap-1 sm:gap-4 ml-auto">
+                          <span className="font-bold text-primary sm:w-[80px] text-right">
+                            ${(product.price / 100).toFixed(2)}
+                          </span>
+                          
+                          <div className="flex items-center gap-2 bg-muted/40 rounded-full px-1.5 py-0.5 border border-border/50">
+                             <button onClick={() => handleQuickStock(product.id, product.stock, -1)} disabled={product.stock === 0} className="hover:text-destructive disabled:opacity-30 transition-colors p-1">
+                                <MinusCircle className="h-4 w-4" />
+                             </button>
+                             <span className={`text-[11px] font-bold w-[24px] text-center ${product.stock > 5 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                                {product.stock}
+                             </span>
+                             <button onClick={() => handleQuickStock(product.id, product.stock, 1)} className="hover:text-primary transition-colors p-1">
+                                <PlusCircle className="h-4 w-4" />
+                             </button>
+                          </div>
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-0.5 w-[50%] sm:w-[180px]">
-                      <span className="font-semibold text-sm truncate">{product.name}</span>
-                      <span className="text-xs text-muted-foreground font-mono">{product.sku}</span>
-                    </div>
-                    <Badge variant="secondary" className="hidden sm:flex text-[10px] w-fit font-medium">
-                      {catName}
-                    </Badge>
-                    <div className="flex flex-col items-end sm:items-center sm:flex-row ml-auto sm:ml-0 gap-1 sm:gap-4 ml-auto">
-                        <span className="font-bold text-primary sm:w-[80px] text-right">
-                          ${(product.price / 100).toFixed(2)}
-                        </span>
-                        
-                        <div className="flex items-center gap-2 bg-muted/40 rounded-full px-1.5 py-0.5 border border-border/50">
-                           <button onClick={() => handleQuickStock(product.id, product.stock, -1)} disabled={product.stock === 0} className="hover:text-destructive disabled:opacity-30 transition-colors p-1">
-                              <MinusCircle className="h-4 w-4" />
-                           </button>
-                           <span className={`text-[11px] font-bold w-[24px] text-center ${product.stock > 5 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
-                              {product.stock}
-                           </span>
-                           <button onClick={() => handleQuickStock(product.id, product.stock, 1)} className="hover:text-primary transition-colors p-1">
-                              <PlusCircle className="h-4 w-4" />
-                           </button>
-                        </div>
+                    <div className="flex items-center gap-4 mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-0 border-border/50">
+                      <div className="flex items-center gap-1.5 px-2">
+                         {product.isVisible !== false ? (
+                             <Eye className="h-3 w-3 text-muted-foreground" />
+                         ) : (
+                             <EyeOff className="h-3 w-3 text-muted-foreground" />
+                         )}
+                         <Switch 
+                            checked={product.isVisible !== false} 
+                            onCheckedChange={() => handleToggleVisibility(product.id, product.isVisible ?? true)} 
+                            className="scale-75"
+                         />
+                      </div>
+                      <div className="flex gap-1 justify-end ml-auto border-l pl-2">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => handleOpenAlert(product)}>
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(product.id, product.name)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-0 border-border/50">
-                    <div className="flex items-center gap-1.5 px-2">
-                       {product.isVisible !== false ? (
-                           <Eye className="h-3 w-3 text-muted-foreground" />
-                       ) : (
-                           <EyeOff className="h-3 w-3 text-muted-foreground" />
-                       )}
-                       <Switch 
-                          checked={product.isVisible !== false} 
-                          onCheckedChange={() => handleToggleVisibility(product.id, product.isVisible ?? true)} 
-                          className="scale-75"
-                       />
-                    </div>
-                    <div className="flex gap-1 justify-end ml-auto border-l pl-2">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => handleOpenAlert(product)}>
-                        <Edit2 className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(product.id, product.name)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
+                )
+              })}
+            </div>
+
+            {/* PAGINACIÓN ESTRICTA (CA-10.6) */}
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-muted/20 rounded-2xl border border-border/50 backdrop-blur-sm mx-6 mb-6">
+              <div className="text-xs text-muted-foreground font-medium order-2 sm:order-1">
+                Mostrando <span className="text-foreground">{Math.min(totalCount, (currentPage - 1) * itemsPerPage + 1)}</span> - <span className="text-foreground">{Math.min(totalCount, currentPage * itemsPerPage)}</span> de <span className="text-foreground font-bold">{totalCount}</span> productos
+              </div>
+              
+              <div className="flex items-center gap-2 order-1 sm:order-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0 rounded-lg"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  &lt;
+                </Button>
+                
+                <div className="flex items-center gap-1.5 px-3 h-8 bg-background rounded-lg text-xs font-bold">
+                  Página {currentPage} de {totalPages || 1}
                 </div>
-              )
-            })}
-          </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0 rounded-lg"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                >
+                  &gt;
+                </Button>
+              </div>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>

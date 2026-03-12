@@ -152,6 +152,49 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><RefreshCcw className="h-5 w-5" /> Desarrollo y Pruebas</CardTitle>
+              <CardDescription>Herramientas para probar el rendimiento del sistema.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between p-4 border rounded-xl bg-background/50">
+                <div className="flex-1 mr-4">
+                  <p className="font-bold text-sm">Generar Datos Masivos (+1000)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Crea automáticamente 1,000 productos y 1,200 ventas para probar el rendimiento 
+                    del grid y de las analíticas en condiciones de estrés.
+                  </p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={async () => {
+                    const confirmSeed = confirm("¿Generar +2000 registros nuevos de prueba?");
+                    if (!confirmSeed) return;
+                    
+                    const id = toast.loading("Poblando base de datos...");
+                    try {
+                      const { generateMassiveData } = await import("@/lib/seed");
+                      const result = await generateMassiveData((msg) => toast.loading(msg, { id }));
+                      if (result.success) {
+                        toast.success("¡Seeding Completo!", { 
+                          description: "Base de datos con +1000 productos cargada.",
+                          id 
+                        });
+                        setTimeout(() => window.location.reload(), 2000);
+                      }
+                    } catch (err) {
+                      toast.error("Error en el proceso de seeding", { id });
+                    }
+                  }}
+                >
+                  <RefreshCcw className="h-4 w-4 mr-2" /> Generar Seed
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>

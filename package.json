@@ -9,7 +9,10 @@
     "start": "next start",
     "lint": "eslint",
     "electron:dev": "NODE_ENV=development electron .",
-    "dev:native": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && npm run electron:dev\""
+    "dev:native": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && npm run electron:dev\"",
+    "build:ui": "next build --webpack",
+    "package": "npm run build:ui && electron-forge package",
+    "make": "npm run build:ui && electron-forge make"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
@@ -35,10 +38,9 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
-    "@electron-forge/maker-deb": "^7.11.1",
-    "@electron-forge/maker-rpm": "^7.11.1",
-    "@electron-forge/maker-squirrel": "^7.11.1",
-    "@electron-forge/maker-zip": "^7.11.1",
+    "@electron-forge/cli": "^7.6.0",
+    "@electron-forge/maker-dmg": "^7.6.0",
+    "@electron-forge/maker-zip": "^7.6.0",
     "@electron/rebuild": "^4.0.3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
@@ -48,7 +50,6 @@
     "better-sqlite3": "^12.6.2",
     "concurrently": "^9.2.1",
     "electron": "^33.4.11",
-    "electron-forge": "^5.2.4",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",

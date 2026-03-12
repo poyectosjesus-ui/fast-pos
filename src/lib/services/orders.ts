@@ -109,9 +109,14 @@ export const OrderService = {
     }
   },
 
-  /** Obtiene el historial de órdenes ordenado del más reciente al más antiguo */
-  async getAll(): Promise<Order[]> {
-    return await db.orders.orderBy('createdAt').reverse().toArray();
+  /** Obtiene el historial de órdenes de forma paginada */
+  async getAll(limit: number = 50, offset: number = 0): Promise<Order[]> {
+    return await db.orders
+      .orderBy('createdAt')
+      .reverse()
+      .offset(offset)
+      .limit(limit)
+      .toArray();
   },
 
   /**

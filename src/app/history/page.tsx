@@ -15,6 +15,7 @@ import { formatCurrency, BUSINESS_NAME } from "@/lib/constants";
 import { OrderService } from "@/lib/services/orders";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Order } from "@/lib/schema";
+import { db } from "@/lib/db";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -39,9 +40,22 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export default function HistoryPage() {
-  // Traemos todas las ventas ordenadas por fecha más reciente
-  const allOrders = useLiveQuery(() => OrderService.getAll(), []);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 12;
   
+  // Cargamos órdenes de forma paginada REAL (Fase 10.3)
+  const allOrders = useLiveQuery(
+    () => OrderService.getAll(itemsPerPage, (currentPage - 1) * itemsPerPage),
+    [currentPage]
+  );
+  
+  // Necesitamos saber el total para la paginación
+  const totalOrders = useLiveQuery(() => db.orders.count(), []);
+  const totalPages = Math.ceil((totalOrders ?? 0) / itemsPerPage);
+
+  const handleNextPage = () => setCurrentPage(p => Math.min(totalPages, p + 1));
+  const handlePrevPage = () => setCurrentPage(p => Math.max(1, p - 1));
+
   // Estado para el visor del ticket digital (Detalle rápido)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   
@@ -85,12 +99,12 @@ export default function HistoryPage() {
         {/* Glassmorphism requerido por frontend_guidelines.md */}
         <header className="sticky top-0 z-20 bg-background/50 backdrop-blur-xl border-b px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h1 className="text-2xl font-black tracking-tight">Diario de Ventas</h1>
-            <p className="text-sm text-muted-foreground">Revisa qué has cobrado hoy o en días anteriores.</p>
+            <h1 className="text-2xl font-black tracking-tight uppercase">Diario de Ventas</h1>
+            <p className="text-sm text-muted-foreground italic">Revisa qué has cobrado hoy o en días anteriores.</p>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 max-w-5xl mx-auto w-full">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 max-w-5xl mx-auto w-full flex flex-col">
           {allOrders === undefined ? (
             <div className="flex flex-col gap-3">
               {[...Array(5)].map((_, i) => (
@@ -98,52 +112,87 @@ export default function HistoryPage() {
               ))}
             </div>
           ) : allOrders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center p-12 text-center border rounded-xl bg-card border-dashed h-[50vh]">
+            <div className="flex flex-col items-center justify-center flex-1 p-12 text-center border rounded-2xl bg-card border-dashed">
               <FileText className="h-12 w-12 mb-4 text-muted-foreground/30" />
               <p className="text-lg font-bold">Sin movimientos aún</p>
               <p className="text-sm text-muted-foreground max-w-xs mt-1">Cuando realices tu primer cobro, el ticket aparecerá en esta lista.</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
-              {allOrders.map((order) => {
-                const isCancelled = order.status === "CANCELLED";
-                return (
-                  <div 
-                    key={order.id} 
-                    className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border bg-card transition-colors gap-3 cursor-pointer ${isCancelled ? "opacity-75 bg-muted/30" : "hover:bg-muted/10 hover:shadow-sm"}`}
-                    onClick={() => setSelectedOrder(order)}
-                  >
-                    <div className="flex items-center gap-4 flex-1">
-                      <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${isCancelled ? "bg-rose-100/50 text-rose-500" : "bg-emerald-100/50 text-emerald-600"}`}>
-                        {isCancelled ? <CircleX className="h-5 w-5" /> : <CircleCheck className="h-5 w-5" />}
+            <>
+              <div className="flex flex-col gap-3 flex-1">
+                {allOrders.map((order) => {
+                  const isCancelled = order.status === "CANCELLED";
+                  return (
+                    <div 
+                      key={order.id} 
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border bg-card transition-all duration-200 gap-3 cursor-pointer ${isCancelled ? "opacity-75 bg-muted/30 grayscale" : "hover:bg-muted/10 hover:shadow-md hover:scale-[1.01]" } shadow-sm`}
+                      onClick={() => setSelectedOrder(order)}
+                    >
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${isCancelled ? "bg-rose-100/50 text-rose-500" : "bg-emerald-100/50 text-emerald-600"}`}>
+                          {isCancelled ? <CircleX className="h-5 w-5" /> : <CircleCheck className="h-5 w-5" />}
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-bold text-sm">
+                            {isCancelled ? "Ticket anulado" : "Venta exitosa"}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-mono">
+                            {new Date(order.createdAt).toLocaleString("es-MX")}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-semibold text-sm">
-                          {isCancelled ? "Ticket anulado" : "Venta exitosa"}
-                        </span>
-                        <span className="text-xs text-muted-foreground font-mono">
-                          {new Date(order.createdAt).toLocaleString("es-MX")}
-                        </span>
-                      </div>
-                    </div>
 
-                    <div className="flex items-center gap-6 sm:ml-auto">
-                      <div className="flex flex-col items-end">
-                        <span className={`font-bold ${isCancelled ? "text-muted-foreground line-through" : ""}`}>
-                          {formatCurrency(order.total)}
-                        </span>
-                        <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded uppercase tracking-wider">
-                          {order.paymentMethod === "CASH" ? "Efectivo" : "Tarjeta"}
-                        </span>
-                      </div>
-                      <div className="text-xs text-muted-foreground hidden sm:block w-16 text-right">
-                        {order.items.length} art.
+                      <div className="flex items-center gap-6 sm:ml-auto">
+                        <div className="flex flex-col items-end">
+                          <span className={`font-black text-lg ${isCancelled ? "text-muted-foreground line-through" : "text-primary"}`}>
+                            {formatCurrency(order.total)}
+                          </span>
+                          <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded uppercase tracking-widest">
+                            {order.paymentMethod === "CASH" ? "Efectivo" : "Tarjeta"}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground hidden sm:block w-16 text-right font-medium">
+                          {order.items.length} art.
+                        </div>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+
+              {/* PAGINACIÓN ESTRICTA (CA-10.3) */}
+              <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-background/50 rounded-2xl border border-border/50 backdrop-blur-sm shadow-sm ring-1 ring-black/5">
+                <div className="text-xs text-muted-foreground font-medium order-2 sm:order-1">
+                  Mostrando <span className="text-foreground">{Math.min(totalOrders || 0, (currentPage - 1) * itemsPerPage + 1)}</span> - <span className="text-foreground">{Math.min(totalOrders || 0, currentPage * itemsPerPage)}</span> de <span className="text-foreground font-bold">{(totalOrders || 0).toLocaleString()}</span> tickets
+                </div>
+                
+                <div className="flex items-center gap-2 order-1 sm:order-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-lg"
+                    onClick={handlePrevPage}
+                    disabled={currentPage === 1}
+                  >
+                    &lt;
+                  </Button>
+                  
+                  <div className="flex items-center gap-1.5 px-4 h-8 bg-muted/80 rounded-lg text-xs font-black tracking-widest uppercase">
+                    Página {currentPage} de {totalPages || 1}
                   </div>
-                );
-              })}
-            </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-lg"
+                    onClick={handleNextPage}
+                    disabled={currentPage >= totalPages}
+                  >
+                    &gt;
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </main>
