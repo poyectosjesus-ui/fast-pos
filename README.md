@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fast-POS
 
-## Getting Started
+Fast-POS es un sistema de Punto de Venta (POS) básico, funcional y orientado al rendimiento ("offline-first"), construido para funcionar como una aplicación web progresiva (PWA) instalable nativamente en macOS y otras plataformas.
 
-First, run the development server:
+## Características Principales
+
+*   🚀 **Rendimiento:** Construido con Next.js (App Router) y React 19.
+*   🎨 **Diseño Moderno:** UI premium con Tailwind CSS v4, shadcn/ui y Radix UI.
+*   📱 **PWA Integrado:** Funciona offline gracias a Serwist (Service Worker avanzado). Instálalo como aplicación en tu macOS desde el navegador (Chrome/Safari/Edge/Brave).
+*   💾 **Estado Local Eficiente:** Uso de Zustand para mantener el carrito de forma persistente.
+
+## Pila Tecnológica
+
+*   [Next.js](https://nextjs.org/) (App Router, TS)
+*   [Tailwind CSS](https://tailwindcss.com/)
+*   [shadcn/ui](https://ui.shadcn.com/)
+*   [Serwist (PWA)](https://serwist.build/)
+*   [Zustand](https://docs.pmnd.rs/zustand/)
+
+## Guía de Desarrollo
+
+### Requisitos Previos
+
+*   Node.js v18+ 
+*   npm, pnpm o yarn
+
+### Instalación
+
+Clona el repositorio e instala las dependencias:
+
+```bash
+npm install
+# o
+pnpm install
+```
+
+### Ejecutar Servidor de Desarrollo
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abre [http://localhost:3000](http://localhost:3000) en tu navegador para ver la interfaz.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Construir para Producción (PWA Habilitada)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Para probar al 100% las capacidades offline y la instalabilidad como PWA en macOS, necesitas hacer el build y correr el servidor de producción:
 
-## Learn More
+```bash
+npm run build
+npm run start
+```
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Una vez levantado y accedas desde el navegador, verifica si aparece el ícono de "Instalar la aplicación" en la barra de búsqueda.
