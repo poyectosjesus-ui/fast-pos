@@ -19,6 +19,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { MetricCard } from "./_components/metric-card";
 import { TopProducts } from "./_components/top-products";
 import { Button } from "@/components/ui/button";
+import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 
 export default function AnalyticsPage() {
   const [stats, setStats] = useState({

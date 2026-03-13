@@ -24,6 +24,7 @@ import { useCartStore } from "@/store/useCartStore";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Product, Category } from "@/lib/schema";
+import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 
 export default function POSPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -108,6 +109,7 @@ export default function POSPage() {
   };
 
   return (
+    <ProtectedRoute allowedRoles={["ADMIN", "CASHIER"]}>
     <div className="flex h-screen bg-muted/40">
       <BarcodeHandler 
         onScan={handleBarcodeScanned}
@@ -266,5 +268,6 @@ export default function POSPage() {
         onClose={() => setIsCheckoutOpen(false)}
       />
     </div>
+    </ProtectedRoute>
   );
 }

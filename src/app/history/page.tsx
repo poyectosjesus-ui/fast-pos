@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 
 import { PrintTicketButton } from "@/components/pos/PrintTicketButton";
 import { Badge } from "@/components/ui/badge";
+import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 
 export default function HistoryPage() {
   const [currentPage, setCurrentPage] = useState(1);

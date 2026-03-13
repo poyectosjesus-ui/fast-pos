@@ -51,8 +51,11 @@ import {
   Activity,
   Store,
   Printer,
+  Users,
 } from "lucide-react";
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
+import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
+import { UsersManager } from "./_components/users-manager";
 
 // ─────────────────────────────────────────────
 // Sub-componente: Panel de salud de la DB
@@ -311,7 +314,7 @@ export default function SettingsPage() {
         {/* Contenido scrollable */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-4xl mx-auto w-full space-y-6 pb-24">
           <Tabs defaultValue="general" className="w-full space-y-6">
-            <TabsList className="grid w-full grid-cols-5 bg-muted/50 p-1 rounded-xl border border-primary/5 backdrop-blur-sm">
+             <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 bg-muted/50 p-1 rounded-xl border border-primary/5 backdrop-blur-sm h-auto flex-wrap">
               <TabsTrigger value="general" className="uppercase text-[10px] font-black tracking-widest gap-1.5">
                 <Activity className="w-3 h-3" /> General
               </TabsTrigger>
@@ -324,10 +327,18 @@ export default function SettingsPage() {
               <TabsTrigger value="hardware" className="uppercase text-[10px] font-black tracking-widest gap-1.5">
                 <Scan className="w-3 h-3" /> Hardware
               </TabsTrigger>
-              <TabsTrigger value="advanced" className="uppercase text-[10px] font-black tracking-widest gap-1.5">
+              <TabsTrigger value="advanced" className="uppercase text-[10px] font-black tracking-widest gap-1.5 hidden sm:flex">
                 <RefreshCcw className="w-3 h-3" /> Avanzado
               </TabsTrigger>
+              <TabsTrigger value="users" className="uppercase text-[10px] font-black tracking-widest gap-1.5 focus:bg-primary/20 bg-primary/5 text-primary">
+                <Users className="w-3 h-3" /> Usuarios
+              </TabsTrigger>
             </TabsList>
+
+            {/* ── PESTAÑA: USUARIOS ── */}
+            <TabsContent value="users" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
+               <UsersManager />
+            </TabsContent>
 
             {/* ── PESTAÑA: GENERAL ── */}
             <TabsContent value="general" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">

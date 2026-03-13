@@ -5,11 +5,13 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CategoriesManager } from "./_components/categories-manager";
 import { ProductsManager } from "./_components/products-manager";
+import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 
 export default function ProductsPage() {
   const [activeTab, setActiveTab] = useState("products");
 
   return (
+    <ProtectedRoute allowedRoles={["ADMIN"]}>
     <div className="flex h-screen bg-muted/40">
       <Sidebar />
       <div className="flex flex-col sm:gap-4 sm:py-4 sm:pl-20 flex-1 overflow-hidden">
@@ -35,5 +37,6 @@ export default function ProductsPage() {
         </main>
       </div>
     </div>
+    </ProtectedRoute>
   );
 }

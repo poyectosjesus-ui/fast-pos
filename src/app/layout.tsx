@@ -16,6 +16,7 @@ export const metadata: Metadata = {
 };
 
 import { Toaster } from "@/components/ui/sonner";
+import { SetupGuard } from "@/components/layout/SetupGuard";
 
 export default function RootLayout({
   children,
@@ -26,7 +27,9 @@ export default function RootLayout({
     <html lang="es" className="dark">
       <body className={`${inter.className} bg-background text-foreground overflow-hidden selection:bg-primary selection:text-primary-foreground`}>
         <div className="flex flex-col h-screen">
-          {children}
+          <SetupGuard>
+            {children}
+          </SetupGuard>
         </div>
         <Toaster />
       </body>

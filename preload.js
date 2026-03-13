@@ -22,6 +22,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   setSetting:     (key, value)  => ipcRenderer.invoke("settings:set", key, value),
   setBulkSettings:(entries)     => ipcRenderer.invoke("settings:setBulk", entries),
 
+  // ── Configuración Inicial (Setup Wizard) ────────────────────────────────────
+  completeSetup:  (data)        => ipcRenderer.invoke("setup:complete", data),
+
   // ── Categorías ──────────────────────────────────────────────────────────────
   getAllCategories:  ()         => ipcRenderer.invoke("categories:getAll"),
   createCategory:   (category) => ipcRenderer.invoke("categories:create", category),
@@ -49,6 +52,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getPrinters:  () => ipcRenderer.invoke("ticket:getPrinters"),
   printTicket:  (orderId, printerName, silent) => ipcRenderer.invoke("ticket:print", orderId, printerName, silent),
   printTicketToPdf: (orderId) => ipcRenderer.invoke("ticket:printToPdf", orderId),
+
+  // ── Usuarios & Seguridad (EPIC-005) ────────────────────────────────────────
+  login:          (userId, pin) => ipcRenderer.invoke("auth:login", userId, pin),
+  getAllUsers:    () => ipcRenderer.invoke("users:getAll"),
+  createUser:     (user) => ipcRenderer.invoke("users:create", user),
+  updateUser:     (user) => ipcRenderer.invoke("users:update", user),
+  deleteUser:     (id) => ipcRenderer.invoke("users:delete", id),
+
+  // ── Licenciamiento (EPIC-007) ────────────────────────────────────────────
+  validateLicense: (key) => ipcRenderer.invoke("license:validate", key),
 });
 
 

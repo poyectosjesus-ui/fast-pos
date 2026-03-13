@@ -2,6 +2,7 @@ const Database = require("better-sqlite3");
 const path = require("path");
 const { app } = require("electron");
 const fs = require("fs");
+const bcrypt = require("bcryptjs");
 
 /**
  * FAST-POS DATABASE ENGINE
@@ -161,6 +162,24 @@ function runMigrations(db) {
         createdAt INTEGER NOT NULL
       );
     `);
+    
+    // Crear Admin por defecto si no existe ningún usuario
+    const userCount = db.prepare("SELECT COUNT(*) AS c FROM users").get().c;
+    if (userCount === 0) {
+      const defaultPinHash = bcrypt.hashSync("1234", 10);
+      const insertUser = db.prepare(
+        "INSERT INTO users (id, name, pin, role, createdAt) VALUES (?, ?, ?, ?, ?)"
+      );
+      insertUser.run(
+        "usr-admin-default",
+        "Admin",
+        defaultPinHash,
+        "ADMIN",
+        Date.now()
+      );
+      console.log("[DB] Usuario Admin por defecto creado (PIN: 1234).");
+    }
+
     db.pragma("user_version = 3");
     console.log("[DB] Migración v3 aplicada: Tabla users (RBAC).");
   }

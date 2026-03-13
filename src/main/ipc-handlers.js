@@ -3,6 +3,9 @@ const { getDb, getDbPath } = require("./database");
 const Database = require("better-sqlite3");
 const path = require("path");
 const fs = require("fs");
+const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
+const { validateLicenseKey } = require("./licensing");
 
 /**
  * IPC HANDLERS — Fast-POS 2.0
@@ -213,6 +216,59 @@ function setupIpcHandlers() {
       return { success: true };
     } catch (err) {
       console.error("[IPC:settings:setBulk]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ──────────────────────────────────────────
+  // DOMINIO: setup (Wizard Inicial Transaccional)
+  // ──────────────────────────────────────────
+
+  /**
+   * setup:complete — Guarda configuraciones y crea el ADMIN inicial en una sola transacción.
+   */
+  ipcMain.handle("setup:complete", async (event, data) => {
+    try {
+      // 0. Validar la licencia Criptográficamente antes de meter a base de datos
+      const licenseCheck = validateLicenseKey(data.license.key);
+      if (!licenseCheck.isValid) {
+        throw new Error(licenseCheck.error || "Licencia no válida");
+      }
+
+      const db = getDb();
+      const runSetup = db.transaction((setupData) => {
+        // 1. Guardar configuraciones
+        const upsertSetting = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
+        upsertSetting.run("store_name", setupData.business.name || "");
+        upsertSetting.run("store_address", setupData.business.address || "");
+        upsertSetting.run("store_phone", setupData.business.phone || "");
+        upsertSetting.run("store_tax_id", setupData.business.taxId || "");
+        upsertSetting.run("tax_name", setupData.fiscal.taxName || "IVA");
+        upsertSetting.run("tax_rate_default", String(setupData.fiscal.taxRate || "1600"));
+        upsertSetting.run("currency_symbol", setupData.fiscal.currency || "$");
+        upsertSetting.run("license_key", setupData.license.key || "");
+        
+        // Extraemos detalles del payload criptográfico pre-aprobado para guardar como metadata referencial
+        upsertSetting.run("license_plan", licenseCheck.payload.plan || "BASIC");
+        upsertSetting.run("license_expires", String(licenseCheck.payload.exp || "LIFETIME"));
+        
+        upsertSetting.run("setup_completed", "true");
+
+        // 2. Limpiar la tabla de usuarios por si había un usuario default o info basura
+        db.prepare("DELETE FROM users").run();
+
+        // 3. Crear al nuevo Administrador y hashear su PIN
+        const insertUser = db.prepare("INSERT INTO users (id, name, pin, role, createdAt) VALUES (?, ?, ?, ?, ?)");
+        const adminId = crypto.randomUUID();
+        const pinHash = bcrypt.hashSync(setupData.admin.pin, 10);
+        insertUser.run(adminId, setupData.admin.name, pinHash, "ADMIN", Date.now());
+      });
+
+      runSetup(data);
+      console.log("[SETUP] Onboarding Inicial completado. Base de datos aprovisionada.");
+      return { success: true };
+    } catch (err) {
+      console.error("[IPC:setup:complete]", err.message);
       return { success: false, error: err.message };
     }
   });
@@ -699,6 +755,116 @@ function setupIpcHandlers() {
     } catch (err) {
       console.error("[IPC:ticket:printToPdf]", err.message);
       return { success: false, error: err.message };
+    }
+  });
+
+  // ──────────────────────────────────────────
+  // DOMINIO: users & auth (Seguridad RBAC)
+  // ──────────────────────────────────────────
+
+  ipcMain.handle("auth:login", async (event, userId, pin) => {
+    try {
+      if (!userId || !pin) {
+        return { success: false, error: "Usuario y PIN requeridos" };
+      }
+
+      const user = getDb().prepare("SELECT * FROM users WHERE id = ? AND isActive = 1").get(userId);
+      
+      if (!user) {
+        return { success: false, error: "Usuario no encontrado o inactivo" };
+      }
+
+      if (bcrypt.compareSync(pin, user.pin)) {
+        // PIN coincide. Devolvemos el usuario SIN EL HASH.
+        const { pin: _hash, ...safeUser } = user;
+        return { success: true, user: safeUser };
+      }
+      return { success: false, error: "PIN incorrecto" };
+    } catch (err) {
+      console.error("[IPC:auth:login]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("users:getAll", async () => {
+    try {
+      // Nunca regresar los PIN hashes a frontend
+      const rows = getDb().prepare("SELECT id, name, role, isActive, createdAt FROM users").all();
+      return { success: true, users: rows };
+    } catch (err) {
+      console.error("[IPC:users:getAll]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("users:create", async (event, user) => {
+    try {
+      const pinHash = bcrypt.hashSync(user.pin, 10);
+      const id = crypto.randomUUID();
+      
+      const stmt = getDb().prepare(
+        "INSERT INTO users (id, name, pin, role, isActive, createdAt) VALUES (?, ?, ?, ?, ?, ?)"
+      );
+      stmt.run(id, user.name, pinHash, user.role, user.isActive || 1, Date.now());
+      return { success: true, id };
+    } catch (err) {
+      console.error("[IPC:users:create]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("users:update", async (event, user) => {
+    try {
+      if (user.pin) {
+        // También actualiza pin
+        const pinHash = bcrypt.hashSync(user.pin, 10);
+        const stmt = getDb().prepare(
+          "UPDATE users SET name = ?, pin = ?, role = ?, isActive = ? WHERE id = ?"
+        );
+        stmt.run(user.name, pinHash, user.role, user.isActive, user.id);
+      } else {
+        // Solo datos
+        const stmt = getDb().prepare(
+          "UPDATE users SET name = ?, role = ?, isActive = ? WHERE id = ?"
+        );
+        stmt.run(user.name, user.role, user.isActive, user.id);
+      }
+      return { success: true };
+    } catch (err) {
+      console.error("[IPC:users:update]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("users:delete", async (event, id) => {
+    try {
+      // Prevención: No borrar al administrador por defecto u obligar a tener al menos 1 admin.
+      const admins = getDb().prepare("SELECT count(*) as c FROM users WHERE role = 'ADMIN'").get().c;
+      const targetUser = getDb().prepare("SELECT role FROM users WHERE id = ?").get(id);
+
+      if (targetUser && targetUser.role === 'ADMIN' && admins <= 1) {
+        throw new Error("No puedes eliminar al único administrador del sistema.");
+      }
+
+      getDb().prepare("DELETE FROM users WHERE id = ?").run(id);
+      return { success: true };
+    } catch (err) {
+      console.error("[IPC:users:delete]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ──────────────────────────────────────────
+  // DOMINIO: licensing (Criptografía)
+  // ──────────────────────────────────────────
+
+  ipcMain.handle("license:validate", async (event, key) => {
+    try {
+      const result = validateLicenseKey(key);
+      return result;
+    } catch (err) {
+      console.error("[IPC:license:validate]", err.message);
+      return { isValid: false, error: err.message };
     }
   });
 
