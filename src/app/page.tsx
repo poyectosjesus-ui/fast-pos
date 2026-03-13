@@ -21,6 +21,7 @@ import { CartSidebar } from "@/components/pos/cart-sidebar";
 import { CheckoutDialog } from "@/components/pos/checkout-dialog";
 import { QuickSaleDialog } from "@/components/pos/quick-sale-dialog";
 import { QuantityInputDialog } from "@/components/pos/quantity-input-dialog";
+import { GridDensitySelector, type GridDensity, GRID_COLS_MAP, GRID_DENSITY_KEY } from "@/components/pos/grid-density-selector";
 import { SearchInput } from "@/components/ui/search-input";
 import { useCartStore } from "@/store/useCartStore";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,17 @@ export default function POSPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
+  const [gridDensity, setGridDensity] = useState<GridDensity>(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem(GRID_DENSITY_KEY) as GridDensity) || "4";
+    }
+    return "4";
+  });
+
+  const handleGridDensityChange = (density: GridDensity) => {
+    setGridDensity(density);
+    if (typeof window !== "undefined") localStorage.setItem(GRID_DENSITY_KEY, density);
+  };
 
   const cartItemCount = useCartStore(s => s.items.reduce((acc, i) => acc + i.quantity, 0));
   const addItem = useCartStore(s => s.addItem);
@@ -192,6 +204,13 @@ export default function POSPage() {
               </div>
             )}
 
+            {/* Selector de densidad del grid */}
+            <GridDensitySelector
+              value={gridDensity}
+              onChange={handleGridDensityChange}
+              className="shrink-0"
+            />
+
             <Button
               variant="outline"
               className="shrink-0 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900"
@@ -221,9 +240,9 @@ export default function POSPage() {
         {/* Grid de productos */}
         <main className="flex-1 overflow-y-auto p-4 flex flex-col">
           {filteredProducts === undefined ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            <div className={cn("grid gap-3", GRID_COLS_MAP[gridDensity])}>
               {[...Array(8)].map((_, i) => (
-                <div key={i} className="aspect-[3/4] rounded-xl border bg-muted/40 animate-pulse" />
+                <div key={i} className="rounded-xl border bg-muted/40 animate-pulse" style={{ minHeight: "10rem" }} />
               ))}
             </div>
           ) : filteredProducts.length === 0 ? (
@@ -234,18 +253,14 @@ export default function POSPage() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 flex-1">
+              <div className={cn("grid gap-3 content-start", GRID_COLS_MAP[gridDensity])}>
                 {filteredProducts.map(product => (
                   <ProductCard
                     key={product.id}
                     product={product}
                     currentStock={product.stock}
-                    allowFractions={unitsMap[product.unitType]?.allowFractions}
                     allowNegativeStock={allowNegativeStock}
-                    onFractionalClick={() => {
-                      setFractionalProduct(product);
-                      setLastScanTime(Date.now());
-                    }}
+                    unitInfo={unitsMap[product.unitType]}
                   />
                 ))}
               </div>
