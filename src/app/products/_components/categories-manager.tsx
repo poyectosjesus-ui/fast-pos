@@ -1,8 +1,8 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+
 import { Edit2, Plus, Trash2 } from "lucide-react";
 
 import { CategoryService } from "@/lib/services/categories";
@@ -22,8 +22,15 @@ import {
 } from "@/components/ui/dialog";
 
 export function CategoriesManager() {
-  const categories = useLiveQuery(() => CategoryService.getAll(), []);
-  
+  const [categories, setCategories] = useState<Awaited<ReturnType<typeof CategoryService['getAll']>> | undefined>(undefined);
+
+  const loadCategories = useCallback(async () => {
+    const cats = await CategoryService.getAll();
+    setCategories(cats);
+  }, []);
+
+  useEffect(() => { loadCategories(); }, [loadCategories]);
+
   // Estado Controlado por Componente (UI Guideline 3)
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -58,30 +65,28 @@ export function CategoriesManager() {
         toast.success("¡Excelente!", { description: "Familia registrada y lista para usarse." });
       }
       setIsOpen(false);
-    } catch (error: any) {
-       // Mostramos el mensaje semántico enviado por la Capa de Lógica (Backend Guideline 4)
-      toast.error("Hubo un problema", { description: error.message || "No pudimos guardar los cambios. Intenta de nuevo." });
+      await loadCategories(); // Refrescar
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "No pudimos guardar los cambios. Intenta de nuevo.";
+      toast.error("Hubo un problema", { description: msg });
     } finally {
       setIsSaving(false);
     }
   };
 
+
   const handleDelete = async (id: string, name: string) => {
-    // Prevención Contra Errores Comunes (UI Guideline 5)
-    // Usamos el confirm nativo por ser MVP, pero el error fallback está protegido por Sonner Toasts
     if (!confirm(`¿Estás seguro que deseas borrar el grupo "${name}" para siempre?`)) return;
-    
     try {
       await CategoryService.delete(id);
       toast.success("Eliminado", { description: `El grupo "${name}" ha sido borrado de tu lista.` });
-    } catch (error: any) {
-      // Capturamos la excepción de Integridad Referencial Atómica
-      toast.error("No podemos borrar esto", { 
-        description: error.message || String(error),
-        duration: 5000 
-      });
+      await loadCategories(); // Refrescar
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      toast.error("No podemos borrar esto", { description: msg, duration: 5000 });
     }
   };
+
 
   // Computación segura: deshabilitamos el guardado si nombre está vacío (UI Guideline 5)
   const isSubmitDisabled = !categoryName.trim() || isSaving;

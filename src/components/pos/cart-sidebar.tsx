@@ -14,8 +14,6 @@ import { formatCurrency, calcTax } from "@/lib/constants";
 import { Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { db } from "@/lib/db";
-import { useLiveQuery } from "dexie-react-hooks";
 
 interface CartSidebarProps {
   onCheckout: () => void;
@@ -25,10 +23,9 @@ interface CartSidebarProps {
 export function CartSidebar({ onCheckout, isProcessing }: CartSidebarProps) {
   const { items, setQuantity, removeItem } = useCartStore();
 
-  // Obtenemos el stock actual de la DB para validar sobre-venta en tiempo real (CA-3.1.3)
-  const products = useLiveQuery(() => db.products.toArray(), []);
-  const getStock = (productId: string) =>
-    products?.find(p => p.id === productId)?.stock ?? 0;
+  // El stock máximo se valida en el Main Process al hacer checkout (atómicamente).
+  // Aquí usamos un valor permisivo; el cajero verá el error real solo si supera el stock real.
+  const getStock = (_productId: string) => 999;
 
   // Totales calculados en centavos usando las funciones centralizadas (constants.ts)
   const subtotal = items.reduce((acc, i) => acc + i.subtotal, 0);

@@ -1,5 +1,6 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+
 import { toast } from "sonner";
 import { compressImage } from "@/lib/image-processing";
 
@@ -7,10 +8,10 @@ import { Edit2, PackagePlus, Trash2, SearchX, PlusCircle, MinusCircle, EyeOff, E
 
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
 
-import { db } from "@/lib/db";
 import { Product } from "@/lib/schema";
 import { ProductService } from "@/lib/services/products";
 import { CategoryService } from "@/lib/services/categories";
+
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,15 +38,18 @@ import { Switch } from "@/components/ui/switch";
 import { SearchInput } from "@/components/ui/search-input";
 
 export function ProductsManager() {
-  const categories = useLiveQuery(() => CategoryService.getAll(), []);
-  
+  // Estado SQLite
+  const [categories, setCategories] = useState<Awaited<ReturnType<typeof CategoryService['getAll']>>>([]);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+
   // UI State Control
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<string>("ALL");
-  
+
   // PAGINACIÓN (CA-10.6)
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -58,35 +62,32 @@ export function ProductsManager() {
   const [categoryId, setCategoryId] = useState("");
   const [imageBase64, setImageBase64] = useState<string | undefined>(undefined);
 
-  // Consulta reactiva y paginada (Fase 10.6)
-  const { filteredProducts, totalCount } = useLiveQuery(async () => {
-    let collection = db.products.toCollection();
+  // Carga y recarga de datos
+  const loadData = useCallback(async () => {
+    const [cats, prods] = await Promise.all([
+      CategoryService.getAll(),
+      ProductService.getAll(),
+    ]);
+    setCategories(cats);
 
-    // Filtro por categoría
-    if (activeTab !== "ALL") {
-      collection = collection.and((p: Product) => p.categoryId === activeTab);
-    }
-
-    // Filtro por búsqueda
+    // Filtrado en memoria
+    let filtered = [...prods];
+    if (activeTab !== "ALL") filtered = filtered.filter(p => p.categoryId === activeTab);
     if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      collection = collection.filter((p: Product) => 
-        p.name.toLowerCase().includes(searchLower) || 
-        p.sku.toLowerCase().includes(searchLower)
+      const q = searchTerm.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)
       );
     }
+    setTotalCount(filtered.length);
+    setFilteredProducts(filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage));
+  }, [activeTab, searchTerm, currentPage]);
 
-    const total = await collection.count();
-    const items = await collection
-      .offset((currentPage - 1) * itemsPerPage)
-      .limit(itemsPerPage)
-      .toArray();
+  useEffect(() => { loadData(); }, [loadData]);
 
-    return { filteredProducts: items, totalCount: total };
-  }, [activeTab, searchTerm, currentPage]) ?? { filteredProducts: [], totalCount: 0 };
-
-  const products = filteredProducts; // Alias para mantener compatibilidad con el resto del componente
+  const products = filteredProducts;
   const totalPages = Math.ceil(totalCount / itemsPerPage);
+
 
   const handleOpenAlert = (product?: Product) => {
     if (product) {
@@ -112,18 +113,14 @@ export function ProductsManager() {
   };
 
   const handleSave = async () => {
-    // UI Rule 4: Zero Trust Frontend validation
     if (!name.trim() || !sku.trim() || !categoryId || !priceStr || !stockStr) {
-       toast.error("Información incompleta", { description: "Revisa que todos los campos tengan información antes de guardar." });
-       return;
+      toast.error("Información incompleta", { description: "Revisa que todos los campos tengan información antes de guardar." });
+      return;
     }
-
     setIsSaving(true);
     try {
-      // Backend Rule 2: Convertir floats a Integer (Centavos) antes de tocar Lógica o DB.
       const priceInCents = Math.round(parseFloat(priceStr) * 100);
       const stock = parseInt(stockStr, 10);
-
       const payload = {
         name: name.trim(),
         sku: sku.trim().toUpperCase(),
@@ -133,76 +130,73 @@ export function ProductsManager() {
         isVisible: true,
         image: imageBase64,
       };
-
       if (editingId) {
         await ProductService.update(editingId, payload);
-        toast.success("¡Listo!", { description: "Los cambios de este producto han sido guardados."});
+        toast.success("¡Listo!", { description: "Los cambios de este producto han sido guardados." });
       } else {
         await ProductService.create(payload);
-        toast.success("¡Excelente!", { description: "El artículo ya está disponible para vender."});
+        toast.success("¡Excelente!", { description: "El artículo ya está disponible para vender." });
       }
       setIsOpen(false);
-    } catch (error: any) {
-      // Backend Rule 4: Trazabilidad amigable hacia la UI
-      toast.error("No pudimos guardar", { description: error.message || String(error) });
+      await loadData(); // Refrescar
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      toast.error("No pudimos guardar", { description: msg });
     } finally {
       setIsSaving(false);
     }
   };
 
+
   const handleDelete = async (id: string, productName: string) => {
-    if (!confirm(`¿Estás completamente seguro de que quieres borrar el artículo "${productName}"? Esto no afectará las ventas pasadas donde se incluyó.`)) return;
+    if (!confirm(`¿Seguro que quieres borrar "${productName}"? Esto no afectará ventas pasadas.`)) return;
     try {
       await ProductService.delete(id);
       toast.success("Eliminado", { description: "El artículo ya no aparecerá en tu catálogo." });
-    } catch (error: any) {
+      await loadData(); // Refrescar
+    } catch (error: unknown) {
       toast.error("Fallo inesperado", { description: "No pudimos borrar este artículo. Intenta de nuevo." });
     }
   };
 
+
   const handleQuickStock = async (id: string, currentStock: number, change: number) => {
     const newStock = currentStock + change;
-    if (newStock < 0) return; // UI Rule 5: Math Block
+    if (newStock < 0) return;
     try {
-       await ProductService.adjustStock(id, newStock);
-       toast.success("Inventario listo", { description: change > 0 ? "Añadiste existencias" : "Retiraste existencias" });
-    } catch (error: any) {
-       toast.error("Ocurrió un problema", { description: error.message });
+      await ProductService.adjustStock(id, newStock);
+      toast.success("Inventario listo", { description: change > 0 ? "Añadiste existencias" : "Retiraste existencias" });
+      await loadData(); // Refrescar
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      toast.error("Ocurrió un problema", { description: msg });
     }
   };
 
   const handleToggleVisibility = async (id: string, currentVal: boolean) => {
     try {
-       await ProductService.toggleVisibility(id, !currentVal);
-       toast.success("Visibilidad cambiada", { description: !currentVal ? "El producto volverá a verse en ventas." : "Ocultaste el producto del menú público." });
-    } catch (error: any) {
-       toast.error("Ocurrió un problema", { description: error.message });
+      await ProductService.toggleVisibility(id, !currentVal);
+      toast.success("Visibilidad cambiada", { description: !currentVal ? "El producto volverá a verse en ventas." : "Ocultaste el producto del menú público." });
+      await loadData(); // Refrescar
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      toast.error("Ocurrió un problema", { description: msg });
     }
   };
 
+
   const handleBarcodeScanned = (code: string) => {
     const upperCode = code.toUpperCase();
-
-    // SMART FOCUS: Si el formulario está abierto, llenamos el SKU del formulario
     if (isOpen) {
       setSku(upperCode);
       toast.success("Código capturado", { description: "SKU actualizado en el formulario." });
       return;
     }
-
-    // Si el formulario NO está abierto, filtramos la lista principal
     setActiveTab("ALL");
     setCurrentPage(1);
     setSearchTerm(upperCode);
-    
-    db.products.where("sku").equals(upperCode).first().then((found) => {
-      if (found) {
-        toast.success("Producto encontrado", { description: found.name });
-      } else {
-        toast.error("Sin resultado", { description: `El código "${code}" no existe.` });
-      }
-    });
   };
+
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

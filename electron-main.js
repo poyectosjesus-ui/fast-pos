@@ -1,16 +1,15 @@
 /**
  * ============================================================================
- * FAST-POS ELECTRON MAIN PROCESS
- * Optimizado para Next.js + Dexie (IndexedDB) - 100% Offline
+ * FAST-POS ELECTRON MAIN PROCESS — v2.0
+ * Desktop-First | SQLite Native | 100% Offline
  * ============================================================================
- * 
+ *
  * Este archivo gestiona:
  * - Ciclo de vida de Electron
- * - Comunicación IPC (Next.js ↔ Electron)
- * - Seguridad (bloqueo de atajos, DevTools)
- * - Sincronización offline-first con Dexie
- * - Logging y manejo de errores
- * - Exportación/Importación de datos
+ * - Comunicación IPC (Next.js ↔ Electron) — ver ipc-handlers.js
+ * - Seguridad (bloqueo de atajos, DevTools en producción)
+ * - Backup automático antes del cierre
+ * - Logging y manejo de errores global
  */
 
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
@@ -21,8 +20,8 @@ const isDev = process.env.NODE_ENV === "development";
 // VARIABLES GLOBALES
 // ============================================================================
 
-const mainWindow = null;
-const isAppQuitting = false;
+let mainWindow = null;
+let isAppQuitting = false;
 
 // Fast-POS 1.1: Inicialización de Capa Nativa
 const { initDatabase } = require("./src/main/database");
@@ -256,60 +255,7 @@ ipcMain.handle("get-paths", async () => {
   };
 });
 
-/**
- * Exportar datos Dexie a JSON
- * Útil para backup
- */
-ipcMain.handle("export-database", async (event, dbExportData) => {
-  Logger.info("📦 Exportando base de datos...");
 
-  try {
-    const { filePath } = await dialog.showSaveDialog(mainWindow, {
-      title: "Exportar Base de Datos",
-      defaultPath: `fast-pos-backup-${new Date().toISOString().split("T")[0]}.json`,
-      filters: [{ name: "JSON", extensions: ["json"] }],
-    });
-
-    if (filePath) {
-      const fs = require("fs");
-      fs.writeFileSync(filePath, JSON.stringify(dbExportData, null, 2));
-      Logger.info(`✅ BD exportada a: ${filePath}`);
-      return { success: true, path: filePath };
-    }
-
-    return { success: false, message: "Cancelado por usuario" };
-  } catch (error) {
-    Logger.error("❌ Error al exportar:", error.message);
-    return { success: false, error: error.message };
-  }
-});
-
-/**
- * Importar datos Dexie desde JSON
- */
-ipcMain.handle("import-database", async () => {
-  Logger.info("📥 Importando base de datos...");
-
-  try {
-    const { filePaths } = await dialog.showOpenDialog(mainWindow, {
-      title: "Importar Base de Datos",
-      filters: [{ name: "JSON", extensions: ["json"] }],
-      properties: ["openFile"],
-    });
-
-    if (filePaths && filePaths.length > 0) {
-      const fs = require("fs");
-      const data = JSON.parse(fs.readFileSync(filePaths[0], "utf-8"));
-      Logger.info(`✅ BD importada desde: ${filePaths[0]}`);
-      return { success: true, data };
-    }
-
-    return { success: false, message: "Cancelado por usuario" };
-  } catch (error) {
-    Logger.error("❌ Error al importar:", error.message);
-    return { success: false, error: error.message };
-  }
-});
 
 /**
  * Mostrar diálogo de confirmación
@@ -353,31 +299,7 @@ ipcMain.handle("get-system-info", async () => {
   };
 });
 
-/**
- * Sincronizar datos con servidor (si hay conexión)
- * En offline, simplemente retorna success: false
- */
-ipcMain.handle("sync-with-server", async (event, data) => {
-  Logger.info("🔄 Verificando sincronización...");
 
-  try {
-    // Verificar conectividad
-    const isOnline = require("is-online");
-    const online = await isOnline();
-
-    if (!online) {
-      Logger.info("📴 Sin conexión - modo offline");
-      return { success: false, message: "Sin conexión a internet", offline: true };
-    }
-
-    Logger.info("🌐 Conexión detectada");
-    // Aquí iría lógica de sincronización con servidor
-    return { success: true, synced: true };
-  } catch (error) {
-    Logger.warn("⚠️ Error en sincronización:", error.message);
-    return { success: false, offline: true, error: error.message };
-  }
-});
 
 /**
  * Generar reporte PDF

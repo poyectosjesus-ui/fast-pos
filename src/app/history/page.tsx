@@ -9,13 +9,11 @@
  * y anular ventas en caso de error (CA-4.3.3) regresando el stock.
  */
 
-import { useState, useMemo } from "react";
-import { useLiveQuery } from "dexie-react-hooks";
+import { useState, useEffect, useCallback } from "react";
 import { formatCurrency, BUSINESS_NAME } from "@/lib/constants";
 import { OrderService } from "@/lib/services/orders";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Order } from "@/lib/schema";
-import { db } from "@/lib/db";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -47,28 +45,40 @@ import { Badge } from "@/components/ui/badge";
 
 export default function HistoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 9; // Cambiado a 9 para mejor ajuste en grid 3x3
+  const itemsPerPage = 9;
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'COMPLETED' | 'CANCELLED'>('ALL');
   const [filterPayment, setFilterPayment] = useState<'ALL' | 'CASH' | 'CARD'>('ALL');
-  
-  // Cargamos órdenes filtradas y paginadas (Fase 12.2)
-  const queryResult = useLiveQuery(
-    () => OrderService.searchOrders({
+
+  // Estado SQLite (antes era useLiveQuery)
+  const [allOrders, setAllOrders] = useState<Order[] | undefined>(undefined);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [todayStats, setTodayStats] = useState<Awaited<ReturnType<typeof OrderService['getStatsForDay']>> | undefined>(undefined);
+  const [overallStats, setOverallStats] = useState<Awaited<ReturnType<typeof OrderService['getOverallStats']>> | undefined>(undefined);
+
+  const totalPages = Math.ceil(totalOrders / itemsPerPage);
+
+  const loadOrders = useCallback(async () => {
+    const result = await OrderService.searchOrders({
       status: filterStatus,
       paymentMethod: filterPayment,
       limit: itemsPerPage,
-      offset: (currentPage - 1) * itemsPerPage
-    }),
-    [currentPage, filterStatus, filterPayment]
-  );
-  
-  const allOrders = queryResult?.items;
-  const totalOrders = queryResult?.total ?? 0;
-  const totalPages = Math.ceil(totalOrders / itemsPerPage);
+      offset: (currentPage - 1) * itemsPerPage,
+    });
+    setAllOrders(result.items);
+    setTotalOrders(result.total);
+  }, [currentPage, filterStatus, filterPayment]);
 
-  // Estadísticas (Fase 12.1)
-  const todayStats = useLiveQuery(() => OrderService.getStatsForDay(), []);
-  const overallStats = useLiveQuery(() => OrderService.getOverallStats(), []);
+  const loadStats = useCallback(async () => {
+    const [today, overall] = await Promise.all([
+      OrderService.getStatsForDay(),
+      OrderService.getOverallStats(),
+    ]);
+    setTodayStats(today);
+    setOverallStats(overall);
+  }, []);
+
+  useEffect(() => { loadOrders(); }, [loadOrders]);
+  useEffect(() => { loadStats(); }, [loadStats]);
 
   const handleNextPage = () => setCurrentPage(p => Math.min(totalPages, p + 1));
   const handlePrevPage = () => setCurrentPage(p => Math.max(1, p - 1));
@@ -88,7 +98,9 @@ export default function HistoryPage() {
       }
       toast.success("Venta anulada correctamente");
       setVoidCandidate(null);
-      setSelectedOrder(null); 
+      setSelectedOrder(null);
+      // Refrescar
+      await Promise.all([loadOrders(), loadStats()]);
     } finally {
       setIsVoiding(false);
     }

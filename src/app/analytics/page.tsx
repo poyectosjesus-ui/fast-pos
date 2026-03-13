@@ -9,9 +9,9 @@
  * Rendimiento extremo garantizado por IndexedDB.
  */
 
-import { useState, useEffect } from "react";
-import { useLiveQuery } from "dexie-react-hooks";
+import { useState, useEffect, useCallback } from "react";
 import { Coins, HandCoins, ReceiptText, Users, CreditCard } from "lucide-react";
+
 
 import { OrderService } from "@/lib/services/orders";
 import { formatCurrency } from "@/lib/constants";
@@ -21,8 +21,6 @@ import { TopProducts } from "./_components/top-products";
 import { Button } from "@/components/ui/button";
 
 export default function AnalyticsPage() {
-  // Estado local para forzar actualización cuando se requiera (Dexie reacciona a cambios
-  // pero la agregación customizada necesita refresh o useLiveQuery atado a las órdenes).
   const [stats, setStats] = useState({
     totalNet: 0,
     totalWithTax: 0,
@@ -30,31 +28,31 @@ export default function AnalyticsPage() {
     cardTotal: 0,
     orderCount: 0,
     avgTicket: 0,
-    todayOrders: [] as any[]
+    todayOrders: [] as Array<{ items: Array<{ productId: string; name: string; quantity: number; subtotal: number }> }>
   });
-  
-  const [topProducts, setTopProducts] = useState<any[]>([]);
+
+  const [topProducts, setTopProducts] = useState<Array<{ productId: string; name: string; unitsSold: number; revenue: number; currentStock: number }>>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // CA-4.1.3: Trigger reactivo ante cambios en db.orders
-  const orderWatcher = useLiveQuery(() => OrderService.getAll(), []);
-
-  useEffect(() => {
-    async function loadStats() {
-      try {
-        const currentStats = await OrderService.getStatsForDay();
-        setStats(currentStats);
-        
-        const top = await OrderService.getTopProducts(currentStats.todayOrders, 5);
-        setTopProducts(top);
-      } catch (error) {
-        console.error("Error cargando analíticas:", error);
-      } finally {
-        setIsLoading(false);
-      }
+  const loadStats = useCallback(async () => {
+    try {
+      const currentStats = await OrderService.getStatsForDay();
+      setStats(currentStats);
+      const top = await OrderService.getTopProducts(currentStats.todayOrders, 5);
+      setTopProducts(top);
+    } catch (error) {
+      console.error("Error cargando analíticas:", error);
+    } finally {
+      setIsLoading(false);
     }
+  }, []);
+
+  // Carga inicial + refresco automático cada 30s
+  useEffect(() => {
     loadStats();
-  }, [orderWatcher]); // Se recarga solito cada vez que entra o sale una orden
+    const interval = setInterval(loadStats, 30_000);
+    return () => clearInterval(interval);
+  }, [loadStats]);
 
   return (
     <div className="flex h-screen bg-muted/20">

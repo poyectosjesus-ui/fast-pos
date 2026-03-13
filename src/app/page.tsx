@@ -3,20 +3,18 @@
 /**
  * Pantalla Principal del Punto de Venta (POS)
  *
- * FUENTE DE VERDAD: motor_ventas_plan.md — Sección 3.2
+ * FUENTE DE VERDAD: ARCHITECTURE.md §2.1
  *
  * Layout:
  * [ Buscador + Filtros de Categoría ]
- * [ Grid de Productos (CA-3.1.7: solo visibles) ] | [ Sidebar: Carrito Activo ]
+ * [ Grid de Productos (solo visibles) ] | [ Sidebar: Carrito Activo ]
  */
 
-import { useState } from "react";
-import { useLiveQuery } from "dexie-react-hooks";
+import { useState, useEffect, useCallback } from "react";
 import { ShoppingCart, Scan } from "lucide-react";
 import { toast } from "sonner";
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
 
-import { db } from "@/lib/db";
 import { Sidebar } from "@/components/layout/sidebar";
 import { ProductCard } from "@/components/pos/product-card";
 import { CartSidebar } from "@/components/pos/cart-sidebar";
@@ -25,6 +23,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { useCartStore } from "@/store/useCartStore";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { Product, Category } from "@/lib/schema";
 
 export default function POSPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -35,45 +34,43 @@ export default function POSPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastScanTime, setLastScanTime] = useState(0);
 
+  // Estado SQLite (antes era useLiveQuery)
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   const cartItemCount = useCartStore(s => s.items.reduce((acc, i) => acc + i.quantity, 0));
   const addItem = useCartStore(s => s.addItem);
 
-  // Categorías (pocas, se pueden traer todas)
-  const categories = useLiveQuery(() => db.categories.orderBy("name").toArray(), []);
+  // Carga inicial y recarga desde SQLite
+  const loadData = useCallback(async () => {
+    const api = (window as Window & { electronAPI?: Record<string, (...a: unknown[]) => Promise<unknown>> }).electronAPI;
+    if (!api) return;
+    const [prods, cats] = await Promise.all([
+      api.getAllProducts() as Promise<Product[]>,
+      api.getAllCategories() as Promise<Category[]>,
+    ]);
+    setAllProducts((prods ?? []).filter(p => p.isVisible !== false));
+    setCategories(cats ?? []);
+    setIsLoading(false);
+  }, []);
 
-  /**
-   * CONSULTA OPTIMIZADA (Fase 10.2): 
-   * En lugar de traer 1000 productos a memoria, calculamos el subset directamente.
-   */
-  const { filteredProducts, totalCount } = useLiveQuery(async () => {
-    let collection = db.products.toCollection().filter(p => p.isVisible !== false);
+  useEffect(() => { loadData(); }, [loadData]);
 
-    // Filtro por categoría (usamos filter para evitar múltiples índices complejos offline)
-    if (activeCategory !== "ALL") {
-      collection = collection.and(p => p.categoryId === activeCategory);
-    }
+  // Filtrado + paginación en memoria (client-side)
+  const filtered = allProducts
+    .filter(p => activeCategory === "ALL" || p.categoryId === activeCategory)
+    .filter(p => {
+      if (!searchTerm) return true;
+      const q = searchTerm.toLowerCase();
+      return p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+    });
 
-    // Filtro por búsqueda (Buscamos en todo el set antes de paginar)
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      collection = collection.filter(p => 
-        p.name.toLowerCase().includes(searchLower) || 
-        p.sku.toLowerCase().includes(searchLower)
-      );
-    }
-
-    const total = await collection.count();
-    const items = await collection
-      .offset((currentPage - 1) * itemsPerPage)
-      .limit(itemsPerPage)
-      .toArray();
-
-    return { filteredProducts: items, totalCount: total };
-  }, [activeCategory, searchTerm, currentPage]) ?? { filteredProducts: [], totalCount: 0 };
-
+  const totalCount = filtered.length;
+  const filteredProducts = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
-  // Reset de página al cambiar filtros
+  // Reset página al cambiar filtros
   const handleFilterChange = (catId: string) => {
     setActiveCategory(catId);
     setCurrentPage(1);
@@ -85,31 +82,29 @@ export default function POSPage() {
   };
 
   const handleBarcodeScanned = (code: string) => {
-    // Buscar en toda la DB por SKU
-    db.products.where("sku").equals(code.toUpperCase()).first().then((product) => {
-      if (product) {
-        if (!product.isVisible) {
-          toast.error("Producto oculto", { description: "Este artículo no está marcado como visible." });
-          return;
-        }
-        
-        const result = addItem(product);
-        if (result.success) {
-          toast.success("¡Lectura Correcta!", { 
-            description: `${product.name} añadido.`,
-            duration: 1200,
-            icon: "✅"
-          });
-        } else {
-          toast.warning("Atención en Caja", { description: result.message });
-        }
-      } else {
-        toast.error("Producto no identificado", { 
-          description: `El código ${code} no está en el catálogo.`,
-          icon: "❌"
-        });
+    const found = allProducts.find(p => p.sku === code.toUpperCase());
+    if (found) {
+      if (!found.isVisible) {
+        toast.error("Producto oculto", { description: "Este artículo no está marcado como visible." });
+        return;
       }
-    });
+      const result = addItem(found);
+      if (result.success) {
+        toast.success("¡Lectura Correcta!", {
+          description: `${found.name} añadido.`,
+          duration: 1200,
+          icon: "✅"
+        });
+      } else {
+        toast.warning("Atención en Caja", { description: result.message });
+      }
+    } else {
+      toast.error("Producto no identificado", {
+        description: `El código ${code} no está en el catálogo.`,
+        icon: "❌"
+      });
+    }
+    setLastScanTime(Date.now());
   };
 
   return (
