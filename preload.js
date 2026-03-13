@@ -27,6 +27,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
    */
   getSystemInfo: () => ipcRenderer.invoke("get-system-info"),
 
+  /**
+   * Verificar salud de la base de datos nativa (Fast-POS 1.1)
+   */
+  checkDbReady: () => ipcRenderer.invoke("db:ready"),
+  getDbStatus: () => ipcRenderer.invoke("db:status"),
+
   // ========================================================================
   // SINCRONIZACIÓN OFFLINE-FIRST (Dexie)
   // ========================================================================
@@ -102,6 +108,28 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ========================================================================
   // LISTENERS DE EVENTOS (Opcional)
   // ========================================================================
+
+  /**
+   * --- CATEGORÍAS ---
+   */
+  getAllCategories: () => ipcRenderer.invoke("categories:getAll"),
+  createCategory: (category) => ipcRenderer.invoke("categories:create", category),
+  updateCategory: (category) => ipcRenderer.invoke("categories:update", category),
+  deleteCategory: (id) => ipcRenderer.invoke("categories:delete", id),
+
+  /**
+   * --- PRODUCTOS ---
+   */
+  getAllProducts: () => ipcRenderer.invoke("products:getAll"),
+  createProduct: (product) => ipcRenderer.invoke("products:create", product),
+  updateProduct: (product) => ipcRenderer.invoke("products:update", product),
+  deleteProduct: (productId) => ipcRenderer.invoke("products:delete", productId),
+
+  /**
+   * --- VENTAS ---
+   */
+  checkout: (order) => ipcRenderer.invoke("orders:checkout", order),
+  getOrderHistory: () => ipcRenderer.invoke("orders:getHistory"),
 
   /**
    * Escuchar cambios de conexión

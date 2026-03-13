@@ -1,9 +1,12 @@
 module.exports = {
   packagerConfig: {
-    icon: './public/icon-512x512', // Electron Forge añade la extensión automáticamente según la plataforma
-    name: 'FastPOS',
-    executableName: 'fast-pos',
-    asar: true,
+    icon: './public/icon-512x512',
+    name: 'FastPOS Native',
+    executableName: 'fast-pos-native',
+    asar: true, // Empaquetado comprimido
+    extraResource: [
+      // Aquí irían recursos extras si fueran necesarios
+    ]
   },
   rebuildConfig: {},
   makers: [

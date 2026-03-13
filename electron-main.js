@@ -21,8 +21,19 @@ const isDev = process.env.NODE_ENV === "development";
 // VARIABLES GLOBALES
 // ============================================================================
 
-let mainWindow = null;
-let isAppQuitting = false;
+const mainWindow = null;
+const isAppQuitting = false;
+
+// Fast-POS 1.1: Inicialización de Capa Nativa
+const { initDatabase } = require("./src/main/database");
+const { setupIpcHandlers } = require("./src/main/ipc-handlers");
+
+try {
+  initDatabase();
+  setupIpcHandlers();
+} catch (err) {
+  console.error("Falla catastrófica en inicialización nativa:", err);
+}
 
 /**
  * Logger centralizado con timestamps
@@ -217,6 +228,8 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   Logger.info("⏹️ Preparando cierre...");
+  const { backupDatabase } = require("./src/main/database");
+  backupDatabase(); // Respaldo final antes de salir
   isAppQuitting = true;
   unregisterAllShortcuts();
 });

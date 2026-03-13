@@ -8,63 +8,69 @@ export const CategoryService = {
    * Usado para popular los Selects en la UI de Productos.
    */
   async getAll(): Promise<Category[]> {
+    if (typeof window !== 'undefined' && (window as any).electronAPI) {
+      return await (window as any).electronAPI.getAllCategories();
+    }
     return await db.categories.orderBy('name').toArray();
   },
 
-  /**
-   * Crea una categoría con validación "Zero Trust" vía Zod.
-   */
   async create(name: string): Promise<Category> {
-    // Zero Trust: Validamos la entrada cruda antes de intentar insertarla en BD
     const parsed = CategorySchema.parse({
-      id: uuidv4(), // Obligatorio UUID v4 para escenarios offline-first y evitar colisiones
+      id: uuidv4(),
       name,
-      createdAt: Date.now(), // Epoch Timestamp (Integer) para evitar problemas de timezone
+      createdAt: Date.now(),
       updatedAt: Date.now(),
     });
     
-    await db.categories.add(parsed);
+    if (typeof window !== 'undefined' && (window as any).electronAPI) {
+      const result = await (window as any).electronAPI.createCategory(parsed);
+      if (!result.success) throw new Error(result.error || "Error al crear categoría nativa.");
+    } else {
+      await db.categories.add(parsed);
+    }
     return parsed;
   },
 
-  /**
-   * Actualiza el nombre de una categoría manteniendo el resto de propiedades intactas.
-   */
   async update(id: string, name: string): Promise<Category> {
-    // Transacción Read-Write para garantizar consistencia entre lectura y guardado
-    return await db.transaction('rw', db.categories, async () => {
-      const existing = await db.categories.get(id);
+    const updatedAt = Date.now();
+    if (typeof window !== 'undefined' && (window as any).electronAPI) {
+      const result = await (window as any).electronAPI.updateCategory({ id, name, updatedAt });
+      if (!result.success) throw new Error(result.error || "Error al actualizar categoría nativa.");
       
-      // Mensaje Semántico: Nada de undefined. Explicamos claramente al Frontend.
-      if (!existing) {
-         throw new Error(`Inconsistencia Lógica: No se encontró la categoría con ID ${id} para actualizar.`);
-      }
-      
-      const updated = { ...existing, name, updatedAt: Date.now() };
-      const parsed = CategorySchema.parse(updated);
-      
-      await db.categories.put(parsed);
-      return parsed;
-    });
+      const all = await this.getAll();
+      const cat = all.find(c => c.id === id);
+      if (!cat) throw new Error("Categoría no encontrada tras actualizar.");
+      return cat;
+    } else {
+      return await db.transaction('rw', db.categories, async () => {
+        const existing = await db.categories.get(id);
+        if (!existing) throw new Error(`Inconsistencia Lógica: No se encontró la categoría.`);
+        const updated = { ...existing, name, updatedAt };
+        const parsed = CategorySchema.parse(updated);
+        await db.categories.put(parsed);
+        return parsed;
+      });
+    }
   },
 
-  /**
-   * Elimina una categoría aplicando Integridad Referencial Estricta.
-   * Uso de Transacción Atómica: Bloquea la DB para asegurar que nadie agregue 
-   * productos a la categoría en el milisegundo entre la comprobación y el borrado.
-   */
   async delete(id: string): Promise<void> {
-    await db.transaction('rw', db.categories, db.products, async () => {
-      // 1. Verificamos asociación para no dejar productos "huérfanos"
-      const productsCount = await db.products.where('categoryId').equals(id).count();
+    if (typeof window !== 'undefined' && (window as any).electronAPI) {
+      // Validación de integridad rápida en el frontend (más descriptiva para el usuario)
+      const products = await (window as any).electronAPI.getAllProducts();
+      const children = products.filter((p: any) => p.categoryId === id);
       
-      if (productsCount > 0) {
-        // Mensaje Semántico que la UI puede mostrar directamente al usuario final en un Toast.
-        throw new Error(`Integridad Rota: Imposible eliminar. Tienes ${productsCount} producto(s) asignados a esta familia.`);
+      if (children.length > 0) {
+        throw new Error(`Integridad Rota: Imposible eliminar. Tienes ${children.length} producto(s) asignados a esta familia.`);
       }
-      
-      // 2. Si la validación pasa, se elimina. Si falla, Dexie hace Rollback automático.
-      await db.categories.delete(id);
-    });
+
+      const result = await (window as any).electronAPI.deleteCategory(id);
+      if (!result.success) throw new Error(result.error || "Error al eliminar categoría nativa.");
+    } else {
+      await db.transaction('rw', db.categories, db.products, async () => {
+        const productsCount = await db.products.where('categoryId').equals(id).count();
+        if (productsCount > 0) throw new Error(`Integridad Rota: Imposible eliminar.`);
+        await db.categories.delete(id);
+      });
+    }
   }
 };

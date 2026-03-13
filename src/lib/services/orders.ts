@@ -42,81 +42,60 @@ export const OrderService = {
       return { success: false, error: 'El carrito está vacío. Agrega artículos antes de cobrar.' };
     }
 
+    // Preparar Orden (SNAPSHOT)
+    const subtotal = items.reduce((acc, i) => acc + i.subtotal, 0);
+    const tax = calcTax(subtotal);
+    const total = subtotal + tax;
+
+    const newOrder: Order = OrderSchema.parse({
+      id: uuidv4(),
+      items: items.map(i => ({
+        productId: i.productId,
+        name: i.name,
+        price: i.price,
+        quantity: i.quantity,
+        subtotal: i.subtotal,
+      })),
+      subtotal,
+      tax,
+      total,
+      status: 'COMPLETED',
+      paymentMethod,
+      createdAt: Date.now(),
+    });
+
     try {
-      const order = await db.transaction('rw', db.products, db.orders, async () => {
-        // PASO 1: Verificación de stock en tiempo real (CA-3.3.2)
-        // Se consulta el estado ACTUAL de la DB, no el carrito (que puede estar viejo)
-        for (const item of items) {
-          const product = await db.products.get(item.productId);
-
-          if (!product) {
-            // Backend Guideline 4: Mensaje semántico y controlado
-            throw new Error(`El artículo "${item.name}" ya no existe en el catálogo. Puede haber sido eliminado.`);
-          }
-
-          if (product.stock < item.quantity) {
-            throw new Error(
-              `No hay suficiente inventario para "${product.name}". ` +
-              `Tienes ${item.quantity} en el carrito, pero solo quedan ${product.stock} en almacén.`
-            );
-          }
+      if (typeof window !== 'undefined' && (window as any).electronAPI) {
+        // La transacción atómica ocurre en el Main Process (Robustez 1.1)
+        const result = await (window as any).electronAPI.checkout(newOrder);
+        
+        if (!result.success) {
+          return { success: false, error: result.error || "Falla en transacción nativa." };
         }
-
-        // PASO 2: Descontar stock de cada producto (operación atómica)
-        for (const item of items) {
-          const product = await db.products.get(item.productId)!;
-          await db.products.update(item.productId, {
-            stock: product!.stock - item.quantity,
-            updatedAt: Date.now(),
-          });
-        }
-
-        // PASO 3: Calcular totales con centavos (Normativa Backend 2)
-        const subtotal = items.reduce((acc, i) => acc + i.subtotal, 0);
-        const tax = calcTax(subtotal);
-        const total = subtotal + tax;
-
-        // PASO 4: Crear registro de la Orden con snapshot completo
-        const newOrder: Order = OrderSchema.parse({
-          id: uuidv4(),           // CA-3.3.5: UUID v4 único por orden
-          items: items.map(i => ({
-            productId: i.productId,
-            name: i.name,         // Snapshot del nombre al momento de la venta
-            price: i.price,       // Snapshot del precio
-            quantity: i.quantity,
-            subtotal: i.subtotal,
-          })),
-          subtotal,
-          tax,
-          total,
-          status: 'COMPLETED',
-          paymentMethod,
-          createdAt: Date.now(), // Epoch Timestamp (Backend Guideline)
+        return { success: true, order: newOrder };
+      } else {
+        // Fallback Dexie para entornzo PWA/Desarrollo
+        await db.transaction('rw', db.products, db.orders, async () => {
+          for (const item of items) {
+             const p = await db.products.get(item.productId);
+             if(!p || p.stock < item.quantity) throw new Error(`Stock insuficiente para ${item.name}`);
+             await db.products.update(item.productId, { stock: p.stock - item.quantity, updatedAt: Date.now() });
+          }
+          await db.orders.add(newOrder);
         });
-
-        await db.orders.add(newOrder);
-        return newOrder;
-      });
-
-      return { success: true, order };
-    } catch (error: unknown) {
-      // Backend Guideline 4: Trazabilidad. Capturamos y retornamos el mensaje
-      // semántico para que la UI lo muestre directamente al cajero en un Toast.
-      const message = error instanceof Error
-        ? error.message
-        : 'Ocurrió un problema al procesar el cobro. Por favor intenta de nuevo.';
-      return { success: false, error: message };
+        return { success: true, order: newOrder };
+      }
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Error al procesar el cobro.' };
     }
   },
 
-  /** Obtiene el historial de órdenes de forma paginada */
-  async getAll(limit: number = 50, offset: number = 0): Promise<Order[]> {
-    return await db.orders
-      .orderBy('createdAt')
-      .reverse()
-      .offset(offset)
-      .limit(limit)
-      .toArray();
+  /** Obtiene el historial de órdenes */
+  async getAll(): Promise<Order[]> {
+    if (typeof window !== 'undefined' && (window as any).electronAPI) {
+      return await (window as any).electronAPI.getOrderHistory();
+    }
+    return await db.orders.orderBy('createdAt').reverse().toArray();
   },
 
   /** 
@@ -147,35 +126,20 @@ export const OrderService = {
     return { items, total };
   },
 
-  /**
-   * Obtiene estadísticas globales de todo el tiempo (Fase 12.1)
-   */
   async getOverallStats(): Promise<{
     totalRevenue: number;
     totalOrders: number;
     avgTicket: number;
   }> {
-    const all = await db.orders.where('status').equals('COMPLETED').toArray();
-    const totalRevenue = all.reduce((acc, o) => acc + o.total, 0);
-    const totalOrders = all.length;
+    const all = await this.getAll();
+    const completed = all.filter(o => o.status === 'COMPLETED');
+    const totalRevenue = completed.reduce((acc, o) => acc + o.total, 0);
+    const totalOrders = completed.length;
     const avgTicket = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
 
     return { totalRevenue, totalOrders, avgTicket };
   },
 
-  /**
-   * Calcula todas las métricas del día actual de forma optimizada.
-   * CA-4.1.1: Solo consulta las órdenes de hoy usando un índice, no hace full-scan.
-   * CA-4.1.3: Usa .where('createdAt').above(startOfDay) para eficiencia.
-   *
-   * Retorna:
-   * - totalNet:       Suma de todos los 'subtotals' (venta sin IVA — "Lo facturado")
-   * - totalWithTax:   Suma de todos los 'totals'   (venta con IVA — "Dinero cobrado")
-   * - cashTotal:      Solo las órdenes en Efectivo  ("Efectivo a entregar")
-   * - cardTotal:      Solo las órdenes con Tarjeta
-   * - orderCount:     Número de tickets generados   ("Flujo de gente")
-   * - avgTicket:      totalWithTax / orderCount     ("Gasto por cliente")
-   */
   async getStatsForDay(date: Date = new Date()): Promise<{
     totalNet: number;
     totalWithTax: number;
@@ -185,18 +149,17 @@ export const OrderService = {
     avgTicket: number;
     todayOrders: Order[];
   }> {
-    // Calculamos el rango de timestamps para el día seleccionado
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
-    // Consulta indexada — solo lee las órdenes del rango de tiempo. Eficiente y rápido.
-    const todayOrders = await db.orders
-      .where('createdAt')
-      .between(startOfDay.getTime(), endOfDay.getTime(), true, true)
-      .and(o => o.status === 'COMPLETED')
-      .toArray();
+    const all = await this.getAll();
+    const todayOrders = all.filter(o => 
+      o.createdAt >= startOfDay.getTime() && 
+      o.createdAt <= endOfDay.getTime() &&
+      o.status === 'COMPLETED'
+    );
 
     if (todayOrders.length === 0) {
       return { totalNet: 0, totalWithTax: 0, cashTotal: 0, cardTotal: 0, orderCount: 0, avgTicket: 0, todayOrders: [] };
@@ -204,14 +167,9 @@ export const OrderService = {
 
     const totalNet = todayOrders.reduce((acc, o) => acc + o.subtotal, 0);
     const totalWithTax = todayOrders.reduce((acc, o) => acc + o.total, 0);
-    const cashTotal = todayOrders
-      .filter(o => o.paymentMethod === 'CASH')
-      .reduce((acc, o) => acc + o.total, 0);
-    const cardTotal = todayOrders
-      .filter(o => o.paymentMethod === 'CARD')
-      .reduce((acc, o) => acc + o.total, 0);
+    const cashTotal = todayOrders.filter(o => o.paymentMethod === 'CASH').reduce((acc, o) => acc + o.total, 0);
+    const cardTotal = todayOrders.filter(o => o.paymentMethod === 'CARD').reduce((acc, o) => acc + o.total, 0);
     const orderCount = todayOrders.length;
-    // Math.round para nunca retornar centavos fraccionarios
     const avgTicket = Math.round(totalWithTax / orderCount);
 
     return { totalNet, totalWithTax, cashTotal, cardTotal, orderCount, avgTicket, todayOrders };

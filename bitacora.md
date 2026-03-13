@@ -36,3 +36,6 @@ Este documento registra cronológicamente las acciones realizadas, decisiones to
 | 12-Mar | Imágenes| Compresión 13.1 | Implementación de `compressImage` (Canvas/WebP) en cliente. Reducción de peso de fotos de 500KB a <40KB. |
 | 12-Mar | Datos | **Demo Pro 15.0** | Integración de servicio de demostración con imágenes de Unsplash y generación de historial de ventas realista para respaldos. |
 | 12-Mar | Datos | Style: Boutique | Actualización del catálogo Demo Pro a estilo Boutique (Vestidos, Lujo y Accesorios). |
+| 12-Mar | SQLite | **Fase 1.0 (B.S3)** | Instalación de `better-sqlite3` y configuración del motor nativo en `src/main/database.js`. |
+| 12-Mar | SQLite | Esquema SQL | Verificación atómica de tablas (Categories, Products, Orders) con Foreign Keys e integridad CHECK. |
+| 12-Mar | UI/DB | **Health Check** | Implementación de panel de salud en configuración con métricas en tiempo real de la DB SQLite. |
