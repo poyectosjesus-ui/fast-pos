@@ -1,12 +1,16 @@
-"use client";
-
 /**
- * CheckoutDialog — Modal de Cobro y Ticket de Venta
+ * CHECKOUT DIALOG — Fast-POS 2.0
  *
- * FUENTE DE VERDAD: motor_ventas_plan.md — Secciones 3.3 y 3.4
+ * Responsabilidad: Modal de cobro con desglose de IVA, campo de efectivo y ticket de venta.
+ * Fuente de Verdad: ARCHITECTURE.md §2.1, EPIC-002 (desglose IVA)
  *
- * Cumple: CA-3.3.1 a CA-3.3.5, CA-3.4.1 a CA-3.4.3
+ * CA-3.3.1: Deshabilitar al procesar (evitar doble envío)
+ * CA-3.3.3: Selector de método de pago (Efectivo / Tarjeta)
+ * CA-3.3.4: Cálculo de cambio en efectivo
+ * CA-3.4.1–3.4.3: Ticket digital con opción de impresión y nueva venta
  */
+
+"use client";
 
 import { useState } from "react";
 import { toast } from "sonner";
@@ -15,7 +19,8 @@ import { Check, Banknote, CreditCard, Printer, RotateCcw } from "lucide-react";
 import { OrderService } from "@/lib/services/orders";
 import { Order } from "@/lib/schema";
 import { useCartStore } from "@/store/useCartStore";
-import { formatCurrency, calcTax, BUSINESS_NAME } from "@/lib/constants";
+import { formatCents } from "@/lib/services/tax";
+import { BUSINESS_NAME } from "@/lib/constants";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,12 +43,8 @@ type PaymentMethod = "CASH" | "CARD";
 type Step = "payment" | "ticket";
 
 export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
-  const { items, clearCart } = useCartStore();
-
-  // Totales calculados centralizados (constants.ts)
-  const subtotal = items.reduce((acc, i) => acc + i.subtotal, 0);
-  const tax = calcTax(subtotal);
-  const total = subtotal + tax;
+  const { items, clearCart, getCartTotals } = useCartStore();
+  const { subtotal, tax, total } = getCartTotals();
 
   const [step, setStep] = useState<Step>("payment");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
@@ -59,7 +60,7 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
   const handleConfirmPayment = async () => {
     if (!isCashValid) {
       toast.error("Monto insuficiente", {
-        description: `El cliente debe dar al menos ${formatCurrency(total)}. Recibiste ${formatCurrency(amountPaidCents)}.`,
+        description: `El cliente debe dar al menos ${formatCents(total)}. Recibiste ${formatCents(amountPaidCents)}.`,
       });
       return;
     }
@@ -70,7 +71,6 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
       const result = await OrderService.checkout({ items, paymentMethod });
 
       if (!result.success || !result.order) {
-        // CA-3.3.2: Mostrar el error semántico del servicio directamente al cajero
         toast.error("No pudimos procesar el cobro", { description: result.error, duration: 6000 });
         return;
       }
@@ -93,9 +93,7 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
     onClose();
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const handlePrint = () => window.print();
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o && step === "payment") onClose(); }}>
@@ -152,9 +150,9 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
                     onChange={(e) => setAmountPaidStr(e.target.value)}
                   />
                 </div>
-                {amountPaidCents >= total && (
+                {amountPaidCents >= total && amountPaidCents > 0 && (
                   <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                    Cambio: {formatCurrency(changeCents)}
+                    Cambio: {formatCents(changeCents)}
                   </p>
                 )}
               </div>
@@ -162,17 +160,21 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
 
             <Separator />
 
-            {/* Resumen de totales */}
-            <div className="space-y-1 text-sm">
+            {/* Resumen de totales con desglose de IVA — EPIC-002 */}
+            <div className="space-y-1.5 text-sm">
               <div className="flex justify-between text-muted-foreground">
-                <span>Subtotal</span><span>{formatCurrency(subtotal)}</span>
+                <span>Subtotal (sin IVA)</span>
+                <span className="font-mono">{formatCents(subtotal)}</span>
               </div>
-              <div className="flex justify-between text-muted-foreground">
-                <span>IVA (16%)</span><span>{formatCurrency(tax)}</span>
-              </div>
+              {tax > 0 && (
+                <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                  <span>IVA</span>
+                  <span className="font-mono font-bold">+{formatCents(tax)}</span>
+                </div>
+              )}
               <div className="flex justify-between font-bold text-base pt-1">
                 <span>Total a cobrar</span>
-                <span className="text-primary">{formatCurrency(total)}</span>
+                <span className="text-primary font-mono">{formatCents(total)}</span>
               </div>
             </div>
 
@@ -201,28 +203,33 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
               {completedOrder!.items.map((item, i) => (
                 <div key={i} className="flex justify-between">
                   <span className="flex-1 truncate pr-2">{item.name} × {item.quantity}</span>
-                  <span className="font-medium">{formatCurrency(item.subtotal)}</span>
+                  <span className="font-medium">{formatCents(item.subtotal)}</span>
                 </div>
               ))}
             </div>
 
             <Separator />
 
-            <div className="space-y-1 text-sm">
+            {/* Totales del ticket con IVA */}
+            <div className="space-y-1.5 text-sm">
               <div className="flex justify-between text-muted-foreground">
-                <span>Subtotal</span><span>{formatCurrency(completedOrder!.subtotal)}</span>
+                <span>Subtotal (sin IVA)</span>
+                <span className="font-mono">{formatCents(completedOrder!.subtotal)}</span>
               </div>
-              <div className="flex justify-between text-muted-foreground">
-                <span>IVA</span><span>{formatCurrency(completedOrder!.tax)}</span>
-              </div>
+              {completedOrder!.tax > 0 && (
+                <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                  <span>IVA</span>
+                  <span className="font-mono">+{formatCents(completedOrder!.tax)}</span>
+                </div>
+              )}
               <div className="flex justify-between font-bold text-base">
                 <span>Total</span>
-                <span className="text-primary">{formatCurrency(completedOrder!.total)}</span>
+                <span className="text-primary font-mono">{formatCents(completedOrder!.total)}</span>
               </div>
               {paymentMethod === "CASH" && changeCents > 0 && (
                 <div className="flex justify-between font-bold text-emerald-600 dark:text-emerald-400">
                   <span>Cambio entregado</span>
-                  <span>{formatCurrency(changeCents)}</span>
+                  <span className="font-mono">{formatCents(changeCents)}</span>
                 </div>
               )}
             </div>

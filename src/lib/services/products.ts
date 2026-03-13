@@ -1,146 +1,106 @@
-import { db } from '../db';
+/**
+ * PRODUCT SERVICE — Fast-POS 2.0
+ *
+ * Responsabilidad: CRUD de productos a través de electronAPI → SQLite.
+ *   Sin Dexie. Sin efectos secundarios fuera de IPC.
+ * Fuente de Verdad: ARCHITECTURE.md §2.2, CODING_STANDARDS.md §4
+ *
+ * REGLA: Precios en CENTAVOS (integer). Nunca floats.
+ */
+
 import { Product, ProductSchema } from '../schema';
 import { v4 as uuidv4 } from 'uuid';
 
+// Helper tipado para evitar `any` en cada método
+function getAPI() {
+  if (typeof window === 'undefined') return null;
+  return (window as Window & { electronAPI?: Record<string, (...args: unknown[]) => Promise<unknown>> }).electronAPI ?? null;
+}
+
 export const ProductService = {
   /**
-   * Obtiene todos los productos, filtrando opcionalmente por visibilidad.
-   * Por defecto, el Dashboard de Inventario los trae todos.
+   * Obtiene todos los productos desde SQLite.
+   * Si `onlyVisible=true`, filtra los ocultos (no visibles en el POS).
    */
-  async getAll(onlyVisible: boolean = false): Promise<Product[]> {
-    if (typeof window === 'undefined' || !(window as any).electronAPI) {
-      // Fallback para SSR o entorno no-electron si fuera necesario
-      return [];
-    }
-
-    const products = await (window as any).electronAPI.getAllProducts();
-    
-    if (onlyVisible) {
-      return products.filter((p: Product) => p.isVisible !== false);
-    }
-    return products;
+  async getAll(onlyVisible = false): Promise<Product[]> {
+    const api = getAPI();
+    if (!api) return [];
+    const products = (await api.getAllProducts()) as Product[];
+    return onlyVisible ? products.filter(p => p.isVisible !== false) : products;
   },
 
   /**
-   * Búsqueda centralizada de productos por Nombre o SKU.
-   * Al vivir aquí (servicio), cualquier pantalla puede reutilizarla sin duplicar lógica.
-   * La búsqueda ignora mayúsculas/minúsculas para mejorar la experiencia del cajero.
-   * 
-   * @param query - Texto libre o código de barras enviado por el scanner físico
-   * @param onlyVisible - Si true, excluye los productos ocultos del POS
+   * Búsqueda en memoria por Nombre o SKU.
+   * Carga todos los productos y filtra localmente (seguro para catálogos medianos).
    */
-  async search(query: string, onlyVisible: boolean = false): Promise<Product[]> {
-    const normalized = query.trim().toLowerCase();
-    
-    if (!normalized) {
-      return this.getAll(onlyVisible);
-    }
-    
-    return await db.products.filter(p => {
-      const matchesName = p.name.toLowerCase().includes(normalized);
-      const matchesSku = p.sku.toLowerCase().includes(normalized);
-      const visibilityOk = onlyVisible ? p.isVisible !== false : true;
-      return (matchesName || matchesSku) && visibilityOk;
-    }).toArray();
+  async search(query: string, onlyVisible = false): Promise<Product[]> {
+    const all = await this.getAll(onlyVisible);
+    const q = query.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter(p =>
+      p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)
+    );
   },
 
   /**
-   * Crea un producto validando integridad (Zod) y unicidad (SKU)
+   * Crea un producto nuevo en SQLite.
+   * Valida con Zod antes de enviar al Main Process.
    */
   async create(data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>): Promise<Product> {
+    const api = getAPI();
+    if (!api) throw new Error('Fuera del entorno Electron.');
+
     const parsed = ProductSchema.parse({
       ...data,
       id: uuidv4(),
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
-    
-    if (typeof window !== 'undefined' && (window as any).electronAPI) {
-      const result = await (window as any).electronAPI.createProduct(parsed);
-      if (!result.success) {
-        throw new Error(result.error || "No se pudo crear el producto en la base nativa.");
-      }
-    } else {
-      // Fallback para desarrollo/testing no-electron
-      await db.products.add(parsed);
+
+    const result = await api.createProduct(parsed) as { success: boolean; error?: string };
+    if (!result.success) {
+      throw new Error(result.error ?? 'No se pudo guardar el producto.');
     }
-    
     return parsed;
   },
 
   /**
-   * Actualiza el producto protegiendo el SKU de posibles duplicidades.
+   * Actualiza un producto existente en SQLite.
    */
   async update(id: string, data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>): Promise<Product> {
+    const api = getAPI();
+    if (!api) throw new Error('Fuera del entorno Electron.');
+
     const updatedAt = Date.now();
-    
-    if (typeof window !== 'undefined' && (window as any).electronAPI) {
-      const result = await (window as any).electronAPI.updateProduct({
-        ...data,
-        id,
-        updatedAt
-      });
-      if (!result.success) {
-        throw new Error(result.error || "Error al actualizar el producto nativo.");
-      }
-      return { id, ...data, updatedAt } as Product;
-    } else {
-      return await db.transaction('rw', db.products, async () => {
-        const existing = await db.products.get(id);
-        if (!existing) throw new Error(`Inconsistencia: El producto no fue encontrado.`);
-        
-        const updated = { ...existing, ...data, updatedAt };
-        const parsed = ProductSchema.parse(updated);
-        await db.products.put(parsed);
-        return parsed;
-      });
+    const result = await api.updateProduct({ ...data, id, updatedAt }) as { success: boolean; error?: string };
+    if (!result.success) {
+      throw new Error(result.error ?? 'No se pudo actualizar el producto.');
     }
+    return { id, ...data, updatedAt } as Product;
   },
 
+  /** Ajusta el stock de un producto usando `update()`. */
   async adjustStock(id: string, newStock: number): Promise<void> {
-    if (newStock < 0) throw new Error("Inventario no puede ser menor a cero.");
-    
-    if (typeof window !== 'undefined' && (window as any).electronAPI) {
-      const all = await this.getAll();
-      const existing = all.find(p => p.id === id);
-      if (!existing) throw new Error("Producto no encontrado.");
-
-      const { categoryName, ...productData } = existing as any;
-      await this.update(id, { ...productData, stock: newStock });
-    } else {
-      await db.transaction('rw', db.products, async () => {
-        const existing = await db.products.get(id);
-        if (!existing) throw new Error("Producto extraviado.");
-        const updated = { ...existing, stock: newStock, updatedAt: Date.now() };
-        await db.products.put(ProductSchema.parse(updated));
-      });
-    }
+    if (newStock < 0) throw new Error('El inventario no puede ser negativo.');
+    const all = await this.getAll();
+    const existing = all.find(p => p.id === id);
+    if (!existing) throw new Error('Producto no encontrado.');
+    await this.update(id, { ...existing, stock: newStock });
   },
 
+  /** Cambia la visibilidad de un producto en el POS. */
   async toggleVisibility(id: string, isVisible: boolean): Promise<void> {
-    if (typeof window !== 'undefined' && (window as any).electronAPI) {
-      const all = await this.getAll();
-      const existing = all.find(p => p.id === id);
-      if (!existing) throw new Error("Producto no encontrado.");
-
-      const { categoryName, ...productData } = existing as any;
-      await this.update(id, { ...productData, isVisible });
-    } else {
-      await db.transaction('rw', db.products, async () => {
-        const existing = await db.products.get(id);
-        if (!existing) throw new Error("Producto no encontrado.");
-        const updated = { ...existing, isVisible, updatedAt: Date.now() };
-        await db.products.put(ProductSchema.parse(updated));
-      });
-    }
+    const all = await this.getAll();
+    const existing = all.find(p => p.id === id);
+    if (!existing) throw new Error('Producto no encontrado.');
+    await this.update(id, { ...existing, isVisible });
   },
 
+  /** Elimina un producto permanentemente. */
   async delete(id: string): Promise<void> {
-    if (typeof window !== 'undefined' && (window as any).electronAPI) {
-      const result = await (window as any).electronAPI.deleteProduct(id);
-      if (!result.success) throw new Error(result.error || "No se pudo eliminar.");
-    } else {
-      await db.products.delete(id);
-    }
-  }
+    const api = getAPI();
+    if (!api) throw new Error('Fuera del entorno Electron.');
+    const result = await api.deleteProduct(id) as { success: boolean; error?: string };
+    if (!result.success) throw new Error(result.error ?? 'No se pudo eliminar.');
+  },
 };

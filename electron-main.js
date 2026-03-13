@@ -23,16 +23,9 @@ const isDev = process.env.NODE_ENV === "development";
 let mainWindow = null;
 let isAppQuitting = false;
 
-// Fast-POS 1.1: Inicialización de Capa Nativa
-const { initDatabase } = require("./src/main/database");
-const { setupIpcHandlers } = require("./src/main/ipc-handlers");
+// Los handlers IPC y la DB se inicializan dentro de app.on('ready')
+// para garantizar que app.getPath('userData') está disponible.
 
-try {
-  initDatabase();
-  setupIpcHandlers();
-} catch (err) {
-  console.error("Falla catastrófica en inicialización nativa:", err);
-}
 
 /**
  * Logger centralizado con timestamps
@@ -92,6 +85,22 @@ function createWindow() {
   mainWindow.once("ready-to-show", () => {
     Logger.info("✅ Ventana lista, mostrando...");
     mainWindow.show();
+  });
+
+  // ── EPIC-003: Permitir carga de imágenes locales con file:// ───────────────
+  // Next.js (localhost) necesita permiso explícito para cargar URLs file://.
+  // Usamos session.webRequest para interceptar y permitir file:// desde userData.
+  // Alternativa segura: no desactivamos webSecurity globalmente.
+  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        "Content-Security-Policy": [
+          "default-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* file:; " +
+          "img-src 'self' data: blob: file: http://localhost:*;"
+        ],
+      },
+    });
   });
 
   // URL según desarrollo o producción
@@ -199,6 +208,22 @@ app.on("ready", () => {
   Logger.info(`Plataforma: ${process.platform}`);
   Logger.info(`Electron: ${process.versions.electron}`);
   Logger.info("═".repeat(80));
+  // ── Inicializar DB e IPC handlers PRIMERO (app.getPath ya está disponible) ──
+  try {
+    const { initDatabase } = require("./src/main/database");
+    const { setupIpcHandlers } = require("./src/main/ipc-handlers");
+    initDatabase();
+    setupIpcHandlers();
+    Logger.info("✅ Base de datos e IPC handlers registrados");
+  } catch (err) {
+    Logger.error("💥 Falla crítica en inicialización de DB/IPC:", err.message);
+    dialog.showErrorBox(
+      "Error de base de datos",
+      `Fast-POS no pudo iniciar la base de datos:\n\n${err.message}`
+    );
+    app.quit();
+    return;
+  }
 
   createWindow();
 

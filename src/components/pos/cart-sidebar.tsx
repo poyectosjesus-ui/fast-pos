@@ -1,19 +1,23 @@
-"use client";
-
 /**
- * CartSidebar — Panel Lateral del Carrito Activo
+ * CART SIDEBAR — Fast-POS 2.0
  *
- * FUENTE DE VERDAD: motor_ventas_plan.md — Sección 3.2 y 3.1
+ * Responsabilidad: Panel lateral del carrito activo con desglose de IVA.
+ * Fuente de Verdad: ARCHITECTURE.md §2.1, EPIC-002 (desglose IVA)
  *
- * Cumple: CA-3.2.4 (totales en tiempo real), CA-3.2.5 (botón Cobrar bloqueado si vacío),
- * CA-3.1.4 (quitar ítem o reducir cantidad), CA-3.3.1 (botón deshabilitado al procesar).
+ * CA-3.2.4: Totales en tiempo real con IVA desglosado
+ * CA-3.2.5: Botón Cobrar bloqueado si carrito vacío
+ * CA-3.1.4: Quitar ítem o reducir cantidad
+ * CA-3.3.1: Botón deshabilitado al procesar
  */
 
+"use client";
+
 import { useCartStore } from "@/store/useCartStore";
-import { formatCurrency, calcTax } from "@/lib/constants";
-import { Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
+import { formatCents } from "@/lib/services/tax";
+import { Minus, Plus, Trash2, ShoppingBag, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { formatCurrency } from "@/lib/constants";
 
 interface CartSidebarProps {
   onCheckout: () => void;
@@ -21,16 +25,12 @@ interface CartSidebarProps {
 }
 
 export function CartSidebar({ onCheckout, isProcessing }: CartSidebarProps) {
-  const { items, setQuantity, removeItem } = useCartStore();
+  const { items, setQuantity, removeItem, getCartTotals } = useCartStore();
+  const { subtotal, tax, total } = getCartTotals();
 
-  // El stock máximo se valida en el Main Process al hacer checkout (atómicamente).
-  // Aquí usamos un valor permisivo; el cajero verá el error real solo si supera el stock real.
-  const getStock = (_productId: string) => 999;
-
-  // Totales calculados en centavos usando las funciones centralizadas (constants.ts)
-  const subtotal = items.reduce((acc, i) => acc + i.subtotal, 0);
-  const tax = calcTax(subtotal);
-  const total = subtotal + tax;
+  // El +999 es el cap permisivo para el sidebar — la validación real de stock
+  // ocurre atómicamente en el Main Process al confirmar el cobro.
+  const getMaxStock = (_productId: string) => 999;
 
   if (items.length === 0) {
     return (
@@ -49,13 +49,20 @@ export function CartSidebar({ onCheckout, isProcessing }: CartSidebarProps) {
       {/* Lista de ítems */}
       <div className="flex-1 overflow-y-auto space-y-2 p-4">
         {items.map((item) => {
-          const maxStock = getStock(item.productId);
+          const maxStock = getMaxStock(item.productId);
           return (
             <div key={item.productId} className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/5 transition-colors">
               {/* Nombre y precio unitario */}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold leading-tight truncate">{item.name}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">{formatCurrency(item.price)} c/u</p>
+                {/* Badge mini de IVA */}
+                {item.taxRate > 0 && (
+                  <span className="inline-flex items-center gap-0.5 mt-1 text-[9px] font-bold uppercase tracking-wider text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-full">
+                    <Receipt className="h-2.5 w-2.5" />
+                    IVA {item.taxRate / 100}%{item.taxIncluded ? " incl." : " +"}
+                  </span>
+                )}
               </div>
 
               {/* Controles de cantidad */}
@@ -95,31 +102,36 @@ export function CartSidebar({ onCheckout, isProcessing }: CartSidebarProps) {
         })}
       </div>
 
-      {/* Resumen de totales y botón de cobro */}
+      {/* Resumen de totales con desglose de IVA (EPIC-002) */}
       <div className="border-t bg-card/50 p-4 space-y-3">
         <div className="space-y-1.5 text-sm">
+          {/* Subtotal sin IVA */}
           <div className="flex justify-between text-muted-foreground">
-            <span>Subtotal</span>
-            <span>{formatCurrency(subtotal)}</span>
+            <span>Subtotal (sin IVA)</span>
+            <span className="font-mono">{formatCents(subtotal)}</span>
           </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>IVA (16%)</span>
-            <span>{formatCurrency(tax)}</span>
-          </div>
-          <Separator className="my-2" />
+          {/* IVA — solo mostrar si hay impuesto */}
+          {tax > 0 && (
+            <div className="flex justify-between text-amber-600 dark:text-amber-400">
+              <span>IVA</span>
+              <span className="font-mono font-bold">+{formatCents(tax)}</span>
+            </div>
+          )}
+          <Separator className="my-1" />
+          {/* Total final */}
           <div className="flex justify-between font-bold text-base">
             <span>Total</span>
-            <span className="text-primary">{formatCurrency(total)}</span>
+            <span className="text-primary font-mono">{formatCents(total)}</span>
           </div>
         </div>
 
-        {/* CA-3.2.5: Botón bloqueado si carrito vacío. CA-3.3.1: Bloqueado si procesando */}
+        {/* Botón Cobrar — CA-3.2.5 y CA-3.3.1 */}
         <Button
           className="w-full h-12 text-base font-bold"
           onClick={onCheckout}
           disabled={items.length === 0 || isProcessing}
         >
-          {isProcessing ? "Procesando..." : `Cobrar ${formatCurrency(total)}`}
+          {isProcessing ? "Procesando..." : `Cobrar ${formatCents(total)}`}
         </Button>
       </div>
     </div>

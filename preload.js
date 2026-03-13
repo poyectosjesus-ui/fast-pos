@@ -38,6 +38,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   checkout:       (order)   => ipcRenderer.invoke("orders:checkout", order),
   getOrderHistory:()        => ipcRenderer.invoke("orders:getHistory"),
   voidOrder:      (id)      => ipcRenderer.invoke("orders:void", id),
+
+  // ── Imágenes (Bucket Local — EPIC-003) ─────────────────────────────────────
+  saveImage:    (base64, filename) => ipcRenderer.invoke("images:save", base64, filename),
+  getImageUrl:  (filename)         => ipcRenderer.invoke("images:getUrl", filename),
+  deleteImage:  (filename)         => ipcRenderer.invoke("images:delete", filename),
 });
+
 
 console.log("[Preload] Fast-POS 2.0 — electronAPI disponible.");

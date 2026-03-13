@@ -499,7 +499,94 @@ function setupIpcHandlers() {
     }
   });
 
+  // ──────────────────────────────────────────
+  // DOMINIO: images (Bucket Local — EPIC-003)
+  // ──────────────────────────────────────────
+
+  /**
+   * images:save — Guarda una imagen comprimida en disco local.
+   *
+   * El Renderer envía el base64 del WebP ya comprimido (<40KB a 800px).
+   * El Main lo escribe en {userData}/images/{uuid}.webp
+   * La DB solo guarda el nombre del archivo (ej: "abc123.webp").
+   *
+   * @param {string} base64   - Cadena base64 con o sin prefijo data:image/...
+   * @param {string} filename - Nombre del archivo destino (ej: "abc123.webp")
+   * @returns {{ success: boolean, filename: string } | { success: false, error: string }}
+   */
+  ipcMain.handle("images:save", async (event, base64, filename) => {
+    try {
+      const imagesDir = path.join(app.getPath("userData"), "images");
+
+      // Crear directorio si no existe
+      if (!fs.existsSync(imagesDir)) {
+        fs.mkdirSync(imagesDir, { recursive: true });
+        console.log("[IMAGE] Directorio de imágenes creado:", imagesDir);
+      }
+
+      // Limpiar prefijo de dataURL si viene incluido (data:image/webp;base64,...)
+      const cleanBase64 = base64.replace(/^data:image\/\w+;base64,/, "");
+      const buffer = Buffer.from(cleanBase64, "base64");
+
+      const dest = path.join(imagesDir, filename);
+      fs.writeFileSync(dest, buffer);
+
+      console.log("[IMAGE] Guardada:", filename, `(${buffer.length} bytes)`);
+      return { success: true, filename };
+    } catch (err) {
+      console.error("[IPC:images:save]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  /**
+   * images:getUrl — Devuelve la URL file:// absoluta de una imagen.
+   *
+   * Necesario porque Next.js en Electron no puede construir rutas de userData
+   * directamente en el Renderer (no conoce app.getPath()).
+   *
+   * @param {string} filename - Nombre del archivo (ej: "abc123.webp")
+   * @returns {string | null} - URL file:// o null si el archivo no existe
+   */
+  ipcMain.handle("images:getUrl", async (event, filename) => {
+    try {
+      if (!filename) return null;
+      const filePath = path.join(app.getPath("userData"), "images", filename);
+      if (!fs.existsSync(filePath)) {
+        console.warn("[IMAGE] Archivo no encontrado:", filename);
+        return null;
+      }
+      // Convertir a URL file:// compatible con Electron (webSecurity)
+      return `file://${filePath.replace(/\\/g, "/")}`;
+    } catch (err) {
+      console.error("[IPC:images:getUrl]", err.message);
+      return null;
+    }
+  });
+
+  /**
+   * images:delete — Elimina la imagen del disco al borrar un producto.
+   *
+   * @param {string} filename - Nombre del archivo a eliminar
+   * @returns {{ success: boolean }}
+   */
+  ipcMain.handle("images:delete", async (event, filename) => {
+    try {
+      if (!filename) return { success: true }; // nada que borrar
+      const filePath = path.join(app.getPath("userData"), "images", filename);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log("[IMAGE] Eliminada:", filename);
+      }
+      return { success: true };
+    } catch (err) {
+      console.error("[IPC:images:delete]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
   console.log("[IPC] Todos los handlers registrados correctamente.");
+
 }
 
 module.exports = { setupIpcHandlers };

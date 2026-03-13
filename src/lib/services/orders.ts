@@ -9,6 +9,7 @@
 
 import { Order, OrderSchema } from '../schema';
 import { CartItem } from '@/store/useCartStore';
+import { calculateCartTax } from '@/lib/services/tax';
 import { v4 as uuidv4 } from 'uuid';
 
 // Helper tipado para acceder a electronAPI sin any
@@ -47,10 +48,15 @@ export const OrderService = {
       return { success: false, error: 'El carrito está vacío. Agrega artículos antes de cobrar.' };
     }
 
-    // Totales básicos (sin IVA aún — se refina en EPIC-002)
-    const subtotal = items.reduce((acc, i) => acc + i.subtotal, 0);
-    const tax = 0; // EPIC-002 calculará esto correctamente
-    const total = subtotal + tax;
+    // EPIC-002: Cálculo de IVA correcto por producto con calculateCartTax()
+    const { subtotal, tax, total } = calculateCartTax(
+      items.map(i => ({
+        price: i.price,
+        quantity: i.quantity,
+        taxRate: i.taxRate,
+        taxIncluded: i.taxIncluded,
+      }))
+    );
 
     const newOrder: Order = OrderSchema.parse({
       id: uuidv4(),
@@ -60,6 +66,8 @@ export const OrderService = {
         price: i.price,
         quantity: i.quantity,
         subtotal: i.subtotal,
+        taxRate: i.taxRate,       // Snapshot fiscal para auditoría
+        taxIncluded: i.taxIncluded, // Snapshot fiscal para auditoría
       })),
       subtotal,
       tax,
@@ -68,6 +76,7 @@ export const OrderService = {
       paymentMethod,
       createdAt: Date.now(),
     });
+
 
     if (!api) {
       return { success: false, error: 'No disponible fuera de Electron.' };

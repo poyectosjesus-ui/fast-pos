@@ -1,30 +1,34 @@
 /**
- * Store del Carrito de Venta Activo
- *
- * FUENTE DE VERDAD: motor_ventas_plan.md — Sección 3.1
+ * CART STORE — Fast-POS 2.0
  *
  * Responsabilidad: Gestionar en memoria los ítems de la venta en curso.
+ * Fuente de Verdad: ARCHITECTURE.md §2.1, CODING_STANDARDS.md §4
+ *
  * Los datos son temporales (sessionStorage) y se limpian al cerrar la ventana,
  * evitando "carritos fantasma" al día siguiente.
+ *
+ * REGLA: Todo monto monetario en CENTAVOS (integer). Nunca floats.
  */
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { calcTax } from '@/lib/constants';
+import { calculateCartTax, type CartItemForTax } from '@/lib/services/tax';
 
-/** 
- * Estructura de un ítem en el carrito.
- * Todos los campos monetarios en CENTAVOS (Normativa Backend 2).
- * Los campos name/sku/price son SNAPSHOTS tomados cuando se agrega el producto
+/**
+ * Ítem en el carrito.
+ * Todos los campos monetarios en CENTAVOS.
+ * Los campos son SNAPSHOTS tomados cuando se agrega el producto,
  * para que un cambio posterior en el catálogo no altere una venta en curso.
  */
 export interface CartItem {
   productId: string;
   name: string;
   sku: string;
-  price: number;     // centavos, snapshot al momento de agregar
-  quantity: number;  // CA-3.1.2: nunca supera el stock disponible
-  subtotal: number;  // price × quantity, recalculado en cada mutación
+  price: number;        // centavos, snapshot al momento de agregar
+  quantity: number;     // nunca supera el stock disponible
+  subtotal: number;     // price × quantity, recalculado en cada mutación
+  taxRate: number;      // puntos básicos, snapshot (ej: 1600 = 16%)
+  taxIncluded: boolean; // snapshot del modo de IVA al agregar
 }
 
 interface CartState {
@@ -41,6 +45,8 @@ interface CartState {
     sku: string;
     price: number;
     stock: number;
+    taxRate: number;
+    taxIncluded: boolean;
   }) => { success: boolean; message?: string };
 
   /**
@@ -55,10 +61,8 @@ interface CartState {
   /** Limpia completo el carrito. CA-3.1.5: llamar tras cierre exitoso */
   clearCart: () => void;
 
-  /** Totales calculados en tiempo real. Fuente de Verdad: motor_ventas_plan.md */
-  getSubtotal: () => number;
-  getTaxAmount: () => number;
-  getTotal: () => number;
+  /** Totales con desglose de IVA correcto por producto — EPIC-002 */
+  getCartTotals: () => { subtotal: number; tax: number; total: number };
 }
 
 export const useCartStore = create<CartState>()(
@@ -71,7 +75,7 @@ export const useCartStore = create<CartState>()(
         const existing = items.find(i => i.productId === product.id);
         const currentQty = existing?.quantity ?? 0;
 
-        // CA-3.1.2 y CA-3.1.3: Bloquear sobre-venta
+        // Bloquear sobre-venta
         if (currentQty >= product.stock) {
           if (product.stock === 0) {
             return { success: false, message: `"${product.name}" ya no tiene existencias disponibles.` };
@@ -80,7 +84,7 @@ export const useCartStore = create<CartState>()(
         }
 
         if (existing) {
-          // CA-3.1.1: Incrementar cantidad de la fila existente
+          // Incrementar cantidad de la fila existente
           set({
             items: items.map(i =>
               i.productId === product.id
@@ -89,7 +93,7 @@ export const useCartStore = create<CartState>()(
             ),
           });
         } else {
-          // Primera vez que se agrega: crear snapshot inmutable del producto
+          // Primera vez: crear snapshot inmutable del producto (incluyendo IVA)
           set({
             items: [...items, {
               productId: product.id,
@@ -98,6 +102,8 @@ export const useCartStore = create<CartState>()(
               price: product.price,
               quantity: 1,
               subtotal: product.price,
+              taxRate: product.taxRate ?? 1600,
+              taxIncluded: product.taxIncluded ?? true,
             }],
           });
         }
@@ -105,12 +111,10 @@ export const useCartStore = create<CartState>()(
       },
 
       setQuantity: (productId, quantity, maxStock) => {
-        // CA-3.1.4: Cantidad 0 o negativa elimina la fila
         if (quantity <= 0) {
           get().removeItem(productId);
           return;
         }
-        // CA-3.1.3: No superar el stock disponible
         const clampedQty = Math.min(quantity, maxStock);
         set({
           items: get().items.map(i =>
@@ -127,16 +131,24 @@ export const useCartStore = create<CartState>()(
 
       clearCart: () => set({ items: [] }),
 
-      // Fuente de cálculo: motor_ventas_plan.md — Tabla de Definiciones
-      getSubtotal: () => get().items.reduce((acc, i) => acc + i.subtotal, 0),
-
-      getTaxAmount: () => calcTax(get().getSubtotal()),
-
-      getTotal: () => get().getSubtotal() + get().getTaxAmount(),
+      /**
+       * Calcula el desglose de IVA del carrito completo.
+       * Usa calculateCartTax() del TaxService (función pura).
+       * Fuente de Verdad: EPIC-002 / TASK-002-004
+       */
+      getCartTotals: () => {
+        const taxItems: CartItemForTax[] = get().items.map(i => ({
+          price: i.price,
+          quantity: i.quantity,
+          taxRate: i.taxRate,
+          taxIncluded: i.taxIncluded,
+        }));
+        return calculateCartTax(taxItems);
+      },
     }),
     {
       name: 'fast-pos-cart',
-      // CA-3.1.6: sessionStorage para evitar carritos fantasma al día siguiente
+      // sessionStorage para evitar carritos fantasma al día siguiente
       storage: createJSONStorage(() => sessionStorage),
     }
   )

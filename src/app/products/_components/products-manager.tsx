@@ -1,8 +1,6 @@
-import { useLiveQuery } from "dexie-react-hooks";
-import { useState, useEffect, useCallback } from "react";
-
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { compressImage } from "@/lib/image-processing";
+import { ImageService } from "@/lib/services/image";
 
 import { Edit2, PackagePlus, Trash2, SearchX, PlusCircle, MinusCircle, EyeOff, Eye, ImageIcon } from "lucide-react";
 
@@ -11,6 +9,8 @@ import { BarcodeHandler } from "@/components/shared/barcode-handler";
 import { Product } from "@/lib/schema";
 import { ProductService } from "@/lib/services/products";
 import { CategoryService } from "@/lib/services/categories";
+import { calculateItemTax, formatCents, pctToRate, rateToPercent } from "@/lib/services/tax";
+
 
 
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -37,7 +47,22 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { SearchInput } from "@/components/ui/search-input";
 
+/**
+ * ProductImage — Carga la URL file:// de una imagen del bucket local y la muestra.
+ * El componente padre es responsable de manejar el caso vacío (sin imagen).
+ * EPIC-003: las imágenes no se guardan como base64 en DB sino como archivos en disco.
+ */
+function ProductImage({ filename, alt }: { filename: string; alt: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    ImageService.getUrl(filename).then(url => setSrc(url));
+  }, [filename]);
+  if (!src) return null;
+  return <img src={src} alt={alt} className="h-full w-full object-cover" />;
+}
+
 export function ProductsManager() {
+
   // Estado SQLite
   const [categories, setCategories] = useState<Awaited<ReturnType<typeof CategoryService['getAll']>>>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
@@ -50,7 +75,8 @@ export function ProductsManager() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<string>("ALL");
 
-  // PAGINACIÓN (CA-10.6)
+  // Confirmar borrado (evita window.confirm — CODING_STANDARDS)
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string; image?: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -60,7 +86,20 @@ export function ProductsManager() {
   const [priceStr, setPriceStr] = useState("");
   const [stockStr, setStockStr] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [imageBase64, setImageBase64] = useState<string | undefined>(undefined);
+  // EPIC-003: filename guardado en DB ("uuid.webp") + previewUrl sólo para el formulario
+  const [imageFilename, setImageFilename] = useState<string | undefined>(undefined);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | undefined>(undefined);
+  // IVA — EPIC-002
+  const [taxRate, setTaxRate] = useState(1600);  // puntos básicos (1600 = 16%)
+  const [taxIncluded, setTaxIncluded] = useState(true);
+  const [taxPreset, setTaxPreset] = useState<"0" | "800" | "1600" | "custom">("1600");
+
+  // Preview IVA en tiempo real
+  const priceInCents = useMemo(() => Math.round(parseFloat(priceStr || "0") * 100), [priceStr]);
+  const taxPreview = useMemo(
+    () => (priceInCents > 0 && taxRate > 0 ? calculateItemTax(priceInCents, taxRate, taxIncluded) : null),
+    [priceInCents, taxRate, taxIncluded]
+  );
 
   // Carga y recarga de datos
   const loadData = useCallback(async () => {
@@ -94,23 +133,47 @@ export function ProductsManager() {
       setEditingId(product.id);
       setName(product.name);
       setSku(product.sku);
-      // Backend Rule 2: El dinero viene en centavos enteros desde la DB, lo mostramos como decimal
       setPriceStr((product.price / 100).toFixed(2));
       setStockStr(product.stock.toString());
       setCategoryId(product.categoryId);
-      setImageBase64(product.image);
+      setImageFilename(product.image?.startsWith("data:") ? undefined : product.image);
+      // Preview: si es base64 legacy mostrarlo directo; si es filename moderno, resolver URL
+      if (product.image) {
+        if (product.image.startsWith("data:")) {
+          // Imagen guardada antes de EPIC-003 — mostrar base64 hasta que el usuario la cambie
+          setImagePreviewUrl(product.image);
+        } else {
+          ImageService.getUrl(product.image).then(url => setImagePreviewUrl(url ?? undefined));
+        }
+      } else {
+        setImagePreviewUrl(undefined);
+      }
+      // Pre-cargar IVA del producto
+      const rate = product.taxRate ?? 1600;
+      setTaxRate(rate);
+      setTaxIncluded(product.taxIncluded ?? true);
+      if ([0, 800, 1600].includes(rate)) {
+        setTaxPreset(String(rate) as "0" | "800" | "1600");
+      } else {
+        setTaxPreset("custom");
+      }
     } else {
       setEditingId(null);
       setName("");
       setSku("");
       setPriceStr("");
       setStockStr("");
-      setImageBase64(undefined);
-      // Setup default fallback para selects en UI
+      setImageFilename(undefined);
+      setImagePreviewUrl(undefined);
+      // Defaults IVA para nuevo producto
+      setTaxRate(1600);
+      setTaxIncluded(true);
+      setTaxPreset("1600");
       setCategoryId(categories?.[0]?.id || "");
     }
     setIsOpen(true);
   };
+
 
   const handleSave = async () => {
     if (!name.trim() || !sku.trim() || !categoryId || !priceStr || !stockStr) {
@@ -119,16 +182,18 @@ export function ProductsManager() {
     }
     setIsSaving(true);
     try {
-      const priceInCents = Math.round(parseFloat(priceStr) * 100);
+      const priceInCentsVal = Math.round(parseFloat(priceStr) * 100);
       const stock = parseInt(stockStr, 10);
       const payload = {
         name: name.trim(),
         sku: sku.trim().toUpperCase(),
-        price: priceInCents,
+        price: priceInCentsVal,
         stock,
         categoryId,
         isVisible: true,
-        image: imageBase64,
+        image: imageFilename,
+        taxRate,        // EPIC-002
+        taxIncluded,    // EPIC-002
       };
       if (editingId) {
         await ProductService.update(editingId, payload);
@@ -137,8 +202,9 @@ export function ProductsManager() {
         await ProductService.create(payload);
         toast.success("¡Excelente!", { description: "El artículo ya está disponible para vender." });
       }
-      setIsOpen(false);
-      await loadData(); // Refrescar
+      await loadData(); // ← primero recargar la tabla
+      setIsOpen(false); // ← luego cerrar el modal
+
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       toast.error("No pudimos guardar", { description: msg });
@@ -148,14 +214,29 @@ export function ProductsManager() {
   };
 
 
-  const handleDelete = async (id: string, productName: string) => {
-    if (!confirm(`¿Seguro que quieres borrar "${productName}"? Esto no afectará ventas pasadas.`)) return;
+
+  /** Abre el diálogo de confirmación de borrado. NO borra nada todavía. */
+  const handleDelete = (id: string, productName: string, image?: string) => {
+    setPendingDelete({ id, name: productName, image });
+  };
+
+  /** Ejecuta el borrado real (llamado desde AlertDialog). */
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
     try {
-      await ProductService.delete(id);
-      toast.success("Eliminado", { description: "El artículo ya no aparecerá en tu catálogo." });
-      await loadData(); // Refrescar
+      // Limpiar imagen del bucket local ANTES de borrar el registro
+      // (si falla, no es crítico — el huérfano se ignora)
+      if (pendingDelete.image) {
+        await ImageService.delete(pendingDelete.image);
+      }
+      await ProductService.delete(pendingDelete.id);
+      toast.success("Eliminado", { description: `"${pendingDelete.name}" ya no está en tu catálogo.` });
+      await loadData();
     } catch (error: unknown) {
-      toast.error("Fallo inesperado", { description: "No pudimos borrar este artículo. Intenta de nuevo." });
+      const msg = error instanceof Error ? error.message : String(error);
+      toast.error("Fallo al eliminar", { description: msg });
+    } finally {
+      setPendingDelete(null);
     }
   };
 
@@ -202,16 +283,40 @@ export function ProductsManager() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const id = toast.loading("Procesando imagen...", { description: "Optimizando para almacenamiento rápido." });
+    const toastId = toast.loading("Procesando imagen...", { description: "Comprimiendo y guardando en disco." });
     try {
-      // Redimensionamos a 400px (suficiente para miniaturas de POS)
-      const compressedBase64 = await compressImage(file, { maxWidth: 400, maxHeight: 400, quality: 0.7 });
-      setImageBase64(compressedBase64);
-      toast.success("Imagen optimizada", { id, description: "Lista para guardar." });
-    } catch (error) {
-      toast.error("Error al procesar imagen", { id });
+      // Comprimir en el renderer con Canvas API → WebP < 40KB
+      const base64 = await compressImageToBase64(file, 400, 0.7);
+      // Previsualizar de inmediato (URL de objeto temporal)
+      setImagePreviewUrl(URL.createObjectURL(file));
+      // Guardar en bucket local → obtener filename
+      const filename = await ImageService.save(base64);
+      setImageFilename(filename);
+      toast.success("Imagen lista", { id: toastId, description: "Guardada en el dispositivo." });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("Error al procesar imagen", { id: toastId, description: msg });
     }
   };
+
+  /** Comprime un File a base64 WebP usando Canvas API del Renderer. */
+  function compressImageToBase64(file: File, maxPx: number, quality: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d")?.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL("image/webp", quality));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("No se pudo cargar la imagen.")) };
+      img.src = url;
+    });
+  }
 
   // UI Rule 5: Bloqueos Preventivos
   const isSubmitDisabled = isSaving || !name.trim() || !sku.trim() || !categoryId;
@@ -243,6 +348,7 @@ export function ProductsManager() {
   }
 
   return (
+    <>
     <Card>
       <BarcodeHandler onScan={handleBarcodeScanned} profile="catalog" />
       <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b">
@@ -268,85 +374,234 @@ export function ProductsManager() {
               <PackagePlus className="h-4 w-4" />
               <span className="hidden sm:inline">Añadir Artículo</span>
             </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>{editingId ? "Actualizar detalles" : "Un nuevo artículo"}</DialogTitle>
-              <DialogDescription>
-                Llena la siguiente información sobre el producto. Solo tú podrás ver los códigos e inventario.
+          <DialogContent className="sm:max-w-lg flex flex-col max-h-[90dvh] p-0">
+            {/* ── HEADER ─────────────────────────── */}
+            <DialogHeader className="px-6 pt-6 pb-2 shrink-0 border-b">
+              <DialogTitle className="text-lg font-black">
+                {editingId ? "Editar artículo" : "Nuevo artículo"}
+              </DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground">
+                {editingId
+                  ? "Modifica los datos de este producto."
+                  : "Llena la información. Solo tú ves los códigos e inventario."}
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-5 py-4">
-              
-              {/* Avatar / Foto del producto */}
+
+            {/* ── CUERPO CON SCROLL ──────────────── */}
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
+
+              {/* Foto */}
               <div className="flex items-center gap-4">
                 <div className="h-16 w-16 rounded-xl border-2 border-dashed border-border flex items-center justify-center bg-muted/20 overflow-hidden shrink-0">
-                  {imageBase64 ? (
-                    <img src={imageBase64} alt="Vista previa" className="h-full w-full object-cover" />
+                  {imagePreviewUrl ? (
+                    <img src={imagePreviewUrl} alt="Vista previa" className="h-full w-full object-cover" />
                   ) : (
                     <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
                   )}
                 </div>
                 <div className="flex-1 space-y-1">
-                  <Label htmlFor="image" className="text-sm font-medium">Foto del artículo (opcional)</Label>
-                  <Input 
-                    id="image" 
-                    type="file" 
-                    accept="image/*" 
+                  <Label htmlFor="image" className="text-sm font-medium">Foto (opcional)</Label>
+                  <Input
+                    id="image"
+                    type="file"
+                    accept="image/*"
                     onChange={handleImageChange}
                     disabled={isSaving}
                     className="text-sm cursor-pointer"
                   />
-                  <p className="text-[10px] text-muted-foreground">Máx. 500KB. Se guarda en este dispositivo.</p>
+                  <p className="text-[10px] text-muted-foreground">Máx 500KB. Se guarda en este dispositivo.</p>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="name">¿Cómo se llama tu producto?</Label>
-                <Input id="name" placeholder="Ej. Frappé de Moka Extra Grande" value={name} onChange={(e) => setName(e.target.value)} disabled={isSaving} />
-                <p className="text-[10px] text-muted-foreground">Este es el nombre visible en el punto de venta y recibos de los clientes.</p>
+              {/* Nombre */}
+              <div className="space-y-1.5">
+                <Label htmlFor="name">Nombre del producto</Label>
+                <Input
+                  id="name"
+                  placeholder="Ej. Frappé de Moka Grande"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={isSaving}
+                />
+                <p className="text-[10px] text-muted-foreground">Aparecerá en el punto de venta y en los tickets.</p>
               </div>
+
+              {/* Grupo (categoría) — renglón propio para que se vea el nombre */}
+              <div className="space-y-1.5">
+                <Label htmlFor="categorySelect">Familia / Grupo</Label>
+                <Select
+                  value={categoryId}
+                  onValueChange={(val) => setCategoryId(val || "")}
+                  disabled={isSaving}
+                >
+                  <SelectTrigger id="categorySelect" className="h-11">
+                    <SelectValue placeholder="Elige un grupo…">
+                      {categories.find(c => c.id === categoryId)?.name ?? "Elige un grupo…"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {categories.length === 0 && (
+                  <p className="text-xs text-destructive">Crea al menos un grupo antes de agregar productos.</p>
+                )}
+              </div>
+
+
+              {/* SKU + Cantidad en una fila */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="sku">Código Corto (Identificador)</Label>
-                  <Input id="sku" placeholder="Ej. MOKA-XLG" value={sku} onChange={(e) => setSku(e.target.value.toUpperCase())} disabled={isSaving} />
-                  <p className="text-[10px] text-muted-foreground">Útil para búsquedas rápidas. Debe ser único.</p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="sku">Código (SKU)</Label>
+                  <Input
+                    id="sku"
+                    placeholder="Ej. MOKA-GDE"
+                    value={sku}
+                    onChange={(e) => setSku(e.target.value.toUpperCase())}
+                    disabled={isSaving}
+                  />
+                  <p className="text-[10px] text-muted-foreground">Para búsquedas y lectora de códigos.</p>
                 </div>
-                <div className="space-y-2">
-                  <Label>¿A qué grupo pertenece?</Label>
-                  <Select value={categoryId} onValueChange={(val) => setCategoryId(val || "")} disabled={isSaving}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Elige un grupo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-1.5">
+                  <Label htmlFor="stock">Existencias</Label>
+                  <Input
+                    id="stock"
+                    type="number"
+                    step="1"
+                    min="0"
+                    placeholder="Ej. 50"
+                    value={stockStr}
+                    onChange={(e) => setStockStr(e.target.value)}
+                    disabled={isSaving}
+                  />
+                  <p className="text-[10px] text-muted-foreground">Cada venta descuenta 1.</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="price">¿En cuánto lo vendes?</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2 text-muted-foreground font-medium">$</span>
-                    <Input id="price" type="number" step="0.01" min="0" placeholder="0.00" className="pl-7" value={priceStr} onChange={(e) => setPriceStr(e.target.value)} disabled={isSaving} />
+
+              {/* Precio */}
+              <div className="space-y-1.5">
+                <Label htmlFor="price">Precio de venta</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-muted-foreground font-bold text-sm">$</span>
+                  <Input
+                    id="price"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    className="pl-7 h-11 text-base font-bold"
+                    value={priceStr}
+                    onChange={(e) => setPriceStr(e.target.value)}
+                    disabled={isSaving}
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  {taxIncluded && taxRate > 0
+                    ? "Este precio ya incluye el IVA. El desglose se muestra abajo."
+                    : taxRate > 0
+                    ? "Al cobrar se sumará el IVA. El total real se muestra abajo."
+                    : "Producto exento de IVA."}
+                </p>
+              </div>
+
+              {/* ── IVA ──────────────────────────────── */}
+              <div className="space-y-4 pt-3 border-t border-border/50">
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                  Impuesto (IVA)
+                </p>
+
+                {/* Tasa de IVA + Toggle en la misma fila */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="taxRateSelect" className="text-xs">Tasa</Label>
+                    <Select
+                      value={taxPreset}
+                      onValueChange={(val) => {
+                        setTaxPreset(val as typeof taxPreset);
+                        if (val !== "custom") setTaxRate(parseInt(val ?? "0"));
+                      }}
+                      disabled={isSaving}
+                    >
+                      <SelectTrigger id="taxRateSelect" className="h-10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">Exento (0%)</SelectItem>
+                        <SelectItem value="800">8% Frontera</SelectItem>
+                        <SelectItem value="1600">16% Estándar</SelectItem>
+                        <SelectItem value="custom">Personalizado</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">El cliente pagará este monto final (incluye impuestos).</p>
+
+                  {taxRate > 0 && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">El precio incluye IVA</Label>
+                      <div className="flex items-center gap-3 h-10 px-3 border rounded-md bg-muted/20">
+                        <Switch
+                          checked={taxIncluded}
+                          onCheckedChange={setTaxIncluded}
+                          disabled={isSaving}
+                        />
+                        <span className="text-xs text-muted-foreground leading-tight">
+                          {taxIncluded ? "Sí, ya incluye" : "No, se suma al cobrar"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="stock">¿Cuántos tenemos ahora?</Label>
-                  <Input id="stock" type="number" step="1" min="0" placeholder="Ej. 100" value={stockStr} onChange={(e) => setStockStr(e.target.value)} disabled={isSaving} />
-                  <p className="text-[10px] text-muted-foreground">Cada venta descontará -1 de esta cantidad global.</p>
-                </div>
+
+                {taxPreset === "custom" && (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      placeholder="Ej: 10.5"
+                      className="h-10 w-28"
+                      disabled={isSaving}
+                      defaultValue={rateToPercent(taxRate)}
+                      onChange={(e) => setTaxRate(pctToRate(parseFloat(e.target.value || "0")))}
+                    />
+                    <span className="text-sm text-muted-foreground font-medium">%</span>
+                  </div>
+                )}
+
+                {/* Preview IVA */}
+                {taxPreview && (
+                  <div className="rounded-lg bg-primary/5 border border-primary/10 divide-y divide-border/30 text-sm overflow-hidden">
+                    <div className="flex justify-between px-3 py-2 text-muted-foreground">
+                      <span>Precio base (sin IVA)</span>
+                      <span className="font-mono font-semibold">{formatCents(taxPreview.basePrice)}</span>
+                    </div>
+                    <div className="flex justify-between px-3 py-2 text-amber-600 dark:text-amber-400">
+                      <span>IVA ({taxRate / 100}%)</span>
+                      <span className="font-mono font-semibold">+{formatCents(taxPreview.taxAmount)}</span>
+                    </div>
+                    <div className="flex justify-between px-3 py-2 font-black bg-primary/5">
+                      <span>Total a cobrar</span>
+                      <span className="font-mono text-primary">{formatCents(taxPreview.total)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
+
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isSaving}>Cerrar</Button>
-              <Button onClick={handleSave} disabled={isSubmitDisabled}>
-                 {isSaving ? "Guardando de forma segura..." : "Guardar Producto"}
+
+            {/* ── FOOTER ─────────────────────────── */}
+            <div className="flex items-center gap-2 px-6 py-4 border-t shrink-0">
+              <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isSaving} className="w-28">
+                Cancelar
               </Button>
-            </DialogFooter>
+              <Button onClick={handleSave} disabled={isSubmitDisabled} className="flex-1">
+                {isSaving ? "Guardando…" : editingId ? "Guardar cambios" : "Agregar producto"}
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
         </div>
@@ -403,7 +658,7 @@ export function ProductsManager() {
                       {/* Avatar: foto real si existe, o iniciales del nombre como fallback */}
                       <div className="h-10 w-10 rounded-lg border bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
                         {product.image ? (
-                          <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
+                          <ProductImage filename={product.image} alt={product.name} />
                         ) : (
                           <span className="text-xs font-bold text-muted-foreground uppercase">
                             {product.name.slice(0, 2)}
@@ -452,7 +707,7 @@ export function ProductsManager() {
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => handleOpenAlert(product)}>
                           <Edit2 className="h-3.5 w-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(product.id, product.name)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(product.id, product.name, product.image)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -498,5 +753,27 @@ export function ProductsManager() {
         )}
       </CardContent>
     </Card>
+
+    <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>¿Eliminar producto?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Vas a eliminar <strong>&apos;{pendingDelete?.name}&apos;</strong>. Esta acción no afecta ventas
+            pasadas pero el artículo desaparecerá del catálogo y del punto de venta de forma permanente.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={confirmDelete}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Sí, eliminar
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
