@@ -1,12 +1,14 @@
 /**
  * CHECKOUT DIALOG — Fast-POS 2.0
  *
- * Responsabilidad: Modal de cobro con desglose de IVA, campo de efectivo y ticket de venta.
- * Fuente de Verdad: ARCHITECTURE.md §2.1, EPIC-002 (desglose IVA)
+ * Responsabilidad: Modal de cobro con desglose de IVA, campo de efectivo,
+ *   selector de método de pago multicanal y ticket de venta.
+ * Fuente de Verdad: ARCHITECTURE.md §2.1, EPIC-002 (IVA), EPIC-008 (Flexibilidad)
  *
  * CA-3.3.1: Deshabilitar al procesar (evitar doble envío)
- * CA-3.3.3: Selector de método de pago (Efectivo / Tarjeta)
+ * CA-3.3.3: Selector de método de pago (Efectivo / Tarjeta / Transferencia / WhatsApp / Otro)
  * CA-3.3.4: Cálculo de cambio en efectivo
+ * CA-3.3.5: Campo de origen de venta (LOCAL / ONLINE)
  * CA-3.4.1–3.4.3: Ticket digital con opción de impresión y nueva venta
  */
 
@@ -14,7 +16,11 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Check, Banknote, CreditCard, Printer, RotateCcw } from "lucide-react";
+import {
+  Check, Banknote, CreditCard, Printer, RotateCcw,
+  ArrowLeftRight, MessageCircle, Globe, HelpCircle,
+  Store, Wifi
+} from "lucide-react";
 
 import { OrderService } from "@/lib/services/orders";
 import { Order } from "@/lib/schema";
@@ -34,14 +40,70 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
 interface CheckoutDialogProps {
   open: boolean;
   onClose: () => void;
 }
 
-type PaymentMethod = "CASH" | "CARD";
+type PaymentMethod = "CASH" | "CARD" | "TRANSFER" | "WHATSAPP" | "ONLINE" | "OTHER";
+type SaleSource = "LOCAL" | "ONLINE";
 type Step = "payment" | "ticket";
+
+const PAYMENT_METHODS: { id: PaymentMethod; label: string; icon: React.ReactNode; requiresAmount: boolean; color: string }[] = [
+  {
+    id: "CASH",
+    label: "Efectivo",
+    icon: <Banknote className="h-5 w-5" />,
+    requiresAmount: true,
+    color: "emerald",
+  },
+  {
+    id: "CARD",
+    label: "Tarjeta",
+    icon: <CreditCard className="h-5 w-5" />,
+    requiresAmount: false,
+    color: "blue",
+  },
+  {
+    id: "TRANSFER",
+    label: "Transferencia",
+    icon: <ArrowLeftRight className="h-5 w-5" />,
+    requiresAmount: false,
+    color: "violet",
+  },
+  {
+    id: "WHATSAPP",
+    label: "WhatsApp",
+    icon: <MessageCircle className="h-5 w-5" />,
+    requiresAmount: false,
+    color: "green",
+  },
+  {
+    id: "ONLINE",
+    label: "En Línea",
+    icon: <Globe className="h-5 w-5" />,
+    requiresAmount: false,
+    color: "sky",
+  },
+  {
+    id: "OTHER",
+    label: "Otro",
+    icon: <HelpCircle className="h-5 w-5" />,
+    requiresAmount: false,
+    color: "orange",
+  },
+];
+
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  CASH: "Efectivo",
+  CARD: "Tarjeta",
+  TRANSFER: "Transferencia Bancaria",
+  WHATSAPP: "Pago WhatsApp",
+  ONLINE: "Pago en Línea",
+  OTHER: "Otro método",
+};
 
 export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
   const { items, clearCart, getCartTotals } = useCartStore();
@@ -49,14 +111,18 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
 
   const [step, setStep] = useState<Step>("payment");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
+  const [saleSource, setSaleSource] = useState<SaleSource>("LOCAL");
   const [amountPaidStr, setAmountPaidStr] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
 
+  const currentMethodDef = PAYMENT_METHODS.find(m => m.id === paymentMethod)!;
+  const requiresAmount = currentMethodDef.requiresAmount;
+
   // CA-3.3.4: Calcular cambio solo aplica en efectivo
   const amountPaidCents = Math.round(parseFloat(amountPaidStr || "0") * 100);
   const changeCents = amountPaidCents - total;
-  const isCashValid = paymentMethod === "CARD" || amountPaidCents >= total;
+  const isCashValid = !requiresAmount || amountPaidCents >= total;
 
   const handleConfirmPayment = async () => {
     if (!isCashValid) {
@@ -66,31 +132,31 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
       return;
     }
 
-    // CA-3.3.1: Deshabilitar para evitar doble envío
     setIsProcessing(true);
     try {
-      const result = await OrderService.checkout({ items, paymentMethod });
+      const result = await OrderService.checkout({ items, paymentMethod, source: saleSource });
 
       if (!result.success || !result.order) {
         toast.error("No pudimos procesar el cobro", { description: result.error, duration: 6000 });
         return;
       }
 
-      // CA-3.1.5: Limpiar el carrito tras éxito
       clearCart();
       setCompletedOrder(result.order);
       setStep("ticket");
 
-      // Auto-imprimir ticket
-      const api = typeof window !== "undefined" ? (window as unknown as { electronAPI?: any }).electronAPI : null;
-      if (api) {
-        try {
-          const settings = await api.getAllSettings();
-          const sMap = settings.success ? (settings.config || {}) : {};
-          const printerName = sMap["receiptPrinter"] || null;
-          await api.printTicket(result.order.id, printerName, true);
-        } catch (err) {
-          console.error("Fallo auto-impresión:", err);
+      // Auto-imprimir ticket (solo ventas locales, no en línea)
+      if (saleSource === "LOCAL") {
+        const api = typeof window !== "undefined" ? (window as unknown as { electronAPI?: any }).electronAPI : null;
+        if (api) {
+          try {
+            const settings = await api.getAllSettings();
+            const sMap = settings.success ? (settings.config || {}) : {};
+            const printerName = sMap["receiptPrinter"] || null;
+            await api.printTicket(result.order.id, printerName, true);
+          } catch (err) {
+            console.error("Fallo auto-impresión:", err);
+          }
         }
       }
     } finally {
@@ -99,67 +165,88 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
   };
 
   const handleNewSale = () => {
-    // CA-3.4.3: Nueva venta — resetear estado interno del modal
     setStep("payment");
     setPaymentMethod("CASH");
+    setSaleSource("LOCAL");
     setAmountPaidStr("");
     setCompletedOrder(null);
     onClose();
   };
 
-  // Botones inteligentes para denominaciones comunes de México
   const billDenominations = [50, 100, 200, 500, 1000];
   const suggestedBills = billDenominations.filter(b => b > total / 100).slice(0, 3);
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { 
-      // Si estamos en la pantalla del ticket, NO permitir que clics fuera del modal o ESC lo cierren.
-      // Así forzamos a que lean el ticket y le den a "Nueva Venta".
-      if (!o && step === "payment") {
-        onClose(); 
-      }
+    <Dialog open={open} onOpenChange={(o) => {
+      if (!o && step === "payment") onClose();
     }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         {step === "payment" ? (
           <>
             <DialogHeader>
               <DialogTitle>Cobrar venta</DialogTitle>
               <DialogDescription>
-                Confirma el método y el monto recibido para cerrar esta cuenta.
+                Elige el método de cobro y confirma la cantidad recibida.
               </DialogDescription>
             </DialogHeader>
 
-            {/* Selección de método de pago (CA-3.3.3) */}
-            <div className="grid grid-cols-2 gap-3 my-2">
+            {/* Origen de la Venta — LOCAL o ONLINE */}
+            <div className="flex items-center gap-2 p-1 rounded-lg border bg-muted/30">
               <button
-                onClick={() => setPaymentMethod("CASH")}
-                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-colors ${
-                  paymentMethod === "CASH"
-                    ? "border-primary bg-primary/5 text-primary"
-                    : "border-border text-muted-foreground hover:bg-muted/30"
-                }`}
+                onClick={() => setSaleSource("LOCAL")}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-semibold transition-all",
+                  saleSource === "LOCAL"
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
               >
-                <Banknote className="h-6 w-6" />
-                <span className="text-sm font-semibold">Efectivo</span>
+                <Store className="h-4 w-4" />
+                Mostrador
               </button>
               <button
-                onClick={() => { setPaymentMethod("CARD"); setAmountPaidStr(""); }}
-                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-colors ${
-                  paymentMethod === "CARD"
-                    ? "border-primary bg-primary/5 text-primary"
-                    : "border-border text-muted-foreground hover:bg-muted/30"
-                }`}
+                onClick={() => setSaleSource("ONLINE")}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-semibold transition-all",
+                  saleSource === "ONLINE"
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
               >
-                <CreditCard className="h-6 w-6" />
-                <span className="text-sm font-semibold">Tarjeta</span>
+                <Wifi className="h-4 w-4" />
+                En Línea
               </button>
             </div>
 
+            {/* Selector de Método de Pago (CA-3.3.3) */}
+            <div className="grid grid-cols-3 gap-2">
+              {PAYMENT_METHODS.map((method) => (
+                <button
+                  key={method.id}
+                  onClick={() => {
+                    setPaymentMethod(method.id);
+                    if (!method.requiresAmount) setAmountPaidStr("");
+                  }}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center",
+                    paymentMethod === method.id
+                      ? "border-primary bg-primary/8 text-primary"
+                      : "border-border text-muted-foreground hover:bg-muted/30 hover:border-muted-foreground/30"
+                  )}
+                >
+                  {method.icon}
+                  <span className="text-[11px] font-bold leading-tight">{method.label}</span>
+                </button>
+              ))}
+            </div>
+
             {/* Campo de monto pagado (solo en efectivo) — CA-3.3.4 */}
-            {paymentMethod === "CASH" && (
-              <div className="space-y-4">
+            {requiresAmount && (
+              <div className="space-y-3">
                 <div className="space-y-2">
-                  <Label htmlFor="amount" className="font-bold text-muted-foreground uppercase text-xs tracking-wider">¿Cuánto te dio el cliente?</Label>
+                  <Label htmlFor="amount" className="font-bold text-muted-foreground uppercase text-xs tracking-wider">
+                    ¿Cuánto te dio el cliente?
+                  </Label>
                   <div className="relative">
                     <span className="absolute left-4 top-3 text-muted-foreground font-bold text-lg">$</span>
                     <Input
@@ -178,18 +265,18 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
 
                 {/* Atajos Rápidos */}
                 <div className="flex flex-wrap gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="flex-1 bg-muted/40 font-bold"
                     onClick={() => setAmountPaidStr((total / 100).toString())}
                   >
                     Monto Exacto
                   </Button>
                   {suggestedBills.map((bill) => (
-                    <Button 
-                      key={bill} 
-                      variant="outline" 
+                    <Button
+                      key={bill}
+                      variant="outline"
                       size="sm"
                       className="flex-1 font-bold text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950 dark:border-emerald-800 dark:text-emerald-400 hover:bg-emerald-100"
                       onClick={() => setAmountPaidStr(bill.toString())}
@@ -200,27 +287,45 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
                 </div>
 
                 {/* Banner de Cambio / Faltante */}
-                <div className={`p-4 rounded-xl border-2 flex items-center justify-between transition-colors ${
-                  amountPaidStr === "" 
-                    ? "bg-muted/30 border-dashed border-border" 
+                <div className={cn(
+                  "p-4 rounded-xl border-2 flex items-center justify-between transition-colors",
+                  amountPaidStr === ""
+                    ? "bg-muted/30 border-dashed border-border"
                     : amountPaidCents >= total
-                      ? "bg-emerald-500/10 border-emerald-500 text-emerald-700 dark:text-emerald-400"
-                      : "bg-destructive/10 border-destructive text-destructive"
-                }`}>
+                    ? "bg-emerald-500/10 border-emerald-500 text-emerald-700 dark:text-emerald-400"
+                    : "bg-destructive/10 border-destructive text-destructive"
+                )}>
                   <span className="font-black tracking-widest uppercase text-sm">
-                    {amountPaidStr === "" 
-                      ? "Esperando pago..." 
-                      : amountPaidCents >= total 
-                        ? "Su Cambio" 
-                        : "Falta dinero"}
+                    {amountPaidStr === ""
+                      ? "Esperando pago..."
+                      : amountPaidCents >= total
+                      ? "Su Cambio"
+                      : "Falta dinero"}
                   </span>
                   <span className="font-mono text-xl font-black">
-                    {amountPaidStr === "" 
-                      ? "$ 0.00" 
-                      : amountPaidCents >= total 
-                        ? formatCents(changeCents) 
-                        : formatCents(total - amountPaidCents)}
+                    {amountPaidStr === ""
+                      ? "$ 0.00"
+                      : amountPaidCents >= total
+                      ? formatCents(changeCents)
+                      : formatCents(total - amountPaidCents)}
                   </span>
+                </div>
+              </div>
+            )}
+
+            {/* Aviso para métodos sin efectivo */}
+            {!requiresAmount && (
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-dashed">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  {currentMethodDef.icon}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">{PAYMENT_METHOD_LABELS[paymentMethod]}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {saleSource === "ONLINE"
+                      ? "Venta registrada como pedido en línea."
+                      : "El pago se realizará directamente, sin necesidad de calcular cambio."}
+                  </p>
                 </div>
               </div>
             )}
@@ -298,6 +403,17 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
                   <span>Cambio entregado</span>
                   <span className="font-mono">{formatCents(changeCents)}</span>
                 </div>
+              )}
+            </div>
+
+            {/* Método de pago */}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground border rounded-lg px-3 py-2">
+              {PAYMENT_METHODS.find(m => m.id === paymentMethod)?.icon}
+              <span>{PAYMENT_METHOD_LABELS[paymentMethod]}</span>
+              {saleSource === "ONLINE" && (
+                <span className="ml-auto flex items-center gap-1 text-sky-600 dark:text-sky-400 font-semibold">
+                  <Wifi className="h-3 w-3" /> En Línea
+                </span>
               )}
             </div>
 

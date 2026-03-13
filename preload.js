@@ -48,10 +48,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getImageUrl:  (filename)         => ipcRenderer.invoke("images:getUrl", filename),
   deleteImage:  (filename)         => ipcRenderer.invoke("images:delete", filename),
 
-  // ── Impresión de Tickets (EPIC-004) ────────────────────────────────────────
+  // ── Impresión de Tickets y Reportes (EPIC-004) ─────────────────────────
   getPrinters:  () => ipcRenderer.invoke("ticket:getPrinters"),
   printTicket:  (orderId, printerName, silent) => ipcRenderer.invoke("ticket:print", orderId, printerName, silent),
   printTicketToPdf: (orderId) => ipcRenderer.invoke("ticket:printToPdf", orderId),
+  generateZReportPdf: (dateString) => ipcRenderer.invoke("report:zReportPdf", dateString),
 
   // ── Usuarios & Seguridad (EPIC-005) ────────────────────────────────────────
   login:          (userId, pin) => ipcRenderer.invoke("auth:login", userId, pin),

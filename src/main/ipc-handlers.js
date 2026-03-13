@@ -450,8 +450,8 @@ function setupIpcHandlers() {
 
     const checkStock = db.prepare("SELECT stock FROM products WHERE id = ?");
     const insertOrder = db.prepare(`
-      INSERT INTO orders (id, subtotal, tax, total, status, paymentMethod, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO orders (id, subtotal, tax, total, status, paymentMethod, source, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insertItem = db.prepare(`
       INSERT INTO order_items (orderId, productId, name, price, quantity, subtotal)
@@ -483,6 +483,7 @@ function setupIpcHandlers() {
         orderData.total,
         orderData.status,
         orderData.paymentMethod,
+        orderData.source ?? 'LOCAL',
         orderData.createdAt
       );
 
@@ -691,13 +692,17 @@ function setupIpcHandlers() {
     const win = new BrowserWindow({
       show: false,
       skipTaskbar: true,
-      width: 400,
-      height: 600,
+      // En macOS con pantallas Retina, Electron usa deviceScaleFactor:2 por defecto.
+      // Al forzarlo a 1, el CSS 1px = 1px físico, y el PDF sale a escala real.
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        preload: path.join(__dirname, "../../preload.js") // From src/main relative to root
-      }
+        preload: path.join(__dirname, "../../preload.js"),
+        deviceScaleFactor: 1,  // Neutralizar Retina
+      },
+      // 80mm a 96dpi = 302px; usamos 380px para dar margen y capturar todo el contenido
+      width: 380,
+      height: 1400,
     });
 
     const ticketUrl = isDev 
@@ -706,8 +711,29 @@ function setupIpcHandlers() {
 
     await win.loadURL(ticketUrl);
     
-    // Esperar a que la SPA de Next cargue los datos (Suspense/useEffect)
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Esperar a que la SPA de Next cargue los datos (Suspense/useEffect/electronAPI)
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    return win;
+  }
+
+  async function createZReportWindow(dateString) {
+    const isDev = process.env.NODE_ENV === "development";
+    const win = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        preload: path.join(__dirname, "../../preload.js"),
+        deviceScaleFactor: 1, 
+      },
+      width: 380,
+      height: 1400,
+    });
+
+    const reportUrl = isDev 
+      ? `http://localhost:3000/z-report?date=${dateString}`
+      : `file://${path.join(__dirname, "../../out/z-report.html")}?date=${dateString}`;
+
+    await win.loadURL(reportUrl);
+    await new Promise(resolve => setTimeout(resolve, 2000));
     return win;
   }
 
@@ -748,8 +774,14 @@ function setupIpcHandlers() {
       
       const pdfData = await win.webContents.printToPDF({
         printBackground: true,
-        pageSize: { width: 80000, height: 297000 }, // 80mm ancho, largo dinámico aprox
-        margins: { top: 0, bottom: 0, left: 0, right: 0 }
+        // preferCSSPageSize: true — Electron usa @page CSS del ticket
+        // El ticket define: @page { size: 80mm auto; margin: 0 }
+        preferCSSPageSize: true,
+        margins: { top: 0, bottom: 0, left: 0, right: 0 },
+        landscape: false,
+        // scaleFactor: 100 = sin escala adicional
+        // (el layout ya está en CSS a 80mm, preferCSSPageSize lo toma tal cual)
+        scaleFactor: 100,
       });
       win.close();
 
@@ -765,6 +797,35 @@ function setupIpcHandlers() {
       return { success: true, filePath };
     } catch (err) {
       console.error("[IPC:ticket:printToPdf]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("report:zReportPdf", async (event, dateString) => {
+    try {
+      const win = await createZReportWindow(dateString);
+      
+      const pdfData = await win.webContents.printToPDF({
+        printBackground: true,
+        preferCSSPageSize: true,
+        margins: { top: 0, bottom: 0, left: 0, right: 0 },
+        landscape: false,
+        scaleFactor: 100,
+      });
+      win.close();
+
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        title: "Guardar Corte Z",
+        defaultPath: path.join(app.getPath("documents"), `Corte-Z-${dateString}.pdf`),
+        filters: [{ name: "PDF", extensions: ["pdf"] }]
+      });
+
+      if (canceled || !filePath) return { success: true, canceled: true };
+      
+      fs.writeFileSync(filePath, pdfData);
+      return { success: true, filePath };
+    } catch (err) {
+      console.error("[IPC:report:zReportPdf]", err.message);
       return { success: false, error: err.message };
     }
   });

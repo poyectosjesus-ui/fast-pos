@@ -52,7 +52,13 @@ import {
   Store,
   Printer,
   Users,
+  Palette,
+  Instagram,
+  MessageCircle,
+  Globe,
+  Image as ImageIcon,
 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { UsersManager } from "./_components/users-manager";
@@ -151,6 +157,126 @@ interface ElectronAPI {
   getAllSettings: () => Promise<{ success: boolean; config?: Record<string, string> }>;
   setBulkSettings: (entries: Record<string, string>) => Promise<{ success: boolean; error?: string }>;
   getPrinters?: () => Promise<{ name: string; isDefault: boolean }[]>;
+}
+
+// ─────────────────────────────────────────────
+// Sub-componente: Branding del Ticket
+// ─────────────────────────────────────────────
+
+function TicketBrandingTab({ api }: { api: ElectronAPI | undefined }) {
+  const [form, setForm] = useState({
+    store_footer_message: "",
+    store_policies: "",
+    store_whatsapp: "",
+    store_instagram: "",
+    store_facebook: "",
+    store_website: "",
+  });
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      if (!api) return;
+      const res = await api.getAllSettings();
+      if (res.success && res.config) {
+        setForm(prev => ({
+          ...prev,
+          store_footer_message: res.config!["store_footer_message"] ?? "",
+          store_policies:       res.config!["store_policies"] ?? "",
+          store_whatsapp:       res.config!["store_whatsapp"] ?? "",
+          store_instagram:      res.config!["store_instagram"] ?? "",
+          store_facebook:       res.config!["store_facebook"] ?? "",
+          store_website:        res.config!["store_website"] ?? "",
+        }));
+      }
+    }
+    load();
+  }, [api]);
+
+  const handleSave = async () => {
+    if (!api) return toast.error("Solo disponible en la app de escritorio.");
+    setIsSaving(true);
+    try {
+      const result = await api.setBulkSettings(form);
+      if (!result.success) throw new Error(result.error);
+      toast.success("Branding del ticket actualizado", {
+        description: "Los cambios aparecerán en el próximo ticket impreso."
+      });
+    } catch (err) {
+      toast.error("No se pudo guardar", {
+        description: err instanceof Error ? err.message : "Error desconocido",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const field = (key: keyof typeof form, label: string, placeholder: string, icon: React.ReactNode, type = "text") => (
+    <div className="space-y-1.5">
+      <Label htmlFor={key} className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+        {icon} {label}
+      </Label>
+      {type === "textarea" ? (
+        <textarea
+          id={key}
+          rows={3}
+          value={form[key]}
+          onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
+          placeholder={placeholder}
+          className="w-full rounded-lg border bg-muted/30 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+      ) : (
+        <Input
+          id={key}
+          type="text"
+          value={form[key]}
+          onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
+          placeholder={placeholder}
+          className="bg-muted/30"
+        />
+      )}
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Printer className="h-4 w-4" /> Mensaje del Ticket
+          </CardTitle>
+          <CardDescription>
+            Personaliza lo que aparece al pie de cada ticket impreso o PDF.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {field("store_footer_message", "Frase de despedida", "Ej: ¡Gracias por su compra! Vuelva pronto 🙏", <MessageCircle className="h-3 w-3" />, "textarea")}
+          {field("store_policies", "Políticas de Venta", "Ej: No hay devoluciones sin ticket. Cambios en 7 días.", <Printer className="h-3 w-3" />, "textarea")}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Globe className="h-4 w-4" /> Presencia Digital
+          </CardTitle>
+          <CardDescription>
+            Aparece al pie del ticket como un mini-directorio de contacto.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {field("store_whatsapp", "Número WhatsApp", "Ej: +52 555 000 0000", <MessageCircle className="h-3 w-3" />)}
+          {field("store_instagram", "Instagram", "Ej: @minegocio", <Instagram className="h-3 w-3" />)}
+          {field("store_facebook", "Facebook", "Ej: facebook.com/minegocio", <Globe className="h-3 w-3" />)}
+          {field("store_website", "Sitio Web", "Ej: www.minegocio.com", <Globe className="h-3 w-3" />)}
+        </CardContent>
+      </Card>
+
+      <Button onClick={handleSave} disabled={isSaving} className="w-full h-11">
+        {isSaving ? "Guardando..." : "Guardar Cambios de Identidad"}
+      </Button>
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────
@@ -314,12 +440,15 @@ export default function SettingsPage() {
         {/* Contenido scrollable */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-4xl mx-auto w-full space-y-6 pb-24">
           <Tabs defaultValue="general" className="w-full space-y-6">
-             <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 bg-muted/50 p-1 rounded-xl border border-primary/5 backdrop-blur-sm h-auto flex-wrap">
+             <TabsList className="grid w-full grid-cols-3 sm:grid-cols-7 bg-muted/50 p-1 rounded-xl border border-primary/5 backdrop-blur-sm h-auto flex-wrap">
               <TabsTrigger value="general" className="uppercase text-[10px] font-black tracking-widest gap-1.5">
                 <Activity className="w-3 h-3" /> General
               </TabsTrigger>
               <TabsTrigger value="business" className="uppercase text-[10px] font-black tracking-widest gap-1.5">
                 <Store className="w-3 h-3" /> Negocio
+              </TabsTrigger>
+              <TabsTrigger value="ticket" className="uppercase text-[10px] font-black tracking-widest gap-1.5">
+                <Palette className="w-3 h-3" /> Ticket
               </TabsTrigger>
               <TabsTrigger value="security" className="uppercase text-[10px] font-black tracking-widest gap-1.5">
                 <ShieldCheck className="w-3 h-3" /> Respaldos
@@ -338,6 +467,11 @@ export default function SettingsPage() {
             {/* ── PESTAÑA: USUARIOS ── */}
             <TabsContent value="users" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
                <UsersManager />
+            </TabsContent>
+
+            {/* ── PESTAÑA: TICKET / BRANDING ── */}
+            <TabsContent value="ticket" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <TicketBrandingTab api={api} />
             </TabsContent>
 
             {/* ── PESTAÑA: GENERAL ── */}

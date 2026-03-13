@@ -224,6 +224,45 @@ function runMigrations(db) {
     console.log("[DB] Migración v5 aplicada: Tabla units creada.");
   }
 
+  // ── v5 → v6: Branding de Ticket + Métodos de Pago Flexibles ────────
+  if (currentVersion < 6) {
+    // 1. Nuevas keys de branding en settings
+    const insertSetting = db.prepare(
+      "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)"
+    );
+    insertSetting.run("store_logo_path", "");         // Ruta local del logo
+    insertSetting.run("store_footer_message", "");     // Mensaje pie de ticket
+    insertSetting.run("store_policies", "");           // Políticas (texto libre)
+    insertSetting.run("store_whatsapp", "");           // Número de WhatsApp
+    insertSetting.run("store_instagram", "");          // @instagram
+    insertSetting.run("store_facebook", "");           // Facebook page
+    insertSetting.run("store_website", "");            // Sitio web
+
+    // 2. Recrear la tabla orders para ampliar el CHECK de paymentMethod
+    //    y añadir la columna source (LOCAL | ONLINE)
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS orders_v6 (
+        id TEXT PRIMARY KEY,
+        subtotal INTEGER NOT NULL,
+        tax INTEGER NOT NULL,
+        total INTEGER NOT NULL,
+        status TEXT CHECK(status IN ('COMPLETED', 'CANCELLED')) NOT NULL,
+        paymentMethod TEXT CHECK(paymentMethod IN ('CASH', 'CARD', 'TRANSFER', 'WHATSAPP', 'ONLINE', 'OTHER')) NOT NULL DEFAULT 'CASH',
+        source TEXT CHECK(source IN ('LOCAL', 'ONLINE')) NOT NULL DEFAULT 'LOCAL',
+        createdAt INTEGER NOT NULL
+      );
+
+      INSERT INTO orders_v6 (id, subtotal, tax, total, status, paymentMethod, source, createdAt)
+      SELECT id, subtotal, tax, total, status, paymentMethod, 'LOCAL', createdAt FROM orders;
+
+      DROP TABLE orders;
+      ALTER TABLE orders_v6 RENAME TO orders;
+    `);
+
+    db.pragma("user_version = 6");
+    console.log("[DB] Migración v6 aplicada: Branding + métodos de pago flexibles.");
+  }
+
   const newVersion = db.pragma("user_version", { simple: true });
   console.log(`[DB] Esquema actualizado a v${newVersion}. Listo.`);
 }

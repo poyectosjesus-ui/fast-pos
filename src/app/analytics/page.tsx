@@ -10,9 +10,8 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { Coins, HandCoins, ReceiptText, Users, CreditCard } from "lucide-react";
-
-
+import { Coins, HandCoins, ReceiptText, Users, CreditCard, Printer } from "lucide-react";
+import { toast } from "sonner";
 import { OrderService } from "@/lib/services/orders";
 import { formatCurrency } from "@/lib/constants";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -60,14 +59,30 @@ export default function AnalyticsPage() {
       <Sidebar />
 
       <main className="flex-1 flex flex-col sm:pl-20 overflow-hidden relative">
-        <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b px-6 py-4 flex items-center justify-between">
+        <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black tracking-tight">El pulso de hoy</h1>
             <p className="text-sm text-muted-foreground">Resumen en tiempo real del desempeño de tus ventas</p>
           </div>
-          {isLoading && (
-            <span className="text-xs font-semibold text-primary animate-pulse">Calculando...</span>
-          )}
+          <div className="flex items-center gap-4">
+            {isLoading && (
+              <span className="text-xs font-semibold text-primary animate-pulse">Calculando...</span>
+            )}
+            <Button 
+                onClick={async () => {
+                  const today = new Date().toISOString().split("T")[0];
+                  const res = await window.electronAPI?.generateZReportPdf(today);
+                  if (res?.success && !res.canceled) {
+                    toast.success("Corte Z Exportado", { description: res.filePath });
+                  } else if (res?.error) {
+                    toast.error("Error al exportar", { description: res.error });
+                  }
+                }}
+                className="bg-emerald-600 hover:bg-emerald-500 font-bold uppercase tracking-wider text-[10px] sm:text-xs shadow-lg shadow-emerald-900/20"
+            >
+               <Printer className="w-4 h-4 mr-2" /> Corte Z (Cierre)
+            </Button>
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 space-y-6 max-w-7xl mx-auto w-full">

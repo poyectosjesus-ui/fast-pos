@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { useSessionStore } from "@/store/useSessionStore";
 
 export function SetupGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -36,7 +37,7 @@ export function SetupGuard({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // 2. Setup terminado. Si no es ruta de setup ni de bloqueo, validamos licencia en BD:
+        // 2. Setup terminado. Validar Licencia y Sesión
         if (setupCompleted && pathname !== "/license-expired") {
           const licenseRes = await api.getSetting("license_key");
           if (!licenseRes || !licenseRes.value) {
@@ -44,11 +45,25 @@ export function SetupGuard({ children }: { children: React.ReactNode }) {
             return;
           }
 
-          // Validación Critpográfica contra el Motor Asimétrico Principal
           const check = await api.validateLicense(licenseRes.value);
           if (!check.isValid) {
             router.replace("/license-expired");
             return;
+          }
+
+          // [FIX] Zustand persist + SQLite sync
+          // Si hay un usuario cacheado en Zustand, verificamos que siga existiendo y activo en SQLite
+          const sessionUser = useSessionStore.getState().user;
+          if (sessionUser) {
+             const usersRes = await api.getAllUsers();
+             if (usersRes.success && usersRes.users) {
+               const dbUser = usersRes.users.find((u: any) => u.id === sessionUser.id && u.isActive === 1);
+               if (!dbUser) {
+                 useSessionStore.getState().logout();
+                 router.replace("/login");
+                 return;
+               }
+             }
           }
         }
 

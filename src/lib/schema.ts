@@ -66,7 +66,10 @@ export const OrderSchema = z.object({
   tax: z.number().int().nonnegative("IVA total en centavos"),
   total: z.number().int().nonnegative("Total (subtotal + IVA) en centavos"),
   status: z.enum(["COMPLETED", "CANCELLED"]),
-  paymentMethod: z.enum(["CASH", "CARD"]),
+  /** Método de cobro del negocio */
+  paymentMethod: z.enum(["CASH", "CARD", "TRANSFER", "WHATSAPP", "ONLINE", "OTHER"]),
+  /** Origen de la venta — LOCAL (mostrador) | ONLINE (WhatsApp, redes, etc.) */
+  source: z.enum(["LOCAL", "ONLINE"]).default("LOCAL"),
   createdAt: z.number(),
 });
 

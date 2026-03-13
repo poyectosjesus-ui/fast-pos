@@ -12,15 +12,16 @@ import { CartItem } from '@/store/useCartStore';
 import { calculateCartTax } from '@/lib/services/tax';
 import { v4 as uuidv4 } from 'uuid';
 
-// Helper tipado para acceder a electronAPI sin any
+// Helper tipado para acceder a electronAPI
 function getAPI() {
   if (typeof window === 'undefined') return null;
-  return (window as Window & { electronAPI?: Record<string, (...args: unknown[]) => Promise<unknown>> }).electronAPI ?? null;
+  return window.electronAPI ?? null;
 }
 
 interface CheckoutInput {
   items: CartItem[];
-  paymentMethod: 'CASH' | 'CARD';
+  paymentMethod: 'CASH' | 'CARD' | 'TRANSFER' | 'WHATSAPP' | 'ONLINE' | 'OTHER';
+  source?: 'LOCAL' | 'ONLINE';
 }
 
 interface CheckoutResult {
@@ -66,14 +67,15 @@ export const OrderService = {
         price: i.price,
         quantity: i.quantity,
         subtotal: i.subtotal,
-        taxRate: i.taxRate,       // Snapshot fiscal para auditoría
-        taxIncluded: i.taxIncluded, // Snapshot fiscal para auditoría
+        taxRate: i.taxRate,
+        taxIncluded: i.taxIncluded,
       })),
       subtotal,
       tax,
       total,
       status: 'COMPLETED',
       paymentMethod,
+      source: input.source ?? 'LOCAL',
       createdAt: Date.now(),
     });
 
@@ -109,7 +111,8 @@ export const OrderService = {
    */
   async searchOrders(params: {
     status?: 'COMPLETED' | 'CANCELLED' | 'ALL';
-    paymentMethod?: 'CASH' | 'CARD' | 'ALL';
+    paymentMethod?: 'CASH' | 'CARD' | 'TRANSFER' | 'WHATSAPP' | 'ONLINE' | 'OTHER' | 'ALL';
+    source?: 'LOCAL' | 'ONLINE' | 'ALL';
     limit: number;
     offset: number;
   }): Promise<{ items: Order[]; total: number }> {
@@ -122,6 +125,9 @@ export const OrderService = {
     }
     if (params.paymentMethod && params.paymentMethod !== 'ALL') {
       filtered = filtered.filter(o => o.paymentMethod === params.paymentMethod);
+    }
+    if (params.source && params.source !== 'ALL') {
+      filtered = filtered.filter(o => o.source === params.source);
     }
 
     const total = filtered.length;
