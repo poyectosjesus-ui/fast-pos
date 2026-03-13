@@ -1,4 +1,4 @@
-const { ipcMain, dialog, app } = require("electron");
+const { ipcMain, dialog, app, BrowserWindow } = require("electron");
 const { getDb, getDbPath } = require("./database");
 const Database = require("better-sqlite3");
 const path = require("path");
@@ -465,6 +465,23 @@ function setupIpcHandlers() {
   });
 
   /**
+   * orders:getById — Obtener una orden específica con sus ítems
+   */
+  ipcMain.handle("orders:getById", async (event, orderId) => {
+    try {
+      const db = getDb();
+      const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
+      if (!order) return null;
+      
+      const items = db.prepare("SELECT * FROM order_items WHERE orderId = ?").all(orderId);
+      return { ...order, items };
+    } catch (err) {
+      console.error("[IPC:orders:getById]", err.message);
+      throw err;
+    }
+  });
+
+  /**
    * orders:void — Anula una orden: cambia estado a CANCELLED y restaura el stock.
    * Operación atómica (rollback si falla la restauración de cualquier ítem).
    */
@@ -540,29 +557,44 @@ function setupIpcHandlers() {
   });
 
   /**
-   * images:getUrl — Devuelve la URL file:// absoluta de una imagen.
+   * images:getUrl — Devuelve el contenido de la imagen como base64 data URL.
    *
-   * Necesario porque Next.js en Electron no puede construir rutas de userData
-   * directamente en el Renderer (no conoce app.getPath()).
+   * MOTIVO: El renderer corre en http://localhost:3000 (dev) o file:// (prod).
+   * En dev, el browser bloquea cargar URLs file:// por seguridad (CORS).
+   * Solución: leer el archivo en el Main y enviarlo como data:image/webp;base64,...
+   * Esto funciona en ambos modos (dev y prod) sin desactivar webSecurity.
    *
    * @param {string} filename - Nombre del archivo (ej: "abc123.webp")
-   * @returns {string | null} - URL file:// o null si el archivo no existe
+   * @returns {string | null} data URL base64 o null si no existe
    */
   ipcMain.handle("images:getUrl", async (event, filename) => {
     try {
       if (!filename) return null;
+
+      // Si ya es base64 legacy (data:...), lo pasamos tal cual
+      if (filename.startsWith("data:")) return filename;
+
       const filePath = path.join(app.getPath("userData"), "images", filename);
       if (!fs.existsSync(filePath)) {
         console.warn("[IMAGE] Archivo no encontrado:", filename);
         return null;
       }
-      // Convertir a URL file:// compatible con Electron (webSecurity)
-      return `file://${filePath.replace(/\\/g, "/")}`;
+
+      const buffer = fs.readFileSync(filePath);
+      const base64 = buffer.toString("base64");
+      // Detectar extensión para el MIME type correcto
+      const ext = path.extname(filename).toLowerCase().replace(".", "");
+      const mime = ext === "jpg" || ext === "jpeg" ? "image/jpeg"
+                 : ext === "png" ? "image/png"
+                 : "image/webp";
+
+      return `data:${mime};base64,${base64}`;
     } catch (err) {
       console.error("[IPC:images:getUrl]", err.message);
       return null;
     }
   });
+
 
   /**
    * images:delete — Elimina la imagen del disco al borrar un producto.
@@ -581,6 +613,91 @@ function setupIpcHandlers() {
       return { success: true };
     } catch (err) {
       console.error("[IPC:images:delete]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ── Impresión de Tickets (EPIC-004) ───────────────────────────────────────
+  const isDev = !app.isPackaged;
+
+  async function createTicketWindow(orderId) {
+    const win = new BrowserWindow({
+      show: false,
+      skipTaskbar: true,
+      width: 400,
+      height: 600,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, "../../preload.js") // From src/main relative to root
+      }
+    });
+
+    const ticketUrl = isDev 
+      ? `http://localhost:3000/ticket?orderId=${orderId}`
+      : `file://${path.join(__dirname, "../../out/ticket.html")}?orderId=${orderId}`;
+
+    await win.loadURL(ticketUrl);
+    
+    // Esperar a que la SPA de Next cargue los datos (Suspense/useEffect)
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return win;
+  }
+
+  ipcMain.handle("ticket:getPrinters", async (event) => {
+    return await event.sender.getPrintersAsync();
+  });
+
+  ipcMain.handle("ticket:print", async (event, orderId, printerName, silent = true) => {
+    try {
+      const win = await createTicketWindow(orderId);
+      
+      const printOptions = {
+        silent: silent,
+        printBackground: true,
+        deviceName: printerName || undefined
+      };
+
+      return new Promise((resolve) => {
+        win.webContents.print(printOptions, (success, errorType) => {
+          win.close(); 
+          if (success) {
+            resolve({ success: true });
+          } else {
+            console.error("[IPC:ticket:print] Error:", errorType);
+            resolve({ success: false, error: errorType });
+          }
+        });
+      });
+    } catch (err) {
+      console.error("[IPC:ticket:print]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("ticket:printToPdf", async (event, orderId) => {
+    try {
+      const win = await createTicketWindow(orderId);
+      
+      const pdfData = await win.webContents.printToPDF({
+        printBackground: true,
+        pageSize: { width: 80000, height: 297000 }, // 80mm ancho, largo dinámico aprox
+        margins: { top: 0, bottom: 0, left: 0, right: 0 }
+      });
+      win.close();
+
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        title: "Guardar Ticket PDF",
+        defaultPath: path.join(app.getPath("documents"), `ticket-${orderId.split("-")[0]}.pdf`),
+        filters: [{ name: "PDF", extensions: ["pdf"] }]
+      });
+
+      if (canceled || !filePath) return { success: true, canceled: true };
+      
+      fs.writeFileSync(filePath, pdfData);
+      return { success: true, filePath };
+    } catch (err) {
+      console.error("[IPC:ticket:printToPdf]", err.message);
       return { success: false, error: err.message };
     }
   });

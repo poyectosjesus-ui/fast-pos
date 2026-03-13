@@ -21,6 +21,7 @@ import { Order } from "@/lib/schema";
 import { useCartStore } from "@/store/useCartStore";
 import { formatCents } from "@/lib/services/tax";
 import { BUSINESS_NAME } from "@/lib/constants";
+import { PrintTicketButton } from "@/components/pos/PrintTicketButton";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,6 +80,19 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
       clearCart();
       setCompletedOrder(result.order);
       setStep("ticket");
+
+      // Auto-imprimir ticket
+      const api = typeof window !== "undefined" ? (window as unknown as { electronAPI?: any }).electronAPI : null;
+      if (api) {
+        try {
+          const settings = await api.getAllSettings();
+          const sMap = settings.success ? (settings.config || {}) : {};
+          const printerName = sMap["receiptPrinter"] || null;
+          await api.printTicket(result.order.id, printerName, true);
+        } catch (err) {
+          console.error("Fallo auto-impresión:", err);
+        }
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -93,10 +107,14 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
     onClose();
   };
 
-  const handlePrint = () => window.print();
-
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o && step === "payment") onClose(); }}>
+    <Dialog open={open} onOpenChange={(o) => { 
+      // Si estamos en la pantalla del ticket, NO permitir que clics fuera del modal o ESC lo cierren.
+      // Así forzamos a que lean el ticket y le den a "Nueva Venta".
+      if (!o && step === "payment") {
+        onClose(); 
+      }
+    }}>
       <DialogContent className="sm:max-w-md">
         {step === "payment" ? (
           <>
@@ -234,12 +252,10 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
               )}
             </div>
 
-            <div className="flex gap-3 pt-2">
-              <Button variant="outline" className="flex-1" onClick={handlePrint}>
-                <Printer className="h-4 w-4 mr-2" />
-                Imprimir
-              </Button>
-              <Button className="flex-1" onClick={handleNewSale}>
+            <div className="flex flex-col gap-3 pt-2">
+              <PrintTicketButton orderId={completedOrder!.id} />
+              
+              <Button className="w-full h-11" onClick={handleNewSale}>
                 <RotateCcw className="h-4 w-4 mr-2" />
                 Nueva Venta
               </Button>

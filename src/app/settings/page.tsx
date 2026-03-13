@@ -50,6 +50,7 @@ import {
   Keyboard,
   Activity,
   Store,
+  Printer,
 } from "lucide-react";
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
 
@@ -146,6 +147,7 @@ interface ElectronAPI {
   importSqlite: () => Promise<{ success: boolean; canceled?: boolean; error?: string }>;
   getAllSettings: () => Promise<{ success: boolean; config?: Record<string, string> }>;
   setBulkSettings: (entries: Record<string, string>) => Promise<{ success: boolean; error?: string }>;
+  getPrinters?: () => Promise<{ name: string; isDefault: boolean }[]>;
 }
 
 // ─────────────────────────────────────────────
@@ -170,7 +172,11 @@ export default function SettingsPage() {
     store_tax_id: "",
     tax_name: "IVA",
     currency_symbol: "$",
+    receiptPrinter: "",
+    receiptPaperSize: "80mm",
   });
+
+  const [printers, setPrinters] = useState<{name: string; isDefault: boolean}[]>([]);
 
   const api = (typeof window !== "undefined"
     ? (window as Window & { electronAPI?: ElectronAPI }).electronAPI
@@ -190,7 +196,19 @@ export default function SettingsPage() {
           store_tax_id:    res.config!["store_tax_id"] ?? prev.store_tax_id,
           tax_name:        res.config!["tax_name"] ?? prev.tax_name,
           currency_symbol: res.config!["currency_symbol"] ?? prev.currency_symbol,
+          receiptPrinter:  res.config!["receiptPrinter"] ?? prev.receiptPrinter,
+          receiptPaperSize:res.config!["receiptPaperSize"] ?? prev.receiptPaperSize,
         }));
+      }
+
+      // Cargar lista de impresoras locales
+      if (api.getPrinters) {
+        try {
+          const printerList = await api.getPrinters();
+          setPrinters(printerList);
+        } catch (error) {
+          console.error("Error al cargar impresoras", error);
+        }
       }
     }
     loadSettings();
@@ -597,6 +615,67 @@ export default function SettingsPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  
+                  {/* CONFIGURACIÓN DE IMPRESORA TÉRMICA */}
+                  <div className="border bg-background/50 rounded-2xl p-6 space-y-4 mb-6">
+                    <div className="flex items-center gap-3 border-b pb-4 mb-4">
+                      <div className="h-8 w-8 bg-blue-500/10 text-blue-600 rounded-lg flex items-center justify-center">
+                        <Printer className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold uppercase tracking-tight text-sm">Impresora de Tickets</h4>
+                        <p className="text-xs text-muted-foreground">Selecciona tu miniprinter local y el formato del rollo térmico.</p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="receiptPrinter" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                          Impresora Activa
+                        </Label>
+                        <select
+                          id="receiptPrinter"
+                          value={businessForm.receiptPrinter}
+                          onChange={(e) => setBusinessForm(p => ({ ...p, receiptPrinter: e.target.value }))}
+                          className="flex h-11 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <option value="">(Impresora por defecto del OS)</option>
+                          {printers.map((p, i) => (
+                            <option key={i} value={p.name}>
+                              {p.name} {p.isDefault ? "[Defecto]" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="receiptPaperSize" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                          Tamaño de Papel
+                        </Label>
+                        <select
+                          id="receiptPaperSize"
+                          value={businessForm.receiptPaperSize}
+                          onChange={(e) => setBusinessForm(p => ({ ...p, receiptPaperSize: e.target.value }))}
+                          className="flex h-11 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <option value="80mm">80mm (Estándar)</option>
+                          <option value="58mm">58mm (Pequeño)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="pt-2">
+                       <Button
+                        variant="secondary"
+                        onClick={handleSaveBusiness}
+                        disabled={isSavingBusiness}
+                        className="h-9 text-xs"
+                      >
+                        {isSavingBusiness ? "Guardando..." : "Guardar Preferencias de Impresión"}
+                      </Button>
+                    </div>
+                  </div>
+
                   <div className="flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-8 bg-background/50 gap-4 text-center border-blue-500/20">
                     {!lastScan ? (
                       <>

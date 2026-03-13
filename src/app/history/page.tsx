@@ -41,6 +41,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+
+import { PrintTicketButton } from "@/components/pos/PrintTicketButton";
 import { Badge } from "@/components/ui/badge";
 
 export default function HistoryPage() {
@@ -403,11 +405,10 @@ export default function HistoryPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <Button variant="outline" className="h-12 rounded-xl font-black uppercase text-xs border-2 hover:bg-muted" onClick={handlePrint} disabled={selectedOrder.status === "CANCELLED"}>
-                  <Printer className="h-4 w-4 mr-2" />
-                  Imprimir
-                </Button>
+              <div className="flex flex-col gap-3">
+                <PrintTicketButton 
+                  orderId={selectedOrder.id} 
+                />
                 
                 {selectedOrder.status !== "CANCELLED" ? (
                   <Button 

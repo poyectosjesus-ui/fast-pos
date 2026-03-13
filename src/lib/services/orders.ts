@@ -96,6 +96,13 @@ export const OrderService = {
     return (await api.getOrderHistory()) as Order[];
   },
 
+  /** Obtiene una única orden por su ID */
+  async getById(id: string): Promise<Order | null> {
+    const api = getAPI();
+    if (!api) return null;
+    return (await api.getOrderById(id)) as Order | null;
+  },
+
   /**
    * Búsqueda de órdenes con filtros y paginación (en memoria, sobre el historial completo).
    * Para volúmenes grandes (>10k órdenes), migrar a handler SQL con LIMIT/OFFSET en EPIC-003.

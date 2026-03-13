@@ -37,12 +37,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ── Ventas / Órdenes ────────────────────────────────────────────────────────
   checkout:       (order)   => ipcRenderer.invoke("orders:checkout", order),
   getOrderHistory:()        => ipcRenderer.invoke("orders:getHistory"),
+  getOrderById:   (id)      => ipcRenderer.invoke("orders:getById", id),
   voidOrder:      (id)      => ipcRenderer.invoke("orders:void", id),
 
   // ── Imágenes (Bucket Local — EPIC-003) ─────────────────────────────────────
   saveImage:    (base64, filename) => ipcRenderer.invoke("images:save", base64, filename),
   getImageUrl:  (filename)         => ipcRenderer.invoke("images:getUrl", filename),
   deleteImage:  (filename)         => ipcRenderer.invoke("images:delete", filename),
+
+  // ── Impresión de Tickets (EPIC-004) ────────────────────────────────────────
+  getPrinters:  () => ipcRenderer.invoke("ticket:getPrinters"),
+  printTicket:  (orderId, printerName, silent) => ipcRenderer.invoke("ticket:print", orderId, printerName, silent),
+  printTicketToPdf: (orderId) => ipcRenderer.invoke("ticket:printToPdf", orderId),
 });
 
 
