@@ -23,9 +23,12 @@ import { cn } from "@/lib/utils";
 interface ProductCardProps {
   product: Product;
   currentStock: number;
+  allowFractions?: boolean;
+  onFractionalClick?: (p: Product) => void;
+  allowNegativeStock?: boolean;
 }
 
-export function ProductCard({ product, currentStock }: ProductCardProps) {
+export function ProductCard({ product, currentStock, allowFractions, onFractionalClick, allowNegativeStock }: ProductCardProps) {
   const addItem = useCartStore((s) => s.addItem);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
 
@@ -42,11 +45,23 @@ export function ProductCard({ product, currentStock }: ProductCardProps) {
     }
   }, [product.image]);
 
-  const isOutOfStock = currentStock === 0;
+  // Un producto está bloqueado solo si está agotado Y no tenemos permiso de stock negativo Y no permite fracciones con click directo
+  const isOutOfStock = !allowNegativeStock && currentStock <= 0;
+  // Un item fraccionario nunca debe deshabilitarse — el modal gestiona la cantidad
+  const isDisabled = isOutOfStock && !allowFractions;
   const isLowStock = currentStock > 0 && currentStock <= LOW_STOCK_THRESHOLD;
 
-  const handleClick = () => {
-    if (isOutOfStock) return;
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (isDisabled) return;
+    
+    if (allowFractions && onFractionalClick) {
+      onFractionalClick(product);
+      return;
+    }
+    
     const result = addItem({
       id: product.id,
       name: product.name,
@@ -55,7 +70,10 @@ export function ProductCard({ product, currentStock }: ProductCardProps) {
       stock: currentStock,
       taxRate: product.taxRate ?? 1600,
       taxIncluded: product.taxIncluded ?? true,
-    });
+      unitType: product.unitType,
+      allowFractions: false,
+    }, allowNegativeStock);
+    
     if (!result.success && result.message) {
       toast.error("No podemos agregar más", { description: result.message });
     }
@@ -64,12 +82,12 @@ export function ProductCard({ product, currentStock }: ProductCardProps) {
   return (
     <button
       onClick={handleClick}
-      disabled={isOutOfStock}
+      disabled={isDisabled}
       className={cn(
         "relative flex flex-col items-start w-full text-left rounded-xl border bg-card p-3 gap-2",
         "transition-all duration-150 hover:shadow-md hover:border-primary/30 hover:-translate-y-0.5",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        isOutOfStock &&
+        isDisabled &&
           "opacity-50 cursor-not-allowed hover:shadow-none hover:translate-y-0 hover:border-border"
       )}
     >
@@ -93,8 +111,8 @@ export function ProductCard({ product, currentStock }: ProductCardProps) {
         <p className="text-base font-bold text-primary mt-1">{formatCurrency(product.price)}</p>
       </div>
 
-      {isOutOfStock && (
-        <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/60 backdrop-blur-sm">
+      {isOutOfStock && !allowFractions && (
+        <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/60 backdrop-blur-sm pointer-events-none">
           <div className="flex flex-col items-center gap-1 text-muted-foreground">
             <PackageX className="h-6 w-6" />
             <span className="text-xs font-medium">Sin existencias</span>

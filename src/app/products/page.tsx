@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CategoriesManager } from "./_components/categories-manager";
 import { ProductsManager } from "./_components/products-manager";
+import { UnitsManager } from "./_components/units-manager";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 
 export default function ProductsPage() {
@@ -21,9 +22,10 @@ export default function ProductsPage() {
 
         <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8 overflow-y-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsList className="grid w-full max-w-lg grid-cols-3">
               <TabsTrigger value="products">Productos</TabsTrigger>
-              <TabsTrigger value="categories">Categorías</TabsTrigger>
+              <TabsTrigger value="categories">Familias</TabsTrigger>
+              <TabsTrigger value="units">Unidades</TabsTrigger>
             </TabsList>
             
             <TabsContent value="products" className="mt-6">
@@ -32,6 +34,10 @@ export default function ProductsPage() {
             
             <TabsContent value="categories" className="mt-6">
               <CategoriesManager />
+            </TabsContent>
+            
+            <TabsContent value="units" className="mt-6">
+              <UnitsManager />
             </TabsContent>
           </Tabs>
         </main>

@@ -145,6 +145,7 @@ function runMigrations(db) {
     insertSetting.run("tax_rate_default", "1600");
     insertSetting.run("currency_symbol", "$");
     insertSetting.run("setup_completed", "false");
+    insertSetting.run("allow_negative_stock", "true");
 
     db.pragma("user_version = 2");
     console.log("[DB] Migración v2 aplicada: IVA por producto + tabla settings.");
@@ -182,6 +183,45 @@ function runMigrations(db) {
 
     db.pragma("user_version = 3");
     console.log("[DB] Migración v3 aplicada: Tabla users (RBAC).");
+  }
+
+  // ── v3 → v4: Decimales (Cantidades a granel) ─────────────
+  if (currentVersion < 4) {
+    db.exec(`
+      -- A pesar de que SQLite usa typado dinámico (REAL / INTEGER),
+      -- Modificamos explícitamente el registro mental migratorio para que
+      -- conste que quantity, price, total y stock deben tratarse en UI como flotantes limitados.
+      -- No hacemos un 'ALTER TABLE TYPE' porque SQLite no lo soporta directamente,
+      -- pero podemos agregar la columna unitType a products.
+      ALTER TABLE products ADD COLUMN unitType TEXT NOT NULL DEFAULT 'PIECE';
+    `);
+
+    db.pragma("user_version = 4");
+    console.log("[DB] Migración v4 aplicada: Unidad de Medida (unitType) para productos.");
+  }
+
+  // ── v4 → v5: Catálogo Maestro de Unidades ────────
+  if (currentVersion < 5) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS units (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        symbol TEXT NOT NULL,
+        allowFractions INTEGER NOT NULL DEFAULT 0,
+        isSystem INTEGER NOT NULL DEFAULT 0
+      );
+    `);
+    
+    // Sembrar unidades base inmutables (isSystem = 1)
+    const insertUnit = db.prepare("INSERT OR IGNORE INTO units (id, name, symbol, allowFractions, isSystem) VALUES (?, ?, ?, ?, ?)");
+    insertUnit.run("PIECE", "Pieza", "Pza", 0, 1);
+    insertUnit.run("BULK", "A Granel", "G", 1, 1);
+    insertUnit.run("KILO", "Kilo", "Kg", 1, 1);
+    insertUnit.run("LITER", "Litro", "L", 1, 1);
+    insertUnit.run("METER", "Metro", "m", 1, 1);
+
+    db.pragma("user_version = 5");
+    console.log("[DB] Migración v5 aplicada: Tabla units creada.");
   }
 
   const newVersion = db.pragma("user_version", { simple: true });

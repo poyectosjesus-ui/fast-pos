@@ -107,6 +107,10 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
     onClose();
   };
 
+  // Botones inteligentes para denominaciones comunes de México
+  const billDenominations = [50, 100, 200, 500, 1000];
+  const suggestedBills = billDenominations.filter(b => b > total / 100).slice(0, 3);
+
   return (
     <Dialog open={open} onOpenChange={(o) => { 
       // Si estamos en la pantalla del ticket, NO permitir que clics fuera del modal o ESC lo cierren.
@@ -153,26 +157,71 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
 
             {/* Campo de monto pagado (solo en efectivo) — CA-3.3.4 */}
             {paymentMethod === "CASH" && (
-              <div className="space-y-2">
-                <Label htmlFor="amount">¿Cuánto te dio el cliente?</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-muted-foreground font-medium">$</span>
-                  <Input
-                    id="amount"
-                    type="number"
-                    step="0.01"
-                    min={total / 100}
-                    placeholder={(total / 100).toFixed(2)}
-                    className="pl-7"
-                    value={amountPaidStr}
-                    onChange={(e) => setAmountPaidStr(e.target.value)}
-                  />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="amount" className="font-bold text-muted-foreground uppercase text-xs tracking-wider">¿Cuánto te dio el cliente?</Label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-3 text-muted-foreground font-bold text-lg">$</span>
+                    <Input
+                      id="amount"
+                      type="number"
+                      step="0.01"
+                      min={total / 100}
+                      placeholder={(total / 100).toFixed(2)}
+                      className="pl-8 h-14 text-2xl font-black bg-muted/30 focus:bg-background"
+                      value={amountPaidStr}
+                      onChange={(e) => setAmountPaidStr(e.target.value)}
+                      autoFocus
+                    />
+                  </div>
                 </div>
-                {amountPaidCents >= total && amountPaidCents > 0 && (
-                  <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                    Cambio: {formatCents(changeCents)}
-                  </p>
-                )}
+
+                {/* Atajos Rápidos */}
+                <div className="flex flex-wrap gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex-1 bg-muted/40 font-bold"
+                    onClick={() => setAmountPaidStr((total / 100).toString())}
+                  >
+                    Monto Exacto
+                  </Button>
+                  {suggestedBills.map((bill) => (
+                    <Button 
+                      key={bill} 
+                      variant="outline" 
+                      size="sm"
+                      className="flex-1 font-bold text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950 dark:border-emerald-800 dark:text-emerald-400 hover:bg-emerald-100"
+                      onClick={() => setAmountPaidStr(bill.toString())}
+                    >
+                      ${bill}
+                    </Button>
+                  ))}
+                </div>
+
+                {/* Banner de Cambio / Faltante */}
+                <div className={`p-4 rounded-xl border-2 flex items-center justify-between transition-colors ${
+                  amountPaidStr === "" 
+                    ? "bg-muted/30 border-dashed border-border" 
+                    : amountPaidCents >= total
+                      ? "bg-emerald-500/10 border-emerald-500 text-emerald-700 dark:text-emerald-400"
+                      : "bg-destructive/10 border-destructive text-destructive"
+                }`}>
+                  <span className="font-black tracking-widest uppercase text-sm">
+                    {amountPaidStr === "" 
+                      ? "Esperando pago..." 
+                      : amountPaidCents >= total 
+                        ? "Su Cambio" 
+                        : "Falta dinero"}
+                  </span>
+                  <span className="font-mono text-xl font-black">
+                    {amountPaidStr === "" 
+                      ? "$ 0.00" 
+                      : amountPaidCents >= total 
+                        ? formatCents(changeCents) 
+                        : formatCents(total - amountPaidCents)}
+                  </span>
+                </div>
               </div>
             )}
 

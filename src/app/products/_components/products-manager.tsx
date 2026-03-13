@@ -64,6 +64,8 @@ function ProductImage({ filename, alt }: { filename: string; alt: string }) {
 export function ProductsManager() {
 
   // Estado SQLite
+  type Unit = { id: string; name: string; symbol: string; allowFractions: number; isSystem: number };
+  const [units, setUnits] = useState<Unit[]>([]);
   const [categories, setCategories] = useState<Awaited<ReturnType<typeof CategoryService['getAll']>>>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -89,6 +91,8 @@ export function ProductsManager() {
   // EPIC-003: filename guardado en DB ("uuid.webp") + previewUrl sólo para el formulario
   const [imageFilename, setImageFilename] = useState<string | undefined>(undefined);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | undefined>(undefined);
+  // Unidad de Medida - EPIC-008
+  const [unitType, setUnitType] = useState<string>("PIECE");
   // IVA — EPIC-002
   const [taxRate, setTaxRate] = useState(1600);  // puntos básicos (1600 = 16%)
   const [taxIncluded, setTaxIncluded] = useState(true);
@@ -103,11 +107,14 @@ export function ProductsManager() {
 
   // Carga y recarga de datos
   const loadData = useCallback(async () => {
-    const [cats, prods] = await Promise.all([
+    const api = (window as any).electronAPI;
+    const [cats, prods, unts] = await Promise.all([
       CategoryService.getAll(),
       ProductService.getAll(),
+      api?.getAllUnits ? api.getAllUnits() : Promise.resolve([])
     ]);
     setCategories(cats);
+    setUnits(unts as Unit[]);
 
     // Filtrado en memoria
     let filtered = [...prods];
@@ -136,6 +143,7 @@ export function ProductsManager() {
       setPriceStr((product.price / 100).toFixed(2));
       setStockStr(product.stock.toString());
       setCategoryId(product.categoryId);
+      setUnitType(product.unitType ?? "PIECE");
       setImageFilename(product.image?.startsWith("data:") ? undefined : product.image);
       // Preview: si es base64 legacy mostrarlo directo; si es filename moderno, resolver URL
       if (product.image) {
@@ -163,6 +171,7 @@ export function ProductsManager() {
       setSku("");
       setPriceStr("");
       setStockStr("");
+      setUnitType("PIECE");
       setImageFilename(undefined);
       setImagePreviewUrl(undefined);
       // Defaults IVA para nuevo producto
@@ -183,13 +192,14 @@ export function ProductsManager() {
     setIsSaving(true);
     try {
       const priceInCentsVal = Math.round(parseFloat(priceStr) * 100);
-      const stock = parseInt(stockStr, 10);
+      const stock = parseFloat(stockStr) || 0;
       const payload = {
         name: name.trim(),
         sku: sku.trim().toUpperCase(),
         price: priceInCentsVal,
         stock,
         categoryId,
+        unitType, // EPIC-008: Decimales y Medidas
         isVisible: true,
         image: imageFilename,
         taxRate,        // EPIC-002
@@ -448,13 +458,38 @@ export function ProductsManager() {
                   </SelectContent>
                 </Select>
                 {categories.length === 0 && (
-                  <p className="text-xs text-destructive">Crea al menos un grupo antes de agregar productos.</p>
+                  <p className="text-[10px] text-destructive font-bold">⚠️ Necesitas crear un grupo en la pestaña "Categorías" primero.</p>
                 )}
               </div>
 
+              {/* Unidad de medida */}
+              <div className="space-y-1.5">
+                <Label htmlFor="unitTypeSelect">Unidad de Medida</Label>
+                <Select
+                  value={unitType}
+                  onValueChange={(val) => setUnitType(val || "PIECE")}
+                  disabled={isSaving}
+                >
+                  <SelectTrigger id="unitTypeSelect" className="h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {units.length > 0 ? units.map(u => (
+                      <SelectItem key={u.id} value={u.id}>{u.name} ({u.symbol})</SelectItem>
+                    )) : (
+                      <>
+                        <SelectItem value="PIECE">Pieza (Pza)</SelectItem>
+                        <SelectItem value="KILO">Kilo (Kg)</SelectItem>
+                        <SelectItem value="BULK">A Granel (G)</SelectItem>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">Pieza impide cobrar mitades o medios kilos. Granel permite capturas decimales en el cajero.</p>
+              </div>
 
-              {/* SKU + Cantidad en una fila */}
-              <div className="grid grid-cols-2 gap-4">
+              {/* Precios e Inventario */}
+              <div className="grid grid-cols-2 gap-4 border p-4 rounded-xl bg-muted/20">
                 <div className="space-y-1.5">
                   <Label htmlFor="sku">Código (SKU)</Label>
                   <Input
@@ -467,18 +502,33 @@ export function ProductsManager() {
                   <p className="text-[10px] text-muted-foreground">Para búsquedas y lectora de códigos.</p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="stock">Existencias</Label>
-                  <Input
-                    id="stock"
-                    type="number"
-                    step="1"
-                    min="0"
-                    placeholder="Ej. 50"
-                    value={stockStr}
-                    onChange={(e) => setStockStr(e.target.value)}
-                    disabled={isSaving}
-                  />
-                  <p className="text-[10px] text-muted-foreground">Cada venta descuenta 1.</p>
+                  <Label htmlFor="stock">Existencias (Inventario inicial)</Label>
+                  <div className="relative border bg-muted/30 rounded-md overflow-hidden flex items-center h-11 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:bg-background">
+                    <button 
+                      type="button" 
+                      onClick={() => setStockStr(String(Math.max(0, (parseFloat(stockStr) || 0) - 1)))} 
+                      className="px-3 h-full hover:bg-muted text-muted-foreground select-none"
+                    >
+                      -
+                    </button>
+                    <Input
+                      id="stock"
+                      type="number"
+                      step={unitType === "BULK" ? "0.01" : "1"}
+                      min="0"
+                      className="text-center font-bold px-0 border-0 shadow-none rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent h-full"
+                      value={stockStr}
+                      onChange={(e) => setStockStr(e.target.value)}
+                      disabled={isSaving}
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => setStockStr(String((parseFloat(stockStr) || 0) + 1))} 
+                      className="px-3 h-full hover:bg-muted text-muted-foreground select-none"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
               </div>
 

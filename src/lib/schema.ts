@@ -27,8 +27,9 @@ export const ProductSchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres").trim(),
   /** Precio en centavos (entero). NUNCA float. Ej: $99.50 → 9950 */
   price: z.number().int().nonnegative("El precio no puede ser negativo"),
-  stock: z.number().int().nonnegative("El stock no puede ser negativo"),
+  stock: z.number().nonnegative("El stock no puede ser negativo"),
   sku: z.string().min(3, "El SKU debe tener al menos 3 caracteres").trim(),
+  unitType: z.string().default("PIECE"),
   isVisible: z.boolean().default(true),
   /** Nombre de archivo de imagen (ej: "uuid.webp"). Almacenado en bucket local. */
   image: z.string().optional(),
@@ -43,10 +44,13 @@ export const ProductSchema = z.object({
 // ── ÍTEMS DE ORDEN ───────────────────────────────────────────────────────────
 
 export const OrderItemSchema = z.object({
-  productId: z.string().uuid(),
+  productId: z.string().refine(
+    (val) => val.startsWith("VGEN-") || z.string().uuid().safeParse(val).success,
+    { message: "El ID debe ser un UUID válido o empezar con VGEN-" }
+  ),
   name: z.string(),
   price: z.number().int().nonnegative("Precio unitario en centavos"),
-  quantity: z.number().int().positive("La cantidad debe ser mayor a 0"),
+  quantity: z.number().positive("La cantidad debe ser mayor a 0"),
   subtotal: z.number().int().nonnegative("Subtotal en centavos"),
   /** Snapshot del IVA al momento de la venta — para auditoría fiscal */
   taxRate: z.number().int().nonnegative().default(1600),

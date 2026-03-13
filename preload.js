@@ -62,6 +62,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // ── Licenciamiento (EPIC-007) ────────────────────────────────────────────
   validateLicense: (key) => ipcRenderer.invoke("license:validate", key),
+
+  // ── Catálogo de Unidades (EPIC-008) ──────────────────────────────────────
+  getAllUnits:  ()     => ipcRenderer.invoke("units:getAll"),
+  createUnit:   (unit) => ipcRenderer.invoke("units:create", unit),
+  deleteUnit:   (id)   => ipcRenderer.invoke("units:delete", id),
 });
 
 

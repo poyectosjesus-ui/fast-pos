@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { ShoppingCart, Scan } from "lucide-react";
+import { ShoppingCart, Scan, PackageOpen } from "lucide-react";
 import { toast } from "sonner";
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
 
@@ -19,6 +19,8 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { ProductCard } from "@/components/pos/product-card";
 import { CartSidebar } from "@/components/pos/cart-sidebar";
 import { CheckoutDialog } from "@/components/pos/checkout-dialog";
+import { QuickSaleDialog } from "@/components/pos/quick-sale-dialog";
+import { QuantityInputDialog } from "@/components/pos/quantity-input-dialog";
 import { SearchInput } from "@/components/ui/search-input";
 import { useCartStore } from "@/store/useCartStore";
 import { Button } from "@/components/ui/button";
@@ -30,6 +32,7 @@ export default function POSPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("ALL");
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isQuickSaleOpen, setIsQuickSaleOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
   const [isProcessing, setIsProcessing] = useState(false);
@@ -38,21 +41,37 @@ export default function POSPage() {
   // Estado SQLite (antes era useLiveQuery)
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [unitsMap, setUnitsMap] = useState<Record<string, { allowFractions: boolean, symbol: string }>>({});
+  const [fractionalProduct, setFractionalProduct] = useState<Product | null>(null);
+
   const [isLoading, setIsLoading] = useState(true);
+  const [allowNegativeStock, setAllowNegativeStock] = useState(false);
 
   const cartItemCount = useCartStore(s => s.items.reduce((acc, i) => acc + i.quantity, 0));
   const addItem = useCartStore(s => s.addItem);
 
-  // Carga inicial y recarga desde SQLite
   const loadData = useCallback(async () => {
     const api = (window as Window & { electronAPI?: Record<string, (...a: unknown[]) => Promise<unknown>> }).electronAPI;
     if (!api) return;
-    const [prods, cats] = await Promise.all([
+    const [prods, cats, settingsRes, unitsRaw] = await Promise.all([
       api.getAllProducts() as Promise<Product[]>,
       api.getAllCategories() as Promise<Category[]>,
+      api.getAllSettings() as Promise<{ success: boolean; config?: Record<string, string> }>,
+      api.getAllUnits ? api.getAllUnits() as Promise<any[]> : Promise.resolve([])
     ]);
+    
+    // Process units map
+    const map = unitsRaw.reduce((acc, u) => {
+      acc[u.id] = { allowFractions: u.allowFractions === 1 || u.allowFractions === true || u.allowFractions === "1", symbol: u.symbol };
+      return acc;
+    }, {} as Record<string, { allowFractions: boolean, symbol: string }>);
+    setUnitsMap(map);
+
     setAllProducts((prods ?? []).filter(p => p.isVisible !== false));
     setCategories(cats ?? []);
+    if (settingsRes?.success && settingsRes.config) {
+      setAllowNegativeStock(settingsRes.config["allow_negative_stock"] === "true");
+    }
     setIsLoading(false);
   }, []);
 
@@ -89,7 +108,15 @@ export default function POSPage() {
         toast.error("Producto oculto", { description: "Este artículo no está marcado como visible." });
         return;
       }
-      const result = addItem(found);
+      
+      const unitInfo = unitsMap[found.unitType] || { allowFractions: false, symbol: "" };
+      if (unitInfo.allowFractions) {
+         setFractionalProduct(found);
+         setLastScanTime(Date.now());
+         return; // El modal concluirá la acción
+      }
+
+      const result = addItem({ ...found, allowFractions: false }, allowNegativeStock);
       if (result.success) {
         toast.success("¡Lectura Correcta!", {
           description: `${found.name} añadido.`,
@@ -167,6 +194,16 @@ export default function POSPage() {
 
             <Button
               variant="outline"
+              className="shrink-0 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900"
+              onClick={() => setIsQuickSaleOpen(true)}
+              title="Venta Libre"
+            >
+              <PackageOpen className="h-4 w-4" />
+              <span className="hidden sm:inline-block ml-2 font-bold text-xs uppercase tracking-widest">Pase Libre</span>
+            </Button>
+
+            <Button
+              variant="outline"
               className="relative xl:hidden shrink-0"
               onClick={() => setIsCheckoutOpen(true)}
               disabled={cartItemCount === 0}
@@ -203,6 +240,12 @@ export default function POSPage() {
                     key={product.id}
                     product={product}
                     currentStock={product.stock}
+                    allowFractions={unitsMap[product.unitType]?.allowFractions}
+                    allowNegativeStock={allowNegativeStock}
+                    onFractionalClick={() => {
+                      setFractionalProduct(product);
+                      setLastScanTime(Date.now());
+                    }}
                   />
                 ))}
               </div>
@@ -258,6 +301,7 @@ export default function POSPage() {
           <CartSidebar
             onCheckout={() => setIsCheckoutOpen(true)}
             isProcessing={isProcessing}
+            allowNegativeStock={allowNegativeStock}
           />
         </div>
       </aside>
@@ -266,6 +310,11 @@ export default function POSPage() {
       <CheckoutDialog
         open={isCheckoutOpen}
         onClose={() => setIsCheckoutOpen(false)}
+      />
+
+      <QuickSaleDialog
+        open={isQuickSaleOpen}
+        onClose={() => setIsQuickSaleOpen(false)}
       />
     </div>
     </ProtectedRoute>

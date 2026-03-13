@@ -29,6 +29,8 @@ export interface CartItem {
   subtotal: number;     // price × quantity, recalculado en cada mutación
   taxRate: number;      // puntos básicos, snapshot (ej: 1600 = 16%)
   taxIncluded: boolean; // snapshot del modo de IVA al agregar
+  unitType: string; // ID de la unidad en catalog (Ej: "PIECE", "KILO")
+  allowFractions: boolean; // Snapshot que dictamina si se muestran UI modales para decimales
 }
 
 interface CartState {
@@ -47,13 +49,15 @@ interface CartState {
     stock: number;
     taxRate: number;
     taxIncluded: boolean;
-  }) => { success: boolean; message?: string };
+    unitType?: string;
+    allowFractions?: boolean;
+  }, allowNegativeStock?: boolean, quantityOverride?: number) => { success: boolean; message?: string };
 
   /**
    * Cambia la cantidad de un ítem validando el stock disponible.
    * CA-3.1.4: Si la nueva cantidad es 0, elimina la fila.
    */
-  setQuantity: (productId: string, quantity: number, maxStock: number) => void;
+  setQuantity: (productId: string, quantity: number, maxStock: number, allowNegativeStock?: boolean) => void;
 
   /** Elimina completamente un ítem del carrito */
   removeItem: (productId: string) => void;
@@ -70,52 +74,64 @@ export const useCartStore = create<CartState>()(
     (set, get) => ({
       items: [],
 
-      addItem: (product) => {
+      addItem: (product, allowNegativeStock = false, quantityOverride = 0) => {
         const { items } = get();
         const existing = items.find(i => i.productId === product.id);
         const currentQty = existing?.quantity ?? 0;
 
-        // Bloquear sobre-venta
-        if (currentQty >= product.stock) {
-          if (product.stock === 0) {
-            return { success: false, message: `"${product.name}" ya no tiene existencias disponibles.` };
+        // Cantidad a agregar (1 por defecto, o la del modal fraccionario)
+        const amountToAdd = quantityOverride > 0 ? quantityOverride : 1;
+        const newTotalQty = currentQty + amountToAdd;
+
+        // --- Bloquear sobre-venta solo si no hay permiso de stock negativo ---
+        // Para productos fraccionarios la comparación es la misma (> en lugar de >=)
+        // para permitir "exactamente usar todo el stock" (ej: 30 kg exactos)
+        if (!allowNegativeStock && newTotalQty > product.stock) {
+          if (product.stock <= 0) {
+            return { success: false, message: `"${product.name}" no tiene existencias disponibles.` };
           }
-          return { success: false, message: `Solo quedan ${product.stock} unidades de "${product.name}" en almacén.` };
+          const remaining = product.stock - currentQty;
+          return {
+            success: false,
+            message: `Solo quedan ${product.stock} unidades de "${product.name}" en almacén. (ya agregaste ${currentQty})`
+          };
         }
 
         if (existing) {
-          // Incrementar cantidad de la fila existente
+          // Actualizar cantidad y subtotal correctamente (FIX: i.price * nuevaQty)
           set({
             items: items.map(i =>
               i.productId === product.id
-                ? { ...i, quantity: i.quantity + 1, subtotal: i.price * (i.quantity + 1) }
+                ? { ...i, quantity: newTotalQty, subtotal: i.price * newTotalQty }
                 : i
             ),
           });
         } else {
-          // Primera vez: crear snapshot inmutable del producto (incluyendo IVA)
+          // Primera vez: snapshot inmutable del producto
           set({
             items: [...items, {
               productId: product.id,
               name: product.name,
               sku: product.sku,
               price: product.price,
-              quantity: 1,
-              subtotal: product.price,
+              quantity: amountToAdd,
+              subtotal: product.price * amountToAdd,
               taxRate: product.taxRate ?? 1600,
               taxIncluded: product.taxIncluded ?? true,
+              unitType: product.unitType ?? 'PIECE',
+              allowFractions: product.allowFractions ?? false,
             }],
           });
         }
         return { success: true };
       },
 
-      setQuantity: (productId, quantity, maxStock) => {
+      setQuantity: (productId, quantity, maxStock, allowNegativeStock = false) => {
         if (quantity <= 0) {
           get().removeItem(productId);
           return;
         }
-        const clampedQty = Math.min(quantity, maxStock);
+        const clampedQty = allowNegativeStock ? quantity : Math.min(quantity, maxStock);
         set({
           items: get().items.map(i =>
             i.productId === productId

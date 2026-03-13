@@ -361,14 +361,15 @@ function setupIpcHandlers() {
       const insert = db.transaction((p) => {
         db.prepare(`
           INSERT INTO products
-            (id, categoryId, name, price, stock, sku, isVisible, image, taxRate, taxIncluded, createdAt, updatedAt)
+            (id, categoryId, name, price, stock, sku, isVisible, image, taxRate, taxIncluded, unitType, createdAt, updatedAt)
           VALUES
-            (@id, @categoryId, @name, @price, @stock, @sku, @isVisible, @image, @taxRate, @taxIncluded, @createdAt, @updatedAt)
+            (@id, @categoryId, @name, @price, @stock, @sku, @isVisible, @image, @taxRate, @taxIncluded, @unitType, @createdAt, @updatedAt)
         `).run({
           ...p,
           isVisible: p.isVisible ? 1 : 0,
           taxIncluded: p.taxIncluded ? 1 : 0,
           taxRate: p.taxRate ?? 1600,
+          unitType: p.unitType ?? "PIECE",
         });
         return { success: true, id: p.id };
       });
@@ -397,6 +398,7 @@ function setupIpcHandlers() {
             image       = @image,
             taxRate     = @taxRate,
             taxIncluded = @taxIncluded,
+            unitType    = @unitType,
             updatedAt   = @updatedAt
           WHERE id = @id
         `).run({
@@ -404,6 +406,7 @@ function setupIpcHandlers() {
           isVisible: p.isVisible ? 1 : 0,
           taxIncluded: p.taxIncluded ? 1 : 0,
           taxRate: p.taxRate ?? 1600,
+          unitType: p.unitType ?? "PIECE",
         });
         return { success: true };
       });
@@ -442,6 +445,9 @@ function setupIpcHandlers() {
   ipcMain.handle("orders:checkout", async (event, order) => {
     const db = getDb();
 
+    const allowNegativeStockSetting = db.prepare("SELECT value FROM settings WHERE key = ?").get("allow_negative_stock")?.value;
+    const allowNegativeStock = allowNegativeStockSetting === "true";
+
     const checkStock = db.prepare("SELECT stock FROM products WHERE id = ?");
     const insertOrder = db.prepare(`
       INSERT INTO orders (id, subtotal, tax, total, status, paymentMethod, createdAt)
@@ -458,8 +464,11 @@ function setupIpcHandlers() {
     const transaction = db.transaction((orderData) => {
       // 1. Verificar stock de todos los ítems antes de proceder
       for (const item of orderData.items) {
+        // Bypass para ítems de venta libre/genérica
+        if (item.productId.startsWith("VGEN-")) continue;
+
         const product = checkStock.get(item.productId);
-        if (!product || product.stock < item.quantity) {
+        if (!allowNegativeStock && (!product || product.stock < item.quantity)) {
           throw new Error(
             `Stock insuficiente para "${item.name}". Disponible: ${product?.stock ?? 0}`
           );
@@ -487,7 +496,9 @@ function setupIpcHandlers() {
           item.quantity,
           item.subtotal
         );
-        updateStock.run(item.quantity, Date.now(), item.productId);
+        if (!item.productId.startsWith("VGEN-")) {
+          updateStock.run(item.quantity, Date.now(), item.productId);
+        }
       }
 
       return { success: true };
@@ -850,6 +861,57 @@ function setupIpcHandlers() {
       return { success: true };
     } catch (err) {
       console.error("[IPC:users:delete]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ──────────────────────────────────────────
+  // DOMINIO: units (Catálogo Maestro de Unidades)
+  // ──────────────────────────────────────────
+
+  ipcMain.handle("units:getAll", async () => {
+    try {
+      const rows = getDb().prepare("SELECT * FROM units ORDER BY name").all();
+      return rows;
+    } catch (err) {
+      console.error("[IPC:units:getAll]", err.message);
+      throw err;
+    }
+  });
+
+  ipcMain.handle("units:create", async (event, unit) => {
+    try {
+      if (!unit.id || !unit.name || !unit.symbol) throw new Error("Datos de unidad incompletos.");
+      const stmt = getDb().prepare(
+        "INSERT INTO units (id, name, symbol, allowFractions, isSystem) VALUES (?, ?, ?, ?, 0)"
+      );
+      stmt.run(unit.id, unit.name, unit.symbol, unit.allowFractions ? 1 : 0);
+      return { success: true, id: unit.id };
+    } catch (err) {
+      console.error("[IPC:units:create]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("units:delete", async (event, id) => {
+    try {
+      const db = getDb();
+      // Verificación de uso: si la unidad ya se usa en un producto, no permitir borrarla
+      const count = db.prepare("SELECT count(*) as c FROM products WHERE unitType = ?").get(id).c;
+      if (count > 0) {
+        throw new Error(`Esta unidad está fijada a ${count} producto(s). Cambia sus unidades antes de borrarla.`);
+      }
+
+      // Evitar borrar unidades del sistema
+      const unit = db.prepare("SELECT isSystem FROM units WHERE id = ?").get(id);
+      if (unit && unit.isSystem === 1) {
+        throw new Error("No puedes eliminar las unidades fundamentales del sistema predeterminadas.");
+      }
+
+      db.prepare("DELETE FROM units WHERE id = ?").run(id);
+      return { success: true };
+    } catch (err) {
+      console.error("[IPC:units:delete]", err.message);
       return { success: false, error: err.message };
     }
   });

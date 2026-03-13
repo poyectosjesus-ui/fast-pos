@@ -14,17 +14,19 @@
 
 import { useCartStore } from "@/store/useCartStore";
 import { formatCents } from "@/lib/services/tax";
-import { Minus, Plus, Trash2, ShoppingBag, Receipt } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingBag, Receipt, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/constants";
 
 interface CartSidebarProps {
   onCheckout: () => void;
   isProcessing: boolean;
+  allowNegativeStock?: boolean;
 }
 
-export function CartSidebar({ onCheckout, isProcessing }: CartSidebarProps) {
+export function CartSidebar({ onCheckout, isProcessing, allowNegativeStock = false }: CartSidebarProps) {
   const { items, setQuantity, removeItem, getCartTotals } = useCartStore();
   const { subtotal, tax, total } = getCartTotals();
 
@@ -52,39 +54,77 @@ export function CartSidebar({ onCheckout, isProcessing }: CartSidebarProps) {
           const maxStock = getMaxStock(item.productId);
           return (
             <div key={item.productId} className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/5 transition-colors">
-              {/* Nombre y precio unitario */}
+              {/* Nombre, precio y badges */}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold leading-tight truncate">{item.name}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">{formatCurrency(item.price)} c/u</p>
-                {/* Badge mini de IVA */}
-                {item.taxRate > 0 && (
-                  <span className="inline-flex items-center gap-0.5 mt-1 text-[9px] font-bold uppercase tracking-wider text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-full">
-                    <Receipt className="h-2.5 w-2.5" />
-                    IVA {item.taxRate / 100}%{item.taxIncluded ? " incl." : " +"}
-                  </span>
-                )}
+                <div className="flex items-center gap-1 flex-wrap mt-1">
+                  {/* Badge de IVA */}
+                  {item.taxRate > 0 && (
+                    <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-full">
+                      <Receipt className="h-2.5 w-2.5" />
+                      IVA {item.taxRate / 100}%{item.taxIncluded ? " incl." : " +"}
+                    </span>
+                  )}
+                  {/* Badge de unidad (fraccionable) */}
+                  {item.allowFractions && (
+                    <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-600 bg-blue-500/10 px-1.5 py-0.5 rounded-full">
+                      <Scale className="h-2.5 w-2.5" />
+                      {item.unitType}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Controles de cantidad */}
               <div className="flex items-center gap-1.5 shrink-0">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 rounded-full hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => setQuantity(item.productId, item.quantity - 1, maxStock)}
-                >
-                  <Minus className="h-3 w-3" />
-                </Button>
-                <span className="text-sm font-bold w-5 text-center">{item.quantity}</span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 rounded-full hover:bg-primary/10 hover:text-primary"
-                  onClick={() => setQuantity(item.productId, item.quantity + 1, maxStock)}
-                  disabled={item.quantity >= maxStock}
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
+                {item.allowFractions ? (
+                  // Selector libre para venta a granel (decimales)
+                  <div className="flex items-center">
+                    <div className="relative w-24 border rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-primary focus-within:border-primary">
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0"
+                        className="h-8 pr-1 text-center font-bold border-0 shadow-none focus-visible:ring-0 px-1 py-0 text-sm"
+                        value={item.quantity === 0 ? "" : item.quantity} // evitar ver un "0" si el usuario borra con backspace
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (!isNaN(val)) setQuantity(item.productId, val, maxStock, allowNegativeStock);
+                        }}
+                        onBlur={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setQuantity(item.productId, val, maxStock, allowNegativeStock);
+                        }}
+                      />
+                      <div className="absolute right-1 top-0 h-full flex items-center justify-center text-[10px] text-muted-foreground mr-1">
+                        <Scale className="h-3 w-3" />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  // Botonera de incrementos +1 -1 para ítems unitarios (piezas)
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-full hover:bg-destructive/10 hover:text-destructive shrink-0"
+                      onClick={() => setQuantity(item.productId, item.quantity - 1, maxStock, allowNegativeStock)}
+                    >
+                      <Minus className="h-3 w-3" />
+                    </Button>
+                    <span className="text-sm font-bold w-5 text-center shrink-0">{item.quantity}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-full hover:bg-primary/10 hover:text-primary shrink-0"
+                      onClick={() => setQuantity(item.productId, item.quantity + 1, maxStock, allowNegativeStock)}
+                      disabled={!allowNegativeStock && item.quantity >= maxStock}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </>
+                )}
               </div>
 
               {/* Subtotal del ítem + botón eliminar */}
