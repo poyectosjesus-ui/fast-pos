@@ -60,11 +60,11 @@ export function TopProducts({ products }: TopProductsProps) {
                   
                   {/* CA-4.2.3: Alerta preventiva de stock bajo en el best-seller */}
                   {isOutOfStock ? (
-                    <span className="flex items-center gap-1 text-[10px] font-bold text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-full whitespace-nowrap">
                       <AlertCircle className="h-3 w-3" /> ¡Agotado!
                     </span>
                   ) : isLowStock ? (
-                    <span className="flex items-center gap-1 text-[10px] font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-accent-foreground bg-accent px-1.5 py-0.5 rounded-full whitespace-nowrap">
                       Súrteme (Quedan {product.currentStock})
                     </span>
                   ) : null}
@@ -81,7 +81,7 @@ export function TopProducts({ products }: TopProductsProps) {
                 <div 
                   className={cn(
                     "h-full rounded-full transition-all duration-1000",
-                    index === 0 ? "bg-amber-400 dark:bg-amber-500" : "bg-primary"
+                    index === 0 ? "bg-primary" : "bg-primary/40"
                   )}
                   style={{ width: `${percentage}%` }}
                 />

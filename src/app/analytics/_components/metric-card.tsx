@@ -31,29 +31,29 @@ interface MetricCardProps {
 
 const variantStyles = {
   emerald: {
-    icon: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    accent: "border-l-emerald-500",
-    value: "text-emerald-700 dark:text-emerald-300",
+    icon: "bg-primary/10 text-primary",
+    accent: "border-l-primary",
+    value: "text-foreground",
   },
   blue: {
-    icon: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-    accent: "border-l-blue-500",
-    value: "text-blue-700 dark:text-blue-300",
+    icon: "bg-card-foreground/10 text-card-foreground",
+    accent: "border-l-card-foreground",
+    value: "text-foreground",
   },
   amber: {
-    icon: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    accent: "border-l-amber-500",
-    value: "text-amber-700 dark:text-amber-300",
+    icon: "bg-secondary/20 text-secondary-foreground",
+    accent: "border-l-secondary",
+    value: "text-foreground",
   },
   violet: {
-    icon: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
-    accent: "border-l-violet-500",
-    value: "text-violet-700 dark:text-violet-300",
+    icon: "bg-accent/20 text-accent-foreground",
+    accent: "border-l-accent",
+    value: "text-foreground",
   },
   rose: {
-    icon: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
-    accent: "border-l-rose-500",
-    value: "text-rose-700 dark:text-rose-300",
+    icon: "bg-destructive/10 text-destructive",
+    accent: "border-l-destructive",
+    value: "text-foreground",
   },
 };
 
@@ -95,7 +95,7 @@ export function MetricCard({
       {trend && (
         <p className={cn(
           "text-xs font-semibold",
-          trendPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"
+          trendPositive ? "text-primary" : "text-destructive"
         )}>
           {trend}
         </p>

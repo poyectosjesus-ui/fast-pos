@@ -278,7 +278,7 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
                       key={bill}
                       variant="outline"
                       size="sm"
-                      className="flex-1 font-bold text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950 dark:border-emerald-800 dark:text-emerald-400 hover:bg-emerald-100"
+                      className="flex-1 font-bold bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
                       onClick={() => setAmountPaidStr(bill.toString())}
                     >
                       ${bill}
@@ -292,7 +292,7 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
                   amountPaidStr === ""
                     ? "bg-muted/30 border-dashed border-border"
                     : amountPaidCents >= total
-                    ? "bg-emerald-500/10 border-emerald-500 text-emerald-700 dark:text-emerald-400"
+                    ? "bg-primary/10 border-primary text-primary"
                     : "bg-destructive/10 border-destructive text-destructive"
                 )}>
                   <span className="font-black tracking-widest uppercase text-sm">
@@ -339,7 +339,7 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
                 <span className="font-mono">{formatCents(subtotal)}</span>
               </div>
               {tax > 0 && (
-                <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                <div className="flex justify-between text-muted-foreground">
                   <span>IVA</span>
                   <span className="font-mono font-bold">+{formatCents(tax)}</span>
                 </div>
@@ -389,7 +389,7 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
                 <span className="font-mono">{formatCents(completedOrder!.subtotal)}</span>
               </div>
               {completedOrder!.tax > 0 && (
-                <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                <div className="flex justify-between text-muted-foreground">
                   <span>IVA</span>
                   <span className="font-mono">+{formatCents(completedOrder!.tax)}</span>
                 </div>
@@ -399,7 +399,7 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
                 <span className="text-primary font-mono">{formatCents(completedOrder!.total)}</span>
               </div>
               {paymentMethod === "CASH" && changeCents > 0 && (
-                <div className="flex justify-between font-bold text-emerald-600 dark:text-emerald-400">
+                <div className="flex justify-between font-bold text-primary">
                   <span>Cambio entregado</span>
                   <span className="font-mono">{formatCents(changeCents)}</span>
                 </div>
@@ -411,7 +411,7 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
               {PAYMENT_METHODS.find(m => m.id === paymentMethod)?.icon}
               <span>{PAYMENT_METHOD_LABELS[paymentMethod]}</span>
               {saleSource === "ONLINE" && (
-                <span className="ml-auto flex items-center gap-1 text-sky-600 dark:text-sky-400 font-semibold">
+                <span className="ml-auto flex items-center gap-1 text-primary font-semibold">
                   <Wifi className="h-3 w-3" /> En Línea
                 </span>
               )}

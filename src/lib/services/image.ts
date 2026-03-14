@@ -24,7 +24,7 @@ function getAPI() {
     window as Window & {
       electronAPI?: {
         saveImage: (base64: string, filename: string) => Promise<{ success: boolean; filename?: string; error?: string }>;
-        getImageUrl: (filename: string) => Promise<string | null>;
+        getImageUrl: (filename: string) => Promise<{ success: boolean; url?: string; error?: string }>;
         deleteImage: (filename: string) => Promise<{ success: boolean; error?: string }>;
       };
     }
@@ -64,7 +64,9 @@ export const ImageService = {
     if (!filename) return null;
     const api = getAPI();
     if (!api) return null;
-    return api.getImageUrl(filename);
+    const res = await api.getImageUrl(filename);
+    if (!res.success || !res.url) return null;
+    return res.url;
   },
 
   /**

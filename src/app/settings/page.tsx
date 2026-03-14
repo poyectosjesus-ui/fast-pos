@@ -57,11 +57,14 @@ import {
   MessageCircle,
   Globe,
   Image as ImageIcon,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
-import { UsersManager } from "./_components/users-manager";
+import { useThemeStore } from "@/store/useThemeStore";
+import { cn } from "@/lib/utils";
 
 // ─────────────────────────────────────────────
 // Sub-componente: Panel de salud de la DB
@@ -89,13 +92,13 @@ function DbHealthPanel() {
   }, [load]);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x border-emerald-500/10">
+    <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x border-primary/10">
       <div className="p-6 space-y-2">
         <p className="text-[10px] uppercase font-black text-muted-foreground tracking-tighter">
           Motor y Versión
         </p>
-        <div className="flex items-center gap-2 text-emerald-600 font-black italic">
-          <div className="h-2 w-2 rounded-full bg-emerald-600 animate-ping" />
+        <div className="flex items-center gap-2 text-primary font-black italic">
+          <div className="h-2 w-2 rounded-full bg-primary animate-ping" />
           SQLite (WAL)
         </div>
         <p className="text-[10px] text-muted-foreground font-bold">
@@ -124,11 +127,11 @@ function DbHealthPanel() {
           </span>
         </div>
       </div>
-      <div className="p-6 space-y-2 bg-emerald-200/20 dark:bg-emerald-800/20">
+      <div className="p-6 space-y-2 bg-primary/5">
         <p className="text-[10px] uppercase font-black text-muted-foreground tracking-tighter">
           Integridad Atómica
         </p>
-        <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold">
+        <div className="flex items-center gap-2 text-primary font-bold">
           <ShieldCheck className="h-4 w-4" /> WAL ENABLED
         </div>
         <p className="text-[10px] text-muted-foreground">
@@ -284,6 +287,7 @@ function TicketBrandingTab({ api }: { api: ElectronAPI | undefined }) {
 // ─────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const { themeColor, setThemeColor, themeMode, setThemeMode } = useThemeStore();
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isSavingBusiness, setIsSavingBusiness] = useState(false);
@@ -351,7 +355,7 @@ export default function SettingsPage() {
     try {
       const result = await api.exportSqlite();
       if (result.canceled) return;
-      if (!result.success) throw new Error(result.error);
+      if (!result.success) throw new Error((result as any).error || "Error al respaldar la DB");
       toast.success("¡Respaldo guardado!", {
         description: `Archivo: ${result.path?.split("/").pop()}`,
       });
@@ -370,7 +374,7 @@ export default function SettingsPage() {
     try {
       const result = await api.importSqlite();
       if (result.canceled) return;
-      if (!result.success) throw new Error(result.error);
+      if (!result.success) throw new Error((result as any).error || "Error al restaurar la DB");
       toast.success("¡Restauración exitosa!", {
         description: "Reiniciando para aplicar los cambios...",
       });
@@ -440,50 +444,32 @@ export default function SettingsPage() {
         {/* Contenido scrollable */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-4xl mx-auto w-full space-y-6 pb-24">
           <Tabs defaultValue="general" className="w-full space-y-6">
-             <TabsList className="grid w-full grid-cols-3 sm:grid-cols-7 bg-muted/50 p-1 rounded-xl border border-primary/5 backdrop-blur-sm h-auto flex-wrap">
-              <TabsTrigger value="general" className="uppercase text-[10px] font-black tracking-widest gap-1.5">
+            <TabsList className="grid w-full grid-cols-3 bg-muted/50 p-1 rounded-xl border border-primary/5 backdrop-blur-sm h-auto flex-wrap gap-1">
+              <TabsTrigger value="general" className="uppercase text-[10px] font-black tracking-widest gap-1.5 focus:bg-primary/20 bg-primary/5 text-primary">
                 <Activity className="w-3 h-3" /> General
               </TabsTrigger>
               <TabsTrigger value="business" className="uppercase text-[10px] font-black tracking-widest gap-1.5">
                 <Store className="w-3 h-3" /> Negocio
               </TabsTrigger>
-              <TabsTrigger value="ticket" className="uppercase text-[10px] font-black tracking-widest gap-1.5">
-                <Palette className="w-3 h-3" /> Ticket
-              </TabsTrigger>
-              <TabsTrigger value="security" className="uppercase text-[10px] font-black tracking-widest gap-1.5">
-                <ShieldCheck className="w-3 h-3" /> Respaldos
-              </TabsTrigger>
-              <TabsTrigger value="hardware" className="uppercase text-[10px] font-black tracking-widest gap-1.5">
-                <Scan className="w-3 h-3" /> Hardware
-              </TabsTrigger>
-              <TabsTrigger value="advanced" className="uppercase text-[10px] font-black tracking-widest gap-1.5 hidden sm:flex">
-                <RefreshCcw className="w-3 h-3" /> Avanzado
-              </TabsTrigger>
-              <TabsTrigger value="users" className="uppercase text-[10px] font-black tracking-widest gap-1.5 focus:bg-primary/20 bg-primary/5 text-primary">
-                <Users className="w-3 h-3" /> Usuarios
+              <TabsTrigger value="system" className="uppercase text-[10px] font-black tracking-widest gap-1.5 hidden sm:flex">
+                <ShieldCheck className="w-3 h-3" /> Sistema y Respaldo
               </TabsTrigger>
             </TabsList>
 
-            {/* ── PESTAÑA: USUARIOS ── */}
-            <TabsContent value="users" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
-               <UsersManager />
-            </TabsContent>
+            {/* Se ha movido a /users */}
 
-            {/* ── PESTAÑA: TICKET / BRANDING ── */}
-            <TabsContent value="ticket" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <TicketBrandingTab api={api} />
-            </TabsContent>
+            {/* Se ha fusionado con Negocios */}
 
             {/* ── PESTAÑA: GENERAL ── */}
             <TabsContent value="general" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <Card className="border-emerald-500/20 bg-emerald-500/5 shadow-xl overflow-hidden">
-                <CardHeader className="flex flex-row items-center gap-4 bg-emerald-500/10 border-b border-emerald-500/10 py-4">
-                  <Activity className="h-6 w-6 text-emerald-600" />
+              <Card className="border-primary/20 bg-primary/5 shadow-xl overflow-hidden">
+                <CardHeader className="flex flex-row items-center gap-4 bg-primary/10 border-b border-primary/10 py-4">
+                  <Activity className="h-6 w-6 text-primary" />
                   <div>
-                    <CardTitle className="text-emerald-700 dark:text-emerald-400">
+                    <CardTitle className="text-primary">
                       Salud del Motor
                     </CardTitle>
-                    <CardDescription className="text-emerald-600/70 text-xs font-bold uppercase tracking-widest">
+                    <CardDescription className="text-primary/70 text-xs font-bold uppercase tracking-widest">
                       Diagnóstico en tiempo real
                     </CardDescription>
                   </div>
@@ -507,6 +493,73 @@ export default function SettingsPage() {
                   <p className="text-[10px] text-muted-foreground uppercase font-bold">
                     Schema v3
                   </p>
+                </div>
+              </Card>
+
+              {/* TEMA DEL SISTEMA */}
+              <Card className="bg-card/40 border-primary/10 shadow-lg p-6">
+                <div className="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
+                  <div>
+                    <h3 className="font-bold uppercase tracking-tight text-sm flex items-center gap-2">
+                      <Palette className="h-4 w-4 text-primary" /> Apariencia y Tema
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Elige el modo (claro/oscuro) y el color de acento principal.
+                    </p>
+                  </div>
+                  
+                  {/* Selector Modo Claro / Oscuro */}
+                  <div className="flex gap-2 bg-muted/50 p-1 rounded-xl border border-primary/5">
+                    <button
+                      onClick={() => setThemeMode('light')}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-tighter transition-all",
+                        themeMode === 'light' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <Sun className="h-4 w-4" /> Claro
+                    </button>
+                    <button
+                      onClick={() => setThemeMode('dark')}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-tighter transition-all",
+                        themeMode === 'dark' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <Moon className="h-4 w-4" /> Oscuro
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-4 mt-8 pt-6 border-t border-border/50">
+                  {([
+                    { id: "zinc", color: "bg-zinc-500", label: "Monocromo" },
+                    { id: "emerald", color: "bg-emerald-500", label: "Emerald" },
+                    { id: "blue", color: "bg-blue-500", label: "Blue" },
+                    { id: "rose", color: "bg-rose-500", label: "Rose" },
+                    { id: "orange", color: "bg-orange-500", label: "Orange" },
+                  ] as const).map((theme) => (
+                    <button
+                      key={theme.id}
+                      onClick={() => setThemeColor(theme.id)}
+                      className={cn(
+                        "group flex flex-col items-center gap-2 transition-all p-2 rounded-xl border border-transparent hover:bg-muted/50",
+                        themeColor === theme.id ? "scale-105 bg-muted/30" : "opacity-70 hover:opacity-100"
+                      )}
+                    >
+                      <div className={cn(
+                        "h-10 w-10 rounded-full border-2 shadow-sm transition-all duration-300",
+                        theme.color,
+                        themeColor === theme.id ? "border-primary ring-4 ring-primary/20 ring-offset-2 ring-offset-background scale-110" : "border-transparent"
+                      )} />
+                      <span className={cn(
+                        "text-[10px] uppercase font-bold tracking-tighter mt-1 transition-colors",
+                        themeColor === theme.id ? "text-primary" : "text-muted-foreground"
+                      )}>
+                        {theme.label}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </Card>
             </TabsContent>
@@ -608,10 +661,15 @@ export default function SettingsPage() {
                   </Button>
                 </CardContent>
               </Card>
+
+              {/* El branding visual que estaba en Ticket, ahora convive abajo de Negocio */}
+              <div className="pt-2 border-t border-border/50">
+                <TicketBrandingTab api={api} />
+              </div>
             </TabsContent>
 
-            {/* ── PESTAÑA: RESPALDOS ── */}
-            <TabsContent value="security" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
+            {/* ── PESTAÑA: SISTEMA, HARDWARE Y SEGURIDAD ── */}
+            <TabsContent value="system" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
               <Card>
                 <CardHeader className="flex flex-row items-center gap-4">
                   <div className="p-2 bg-primary/10 rounded-lg">
@@ -743,14 +801,12 @@ export default function SettingsPage() {
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
 
-            {/* ── PESTAÑA: HARDWARE ── */}
-            <TabsContent value="hardware" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <Card className="border-blue-500/20 bg-blue-500/5">
+              {/* ── SECCIÓN DE PERIFÉRICOS (antes Hardware) ── */}
+              <Card className="border-primary/20 bg-primary/5 mt-6">
                 <CardHeader className="flex flex-row items-center gap-4">
-                  <div className="p-2 bg-blue-500/10 rounded-lg">
-                    <Scan className="h-6 w-6 text-blue-500" />
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <Scan className="h-6 w-6 text-primary" />
                   </div>
                   <div>
                     <CardTitle>Periféricos</CardTitle>
@@ -764,7 +820,7 @@ export default function SettingsPage() {
                   {/* CONFIGURACIÓN DE IMPRESORA TÉRMICA */}
                   <div className="border bg-background/50 rounded-2xl p-6 space-y-4 mb-6">
                     <div className="flex items-center gap-3 border-b pb-4 mb-4">
-                      <div className="h-8 w-8 bg-blue-500/10 text-blue-600 rounded-lg flex items-center justify-center">
+                      <div className="h-8 w-8 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
                         <Printer className="h-5 w-5" />
                       </div>
                       <div>
@@ -821,11 +877,11 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-8 bg-background/50 gap-4 text-center border-blue-500/20">
+                  <div className="flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-8 bg-background/50 gap-4 text-center border-primary/20">
                     {!lastScan ? (
                       <>
-                        <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center animate-pulse">
-                          <Scan className="h-6 w-6 text-blue-500" />
+                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
+                          <Scan className="h-6 w-6 text-primary" />
                         </div>
                         <div>
                           <p className="text-sm font-bold uppercase tracking-widest">
@@ -838,9 +894,9 @@ export default function SettingsPage() {
                       </>
                     ) : (
                       <>
-                        <Activity className="h-8 w-8 text-emerald-500 animate-bounce" />
+                        <Activity className="h-8 w-8 text-primary animate-bounce" />
                         <div className="space-y-1">
-                          <p className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+                          <p className="text-2xl font-black font-mono text-primary">
                             {lastScan.code}
                           </p>
                           <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">
@@ -852,9 +908,9 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 border rounded-xl bg-background/80 flex items-center gap-4 border-blue-500/10">
-                      <div className="h-10 w-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
-                        <Keyboard className="h-5 w-5 text-orange-600" />
+                    <div className="p-4 border rounded-xl bg-background/80 flex items-center gap-4 border-primary/10">
+                      <div className="h-10 w-10 rounded-lg bg-secondary/20 flex items-center justify-center">
+                        <Keyboard className="h-5 w-5 text-secondary-foreground" />
                       </div>
                       <div>
                         <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">
@@ -865,83 +921,18 @@ export default function SettingsPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="p-4 border rounded-xl bg-background/80 flex items-center gap-4 border-blue-500/10">
-                      <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                        <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                    <div className="p-4 border rounded-xl bg-background/80 flex items-center gap-4 border-primary/10">
+                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <ShieldCheck className="h-5 w-5 text-primary" />
                       </div>
                       <div>
                         <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">
                           Estado
                         </p>
-                        <p className="text-sm font-black text-emerald-600 uppercase tracking-tight">
+                        <p className="text-sm font-black text-primary uppercase tracking-tight">
                           Certificado
                         </p>
                       </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* ── PESTAÑA: AVANZADO ── */}
-            <TabsContent value="advanced" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <Card className="border-primary/20 bg-primary/5">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 uppercase tracking-tight font-black">
-                    <RefreshCcw className="h-5 w-5 text-primary" /> Laboratorio
-                  </CardTitle>
-                  <CardDescription className="text-xs uppercase font-bold text-muted-foreground/60">
-                    Herramientas de estrés y población de datos.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="p-6 border rounded-xl bg-background/40 space-y-4">
-                    <div>
-                      <p className="font-bold text-sm uppercase tracking-tight">
-                        Poblar Datos de Prueba
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Carga un catálogo de demostración para probar el sistema.
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <Button
-                        variant="outline"
-                        className="h-11 uppercase text-[10px] font-black tracking-widest"
-                        onClick={async () => {
-                          const id = toast.loading("Procesando...");
-                          try {
-                            const { generateMassiveData } = await import("@/lib/seed");
-                            await generateMassiveData((msg: string) =>
-                              toast.loading(msg, { id })
-                            );
-                            toast.success("¡Carga masiva completa!", { id });
-                            setTimeout(() => window.location.reload(), 1500);
-                          } catch {
-                            toast.error("Error en la carga", { id });
-                          }
-                        }}
-                      >
-                        Carga de Estrés
-                      </Button>
-                      <Button
-                        className="h-11 bg-blue-600 hover:bg-blue-700 uppercase text-[10px] font-black tracking-widest text-white border-0"
-                        onClick={async () => {
-                          const id = toast.loading("Descargando activos...");
-                          try {
-                            const { seedDemoData } = await import("@/lib/seed");
-                            await seedDemoData((msg: string) =>
-                              toast.loading(msg, { id })
-                            );
-                            toast.success("Catálogo Demo cargado.", { id });
-                            setTimeout(() => window.location.reload(), 1500);
-                          } catch {
-                            toast.error("Error", { id });
-                          }
-                        }}
-                      >
-                        Seed Demo Pro
-                      </Button>
                     </div>
                   </div>
                 </CardContent>

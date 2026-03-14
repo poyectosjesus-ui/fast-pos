@@ -116,6 +116,47 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* ── THEMES ── */
+.theme-rose {
+  --primary: oklch(0.627 0.265 17.151); /* Rose 600 */
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.627 0.265 17.151);
+}
+.dark.theme-rose {
+  --primary: oklch(0.627 0.265 17.151);
+  --primary-foreground: oklch(0.985 0 0);
+}
+
+.theme-blue {
+  --primary: oklch(0.546 0.245 262.881); /* Blue 600 */
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.546 0.245 262.881);
+}
+.dark.theme-blue {
+  --primary: oklch(0.546 0.245 262.881);
+  --primary-foreground: oklch(0.985 0 0);
+}
+
+.theme-emerald {
+  --primary: oklch(0.592 0.165 155.109); /* Emerald 600 */
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.592 0.165 155.109);
+}
+.dark.theme-emerald {
+  --primary: oklch(0.592 0.165 155.109);
+  --primary-foreground: oklch(0.985 0 0);
+}
+
+.theme-orange {
+  --primary: oklch(0.612 0.211 40.569); /* Orange 600 */
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.612 0.211 40.569);
+}
+.dark.theme-orange {
+  --primary: oklch(0.612 0.211 40.569);
+  --primary-foreground: oklch(0.985 0 0);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

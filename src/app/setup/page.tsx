@@ -93,8 +93,8 @@ export default function SetupWizardPage() {
       {/* Pane Izquierdo - Status */}
       <div className="hidden lg:flex flex-col justify-between w-[400px] border-r border-neutral-900 bg-neutral-950/50 p-12 z-10 backdrop-blur-sm">
         <div>
-          <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-primary-foreground mb-8 shadow-2xl shadow-primary/20">
-            <Store className="w-6 h-6" />
+          <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-primary-foreground mb-8 shadow-2xl shadow-primary/20 p-2 border border-primary/50">
+            <img src="/pos.svg" alt="Fast POS Logo" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-3xl font-black tracking-tighter text-white mb-4">Fast-POS</h1>
           <p className="text-neutral-500 font-medium text-sm leading-relaxed">

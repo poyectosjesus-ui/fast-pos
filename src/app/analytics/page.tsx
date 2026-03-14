@@ -146,12 +146,12 @@ export default function AnalyticsPage() {
                 {stats.orderCount > 0 ? (
                   <div className="mt-4 space-y-2">
                     <div className="flex justify-between text-xs font-semibold">
-                      <span className="text-amber-600">Efectivo ({Math.round((stats.cashTotal / stats.totalWithTax) * 100)}%)</span>
-                      <span className="text-blue-600">Tarjeta ({Math.round((stats.cardTotal / stats.totalWithTax) * 100)}%)</span>
+                      <span className="text-foreground">Efectivo ({Math.round((stats.cashTotal / stats.totalWithTax) * 100)}%)</span>
+                      <span className="text-muted-foreground">Tarjeta ({Math.round((stats.cardTotal / stats.totalWithTax) * 100)}%)</span>
                     </div>
-                    <div className="h-3 w-full bg-blue-500 rounded-full overflow-hidden flex">
+                    <div className="h-3 w-full bg-muted rounded-full overflow-hidden flex">
                       <div 
-                        className="h-full bg-amber-500" 
+                        className="h-full bg-primary" 
                         style={{ width: `${Math.round((stats.cashTotal / stats.totalWithTax) * 100)}%` }}
                       />
                     </div>

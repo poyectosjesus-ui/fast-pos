@@ -125,8 +125,8 @@ export default function LoginPage() {
         {/* PANTALLA 1: SELECCIONAR USUARIO */}
         {!selectedUser ? (
           <div className="w-full flex flex-col items-center animate-in fade-in zoom-in-95 duration-300">
-            <div className="w-16 h-16 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center mb-6 shadow-xl text-primary">
-              <Users className="w-8 h-8" />
+            <div className="w-16 h-16 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center mb-6 shadow-xl p-3">
+              <img src="/pos.svg" alt="Fast POS" className="w-full h-full object-contain" />
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Punto de Venta</h1>
             <p className="text-sm text-neutral-500 text-center mb-10">Selecciona tu cuenta para operar</p>

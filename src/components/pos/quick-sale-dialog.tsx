@@ -61,7 +61,7 @@ export function QuickSaleDialog({ open, onClose }: QuickSaleDialogProps) {
       <DialogContent className="sm:max-w-[360px] rounded-2xl border-border bg-card">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-black">
-            <PackageOpen className="w-5 h-5 text-amber-500" />
+            <PackageOpen className="w-5 h-5 text-primary" />
             Pase Libre
           </DialogTitle>
           <p className="text-sm text-muted-foreground mt-1">Venta de artículos fuera del catálogo general.</p>
@@ -74,7 +74,7 @@ export function QuickSaleDialog({ open, onClose }: QuickSaleDialogProps) {
               placeholder="Ej. Copias, Desechable..."
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="h-12 bg-muted/50 focus:border-amber-500 text-sm"
+              className="h-12 bg-muted/50 focus:border-primary text-sm"
               autoFocus
             />
           </div>
@@ -88,12 +88,12 @@ export function QuickSaleDialog({ open, onClose }: QuickSaleDialogProps) {
               value={priceStr}
               onChange={(e) => setPriceStr(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              className="h-14 bg-muted/50 focus:border-amber-500 text-lg font-mono text-center"
+              className="h-14 bg-muted/50 focus:border-primary text-lg font-mono text-center"
             />
           </div>
 
           <Button 
-            className="w-full h-12 text-sm font-bold uppercase tracking-widest bg-amber-500 hover:bg-amber-600 text-amber-950 border-none shadow-lg shadow-amber-500/20" 
+            className="w-full h-12 text-sm font-bold uppercase tracking-widest bg-primary hover:bg-primary/90 text-primary-foreground border-none shadow-lg shadow-primary/20" 
             onClick={handleAdd}
           >
             Añadir Total al Ticket

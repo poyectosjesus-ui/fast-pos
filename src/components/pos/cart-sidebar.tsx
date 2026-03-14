@@ -61,14 +61,14 @@ export function CartSidebar({ onCheckout, isProcessing, allowNegativeStock = fal
                 <div className="flex items-center gap-1 flex-wrap mt-1">
                   {/* Badge de IVA */}
                   {item.taxRate > 0 && (
-                    <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
                       <Receipt className="h-2.5 w-2.5" />
                       IVA {item.taxRate / 100}%{item.taxIncluded ? " incl." : " +"}
                     </span>
                   )}
                   {/* Badge de unidad (fraccionable) */}
                   {item.allowFractions && (
-                    <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-600 bg-blue-500/10 px-1.5 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
                       <Scale className="h-2.5 w-2.5" />
                       {item.unitType}
                     </span>
@@ -152,7 +152,7 @@ export function CartSidebar({ onCheckout, isProcessing, allowNegativeStock = fal
           </div>
           {/* IVA — solo mostrar si hay impuesto */}
           {tax > 0 && (
-            <div className="flex justify-between text-amber-600 dark:text-amber-400">
+            <div className="flex justify-between text-muted-foreground">
               <span>IVA</span>
               <span className="font-mono font-bold">+{formatCents(tax)}</span>
             </div>

@@ -40,6 +40,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 import { PrintTicketButton } from "@/components/pos/PrintTicketButton";
@@ -48,7 +56,7 @@ import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 
 export default function HistoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 9;
+  const itemsPerPage = 15;
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'COMPLETED' | 'CANCELLED'>('ALL');
   const [filterPayment, setFilterPayment] = useState<'ALL' | 'CASH' | 'CARD'>('ALL');
 
@@ -59,6 +67,13 @@ export default function HistoryPage() {
   const [overallStats, setOverallStats] = useState<Awaited<ReturnType<typeof OrderService['getOverallStats']>> | undefined>(undefined);
 
   const totalPages = Math.ceil(totalOrders / itemsPerPage);
+
+  // Arreglo de la Paginación: Evitar quedarse en una página vacía si se borra el último elemento o cambian los filtros
+  useEffect(() => {
+    if (allOrders && allOrders.length === 0 && currentPage > 1) {
+      setCurrentPage(prev => Math.max(1, prev - 1));
+    }
+  }, [allOrders, currentPage]);
 
   const loadOrders = useCallback(async () => {
     const result = await OrderService.searchOrders({
@@ -130,31 +145,31 @@ export default function HistoryPage() {
             
             {/* Quick Stats Grid (Fase 12.1) */}
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-              <div className="bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-xl flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+              <div className="bg-primary/10 border border-primary/20 px-3 py-2 rounded-xl flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground shadow-lg shadow-primary/20">
                   <TrendingUp className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-tighter">Ventas Hoy</p>
-                  <p className="text-sm font-black text-emerald-700">{formatCurrency(todayStats?.totalWithTax ?? 0)}</p>
+                  <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">Ventas Hoy</p>
+                  <p className="text-sm font-black text-primary">{formatCurrency(todayStats?.totalWithTax ?? 0)}</p>
                 </div>
               </div>
-              <div className="bg-primary/5 border border-primary/10 px-3 py-2 rounded-xl flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/20">
+              <div className="bg-secondary/50 border border-secondary px-3 py-2 rounded-xl flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center text-foreground shadow-sm">
                   <ShoppingBag className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">Histórico Total</p>
-                  <p className="text-sm font-black text-primary">{formatCurrency(overallStats?.totalRevenue ?? 0)}</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">Histórico Total</p>
+                  <p className="text-sm font-black text-foreground">{formatCurrency(overallStats?.totalRevenue ?? 0)}</p>
                 </div>
               </div>
-              <div className="hidden lg:flex bg-blue-500/10 border border-blue-500/20 px-3 py-2 rounded-xl items-center gap-3">
-                <div className="h-8 w-8 rounded-lg bg-blue-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+              <div className="hidden lg:flex bg-muted/50 border border-border px-3 py-2 rounded-xl items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground shadow-sm border">
                   <ArrowUpRight className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">Ticket Promedio</p>
-                  <p className="text-sm font-black text-blue-700">{formatCurrency(overallStats?.avgTicket ?? 0)}</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">Ticket Promedio</p>
+                  <p className="text-sm font-black text-foreground">{formatCurrency(overallStats?.avgTicket ?? 0)}</p>
                 </div>
               </div>
             </div>
@@ -230,108 +245,108 @@ export default function HistoryPage() {
             </div>
           ) : (
             <>
-              {/* Grid de Ventas Responsivo (Fase 12.3) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {allOrders.map((order) => {
-                  const isCancelled = order.status === "CANCELLED";
-                  const dateObj = new Date(order.createdAt);
-                  
-                  return (
-                    <div 
-                      key={order.id} 
-                      onClick={() => setSelectedOrder(order)}
-                      className={cn(
-                        "group relative flex flex-col p-5 rounded-2xl border bg-card transition-all duration-300 cursor-pointer overflow-hidden",
-                        "hover:shadow-2xl hover:shadow-black/5 hover:-translate-y-1 active:scale-95 border-border/50",
-                        isCancelled && "opacity-80 bg-muted/20 grayscale border-dashed"
-                      )}
-                    >
-                      {/* Badge de Estado flotante */}
-                      <div className="absolute top-4 right-4 group-hover:scale-110 transition-transform">
-                        {isCancelled ? (
-                          <div className="h-8 w-8 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-lg shadow-rose-500/20">
-                            <Ban className="h-4 w-4" />
-                          </div>
-                        ) : (
-                          <div className="h-8 w-8 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
-                            <CircleCheck className="h-4 w-4" />
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex flex-col h-full gap-4">
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Ticket #{order.id.slice(0, 8)}</p>
-                          <div className="flex items-center gap-2">
+              {/* Tabla de Ventas Responsiva */}
+              <div className="rounded-xl border bg-card/50 overflow-hidden shadow-sm">
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-[50px]"></TableHead>
+                      <TableHead className="w-[120px] font-black tracking-widest uppercase text-[10px]">Ticket ID</TableHead>
+                      <TableHead className="font-black tracking-widest uppercase text-[10px]">Fecha</TableHead>
+                      <TableHead className="font-black tracking-widest uppercase text-[10px]">Artículos</TableHead>
+                      <TableHead className="font-black tracking-widest uppercase text-[10px]">Pago</TableHead>
+                      <TableHead className="text-right font-black tracking-widest uppercase text-[10px]">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {allOrders.map((order) => {
+                      const isCancelled = order.status === "CANCELLED";
+                      const dateObj = new Date(order.createdAt);
+                      
+                      return (
+                        <TableRow 
+                          key={order.id}
+                          className={cn(
+                            "cursor-pointer transition-colors hover:bg-muted/50",
+                            isCancelled && "opacity-60 bg-muted/10 grayscale"
+                          )}
+                          onClick={() => setSelectedOrder(order)}
+                        >
+                          <TableCell>
+                            {isCancelled ? (
+                              <div className="h-6 w-6 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-sm shadow-rose-500/20">
+                                <Ban className="h-3 w-3" />
+                              </div>
+                            ) : (
+                              <div className="h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-sm shadow-emerald-500/20">
+                                <CircleCheck className="h-3 w-3" />
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs font-bold text-muted-foreground/80">
+                            #{order.id.slice(0, 8)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium">{dateObj.toLocaleDateString()}</span>
+                              <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">{dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-[10px] uppercase font-bold">
+                              {order.items.length} items
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={isCancelled ? "outline" : "secondary"} className={cn("text-[9px] h-5 font-black uppercase tracking-widest px-2", isCancelled && "text-muted-foreground")}>
+                                {order.paymentMethod === "CASH" ? "Efectivo" : "Tarjeta"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
                             <span className={cn(
-                              "text-2xl font-black tracking-tighter",
-                              isCancelled ? "text-muted-foreground line-through" : "text-foreground"
+                              "text-base font-black tracking-tighter",
+                              isCancelled ? "line-through text-muted-foreground" : "text-foreground"
                             )}>
                               {formatCurrency(order.total)}
                             </span>
-                          </div>
-                        </div>
-
-                        <div className="mt-auto pt-4 border-t border-muted/50 flex items-end justify-between">
-                          <div className="space-y-0.5">
-                            <p className="text-[10px] font-bold text-muted-foreground flex items-center gap-1">
-                              <Calendar className="h-3 w-3" /> {dateObj.toLocaleDateString()}
-                            </p>
-                            <p className="text-xs font-black uppercase text-foreground/80">
-                              {dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                          </div>
-                          <div className="flex flex-col items-end gap-1.5">
-                            <Badge variant={isCancelled ? "outline" : "secondary"} className="text-[9px] h-5 font-black uppercase tracking-widest px-2">
-                              {order.paymentMethod === "CASH" ? "Efectivo" : "Tarjeta"}
-                            </Badge>
-                            <p className="text-[9px] font-bold text-muted-foreground uppercase">{order.items.length} artículos</p>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Efecto hover decorativo */}
-                      <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  );
-                })}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </div>
 
-              {/* PAGINACIÓN PREMIUM */}
-              <div className="mt-10 flex flex-col sm:flex-row items-center justify-between gap-6 p-4 sm:p-2 bg-card/50 backdrop-blur border rounded-full px-6 shadow-sm">
-                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-                  Página {currentPage} de {totalPages || 1}
+              {/* PAGINACIÓN ESTRICTA (CA-10.6) */}
+              <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-muted/20 rounded-2xl border border-border/50 backdrop-blur-sm mx-0 mb-6">
+                <div className="text-xs text-muted-foreground font-medium order-2 sm:order-1">
+                  Mostrando <span className="text-foreground">{totalOrders > 0 ? Math.min(totalOrders, (currentPage - 1) * itemsPerPage + 1) : 0}</span> - <span className="text-foreground">{Math.min(totalOrders, currentPage * itemsPerPage)}</span> de <span className="text-foreground font-bold">{totalOrders}</span> {totalOrders === 1 ? 'ticket' : 'tickets'}
                 </div>
                 
-                <div className="flex items-center gap-1 bg-muted rounded-full p-1">
+                <div className="flex items-center gap-2 order-1 sm:order-2">
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-full"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-lg"
                     onClick={handlePrevPage}
                     disabled={currentPage === 1}
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    &lt;
                   </Button>
                   
-                  {/* Números de página simples */}
-                  <div className="flex items-center gap-0.5 px-4 h-8 bg-background rounded-full text-xs font-black shadow-sm ring-1 ring-black/5">
-                    {currentPage}
+                  <div className="flex items-center gap-1.5 px-3 h-8 bg-background rounded-lg text-xs font-bold">
+                    Página {currentPage} de {totalPages || 1}
                   </div>
 
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-full"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-lg"
                     onClick={handleNextPage}
                     disabled={currentPage >= totalPages}
                   >
-                    <ChevronRight className="h-4 w-4" />
+                    &gt;
                   </Button>
-                </div>
-                
-                <div className="hidden sm:block text-[10px] font-bold uppercase text-muted-foreground italic">
-                  Viendo {(allOrders.length).toLocaleString()} tickets de {totalOrders}
                 </div>
               </div>
             </>
@@ -393,7 +408,7 @@ export default function HistoryPage() {
                   <div className="bg-muted/50 p-3 rounded-xl flex justify-between items-center mt-4">
                     <div className="flex items-center gap-2">
                       <div className="h-6 w-6 rounded bg-background flex items-center justify-center">
-                        {selectedOrder.paymentMethod === "CASH" ? <Banknote className="h-3.5 w-3.5 text-emerald-600" /> : <CreditCard className="h-3.5 w-3.5 text-blue-600" />}
+                        {selectedOrder.paymentMethod === "CASH" ? <Banknote className="h-3.5 w-3.5 text-primary" /> : <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />}
                       </div>
                       <span className="text-[10px] font-black uppercase tracking-widest leading-none">
                         Metodo: {selectedOrder.paymentMethod === "CASH" ? "Efectivo" : "Tarjeta"}
@@ -414,7 +429,7 @@ export default function HistoryPage() {
                 {selectedOrder.status !== "CANCELLED" ? (
                   <Button 
                     variant="destructive" 
-                    className="h-12 rounded-xl font-black uppercase text-xs shadow-lg shadow-rose-500/20"
+                    className="h-12 rounded-xl font-black uppercase text-xs shadow-lg shadow-destructive/20"
                     onClick={() => setVoidCandidate(selectedOrder)}
                   >
                     <Ban className="h-4 w-4 mr-2" />
@@ -436,16 +451,16 @@ export default function HistoryPage() {
          <AlertDialogContent className="bg-background/95 backdrop-blur-2xl border-2 rounded-3xl shadow-2xl">
            <AlertDialogHeader>
              <div className="flex items-center gap-4 mb-4">
-                <div className="h-14 w-14 rounded-2xl bg-rose-500 flex items-center justify-center text-white shadow-xl shadow-rose-500/30">
+                <div className="h-14 w-14 rounded-2xl bg-destructive flex items-center justify-center text-destructive-foreground shadow-xl shadow-destructive/30">
                    <AlertCircle className="h-8 w-8" />
                 </div>
                 <div>
                   <AlertDialogTitle className="text-2xl font-black uppercase tracking-tight">Anular Ticket</AlertDialogTitle>
-                  <AlertDialogDescription className="text-rose-500/80 font-bold text-xs uppercase tracking-widest">Proceso Irreversible</AlertDialogDescription>
+                  <AlertDialogDescription className="text-destructive/80 font-bold text-xs uppercase tracking-widest">Proceso Irreversible</AlertDialogDescription>
                 </div>
              </div>
              <p className="text-sm font-medium leading-relaxed">
-               Al anular este recibo de <span className="font-black text-rose-600">{voidCandidate && formatCurrency(voidCandidate.total)}</span>, el sistema devolverá automáticamente <span className="font-black underline">{voidCandidate && voidCandidate.items.length} artículos</span> al inventario disponible.
+               Al anular este recibo de <span className="font-black text-destructive">{voidCandidate && formatCurrency(voidCandidate.total)}</span>, el sistema devolverá automáticamente <span className="font-black underline">{voidCandidate && voidCandidate.items.length} artículos</span> al inventario disponible.
                <br/><br/>
                <span className="inline-block p-3 bg-muted rounded-xl text-xs font-bold text-muted-foreground border">
                  🚨 Se restará del reporte de ventas diario y ya no aparecerá como ingreso activo en caja.

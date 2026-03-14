@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Coffee, Package2, PieChart, Settings, ShoppingBag, ReceiptText, LogOut } from "lucide-react";
+import { Coffee, Package2, PieChart, Settings, ShoppingBag, ReceiptText, LogOut, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useSessionStore } from "@/store/useSessionStore";
@@ -15,6 +15,7 @@ export function Sidebar() {
     { href: "/history", label: "Historial", icon: ReceiptText, roles: ["ADMIN", "CASHIER"] },
     { href: "/products", label: "Catálogo", icon: Package2, roles: ["ADMIN"] },
     { href: "/analytics", label: "Analítica", icon: PieChart, roles: ["ADMIN"] },
+    { href: "/users", label: "Equipo", icon: Users, roles: ["ADMIN"] },
     { href: "/settings", label: "Ajustes", icon: Settings, roles: ["ADMIN"] },
   ].filter(item => !item.roles || item.roles.includes(user?.role || ""));
 
@@ -26,7 +27,7 @@ export function Sidebar() {
           className="group flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full overflow-hidden md:h-12 md:w-12 mb-4 ring-2 ring-primary/20 hover:ring-primary transition-all"
         >
           <img 
-            src="/icon-192x192.png" 
+            src="/pos.svg" 
             alt="Fast POS Logo" 
             className="h-full w-full object-cover transition-all group-hover:scale-110" 
           />

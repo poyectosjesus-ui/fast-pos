@@ -119,7 +119,7 @@ export function ProductCard({ product, currentStock, allowNegativeStock, unitInf
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           "max-h-64",                          // Altura máxima: nunca se alarga feo avec pocos cárdenas
           isDisabled && "opacity-50 cursor-not-allowed hover:shadow-none hover:translate-y-0 hover:border-border",
-          allowFractions && "border-blue-200 dark:border-blue-900"
+          allowFractions && "border-primary/50 dark:border-primary/30"
         )}
       >
         <div className="w-full flex-1 min-h-0 rounded-lg bg-muted/30 flex items-center justify-center overflow-hidden border" style={{ maxHeight: '9rem' }}>
@@ -154,7 +154,7 @@ export function ProductCard({ product, currentStock, allowNegativeStock, unitInf
 
         {/* Badge Fraccionable */}
         {allowFractions && !isDisabled && (
-          <div className="absolute top-2 left-2 flex items-center gap-1 bg-blue-500/90 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+          <div className="absolute top-2 left-2 flex items-center gap-1 bg-primary/90 text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full">
             <Scale className="h-3 w-3" />
             {unitSymbol}
           </div>
@@ -162,7 +162,7 @@ export function ProductCard({ product, currentStock, allowNegativeStock, unitInf
 
         {/* Badge Stock Bajo */}
         {isLowStock && !isOutOfStock && (
-          <div className="absolute top-2 right-2 flex items-center gap-1 bg-amber-500/90 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+          <div className="absolute top-2 right-2 flex items-center gap-1 bg-secondary/90 text-secondary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full">
             <AlertTriangle className="h-3 w-3" />
             {currentStock}
           </div>
@@ -170,7 +170,7 @@ export function ProductCard({ product, currentStock, allowNegativeStock, unitInf
 
         {/* Indicador de clic para fraccionables */}
         {allowFractions && (
-          <div className="absolute bottom-2 right-2 flex items-center justify-center h-6 w-6 rounded-full bg-blue-500/20 text-blue-600">
+          <div className="absolute bottom-2 right-2 flex items-center justify-center h-6 w-6 rounded-full bg-primary/20 text-primary">
             <Plus className="h-3.5 w-3.5" />
           </div>
         )}

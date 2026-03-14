@@ -166,7 +166,7 @@ export default function POSPage() {
              <div className={cn(
                "flex items-center justify-center h-8 w-8 rounded-full border transition-all duration-300 shrink-0",
                Date.now() - lastScanTime < 1000 
-                ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-600 animate-pulse" 
+                ? "bg-primary/20 border-primary/50 text-primary animate-pulse" 
                 : "bg-muted/30 border-border text-muted-foreground/50"
              )}>
                 <Scan className="h-4 w-4" />
@@ -213,7 +213,7 @@ export default function POSPage() {
 
             <Button
               variant="outline"
-              className="shrink-0 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900"
+              className="shrink-0 text-secondary-foreground border-border bg-secondary hover:bg-secondary/80"
               onClick={() => setIsQuickSaleOpen(true)}
               title="Venta Libre"
             >
