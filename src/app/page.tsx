@@ -30,8 +30,12 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Product, Category } from "@/lib/schema";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
+import { DigitalClock } from "@/components/shared/digital-clock";
+import { useSessionStore } from "@/store/useSessionStore";
+import { UserCircle } from "lucide-react";
 
 export default function POSPage() {
+  const { user } = useSessionStore();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("ALL");
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -50,6 +54,7 @@ export default function POSPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
+  const [sessionDuration, setSessionDuration] = useState<string>("00:00");
   const [gridDensity, setGridDensity] = useState<GridDensity>(() => {
     if (typeof window !== "undefined") {
       return (localStorage.getItem(GRID_DENSITY_KEY) as GridDensity) || "4";
@@ -87,6 +92,22 @@ export default function POSPage() {
     if (settingsRes?.success && settingsRes.config) {
       setAllowNegativeStock(settingsRes.config["allow_negative_stock"] === "true");
     }
+
+    // Calcular duración de sesión
+    const sessionRes = await (api as any).getSessionStartTime();
+    if (sessionRes?.success && sessionRes.startTime) {
+      const updateDuration = () => {
+        const diff = Date.now() - sessionRes.startTime;
+        const totalMinutes = Math.floor(diff / 60000);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        setSessionDuration(`${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`);
+      };
+      updateDuration();
+      const interval = setInterval(updateDuration, 60000);
+      return () => clearInterval(interval);
+    }
+
     setIsLoading(false);
   }, []);
 
@@ -180,8 +201,26 @@ export default function POSPage() {
               onChange={handleSearchChange}
               onBarcodeScanned={handleBarcodeScanned}
               placeholder="Buscar o escanear..."
-              className="flex-1 max-w-sm"
+              className="flex-1 max-w-[200px] xl:max-w-xs"
             />
+
+            {/* Identidad Usuario & Reloj (Premium UX) */}
+            <div className="flex items-center gap-4 ml-2 mr-Auto">
+              <div className="hidden md:flex flex-col items-end border-r pr-4 border-border/50">
+                <div className="flex items-center gap-1.5 text-primary">
+                  <UserCircle className="h-3.5 w-3.5" />
+                  <span className="text-[11px] font-black uppercase tracking-wider">{user?.name}</span>
+                </div>
+                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest leading-none">
+                  {user?.role === "ADMIN" ? "Administrador" : "Cajero"}
+                </span>
+              </div>
+              <div className="flex flex-col items-center border-r pr-4 border-border/50">
+                 <span className="text-[10px] font-black text-primary/80 uppercase tracking-tighter">Sesión</span>
+                 <span className="text-[11px] font-bold tabular-nums">{sessionDuration}h</span>
+              </div>
+              <DigitalClock />
+            </div>
 
             {categories && categories.length > 0 && (
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar flex-1">
@@ -272,7 +311,7 @@ export default function POSPage() {
                     key={product.id}
                     product={product}
                     currentStock={product.stock}
-                    allowNegativeStock={allowNegativeStock}
+                    allowNegativeStock={product.allowNegativeStock || allowNegativeStock}
                     unitInfo={unitsMap[product.unitType]}
                   />
                 ))}

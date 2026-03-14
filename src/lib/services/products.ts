@@ -14,7 +14,7 @@ import { v4 as uuidv4 } from 'uuid';
 // Helper tipado para evitar `any` en cada método
 function getAPI() {
   if (typeof window === 'undefined') return null;
-  return (window as Window & { electronAPI?: Record<string, (...args: unknown[]) => Promise<unknown>> }).electronAPI ?? null;
+  return (window as any).electronAPI ?? null;
 }
 
 export const ProductService = {
@@ -67,12 +67,12 @@ export const ProductService = {
   /**
    * Actualiza un producto existente en SQLite.
    */
-  async update(id: string, data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>): Promise<Product> {
+  async update(id: string, data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>, userId?: string): Promise<Product> {
     const api = getAPI();
     if (!api) throw new Error('Fuera del entorno Electron.');
 
     const updatedAt = Date.now();
-    const result = await api.updateProduct({ ...data, id, updatedAt }) as { success: boolean; error?: string };
+    const result = await api.updateProduct({ ...data, id, updatedAt, userId }) as { success: boolean; error?: string };
     if (!result.success) {
       throw new Error(result.error ?? 'No se pudo actualizar el producto.');
     }
@@ -80,27 +80,27 @@ export const ProductService = {
   },
 
   /** Ajusta el stock de un producto usando `update()`. */
-  async adjustStock(id: string, newStock: number): Promise<void> {
+  async adjustStock(id: string, newStock: number, userId?: string): Promise<void> {
     if (newStock < 0) throw new Error('El inventario no puede ser negativo.');
     const all = await this.getAll();
     const existing = all.find(p => p.id === id);
     if (!existing) throw new Error('Producto no encontrado.');
-    await this.update(id, { ...existing, stock: newStock });
+    await this.update(id, { ...existing, stock: newStock }, userId);
   },
 
   /** Cambia la visibilidad de un producto en el POS. */
-  async toggleVisibility(id: string, isVisible: boolean): Promise<void> {
+  async toggleVisibility(id: string, isVisible: boolean, userId?: string): Promise<void> {
     const all = await this.getAll();
     const existing = all.find(p => p.id === id);
     if (!existing) throw new Error('Producto no encontrado.');
-    await this.update(id, { ...existing, isVisible });
+    await this.update(id, { ...existing, isVisible }, userId);
   },
 
   /** Elimina un producto permanentemente. */
-  async delete(id: string): Promise<void> {
+  async delete(id: string, userId?: string): Promise<void> {
     const api = getAPI();
     if (!api) throw new Error('Fuera del entorno Electron.');
-    const result = await api.deleteProduct(id) as { success: boolean; error?: string };
+    const result = await api.deleteProduct({ productId: id, userId }) as { success: boolean; error?: string };
     if (!result.success) throw new Error(result.error ?? 'No se pudo eliminar.');
   },
 };

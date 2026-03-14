@@ -42,6 +42,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getOrderHistory:()        => ipcRenderer.invoke("orders:getHistory"),
   getOrderById:   (id)      => ipcRenderer.invoke("orders:getById", id),
   voidOrder:      (id)      => ipcRenderer.invoke("orders:void", id),
+  getProfitStats: (params)  => ipcRenderer.invoke("orders:getProfitStats", params),
+  getSummary:     ()        => ipcRenderer.invoke("analytics:getSummary"),
 
   // ── Imágenes (Bucket Local — EPIC-003) ─────────────────────────────────────
   saveImage:    (base64, filename) => ipcRenderer.invoke("images:save", base64, filename),
@@ -73,6 +75,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   registerMovement: (movement) => ipcRenderer.invoke("cash:registerMovement", movement),
   getTodayMovements:()         => ipcRenderer.invoke("cash:getTodayMovements"),
   getTodayBalance:  ()         => ipcRenderer.invoke("cash:getTodayBalance"),
+  getSessionStartTime: ()      => ipcRenderer.invoke("cash:getSessionStartTime"),
 
   // ── Menú Nativo macOS y Storage (Fase App Store) ─────────────────────────
   selectStorageFolder: () => ipcRenderer.invoke("system:selectStorageFolder"),

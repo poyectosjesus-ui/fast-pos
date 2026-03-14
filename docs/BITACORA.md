@@ -36,6 +36,7 @@
 | 12-Mar-2026 | 2.0.0 | FASE 1 | IPC Handlers v2.0 | Nuevos handlers: `db:exportSqlite`, `db:importSqlite` (con File Dialog nativo), `settings:get/set/setBulk/getAll`, `orders:void`. |
 | 12-Mar-2026 | 2.0.0 | FASE 1 | preload.js limpiado | Eliminados bindings legacy de Dexie/sync. Añadidos todos los métodos de la v2.0. |
 | 12-Mar-2026 | 2.0.0 | FASE 1 | Settings Page v2.0 | Backup/Restore migrado de Dexie a SQLite nativo. Se añadió pestaña "Negocio". Todos los confirm() reemplazados por AlertDialog. |
+| 14-Mar-2026 | 2.1.0 | Premium | Plan de Desarrollo 2.0 | Definición de hoja de ruta Premium (Week 1-4). Actualización de ARCHITECTURE.md y ACCEPTANCE_CRITERIA.md con esquema v8 (userId, costPrice, audit_logs). |
 
 ---
 

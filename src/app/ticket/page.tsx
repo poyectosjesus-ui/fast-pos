@@ -135,6 +135,12 @@ function TicketContent() {
           <span>PAGO:</span>
           <span>{paymentLabel}</span>
         </div>
+        {(order as any).userName && (
+          <div className="flex justify-between border-t border-black/10 mt-1 pt-1 italic text-[10px]">
+             <span>LE ATENDIÓ:</span>
+             <span className="uppercase">{(order as any).userName}</span>
+          </div>
+        )}
         {order.source === "ONLINE" && (
           <div className="flex justify-between text-[10px] mt-0.5">
             <span>ORIGEN:</span>

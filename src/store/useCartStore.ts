@@ -31,6 +31,7 @@ export interface CartItem {
   taxIncluded: boolean; // snapshot del modo de IVA al agregar
   unitType: string; // ID de la unidad en catalog (Ej: "PIECE", "KILO")
   allowFractions: boolean; // Snapshot que dictamina si se muestran UI modales para decimales
+  discountAmount: number; // Descuento en centavos de la partida completa
 }
 
 interface CartState {
@@ -58,6 +59,9 @@ interface CartState {
    * CA-3.1.4: Si la nueva cantidad es 0, elimina la fila.
    */
   setQuantity: (productId: string, quantity: number, maxStock: number, allowNegativeStock?: boolean) => void;
+
+  /** Cambia el descuento de un ítem */
+  setItemDiscount: (productId: string, discount: number) => void;
 
   /** Elimina completamente un ítem del carrito */
   removeItem: (productId: string) => void;
@@ -102,7 +106,7 @@ export const useCartStore = create<CartState>()(
           set({
             items: items.map(i =>
               i.productId === product.id
-                ? { ...i, quantity: newTotalQty, subtotal: i.price * newTotalQty }
+                ? { ...i, quantity: newTotalQty, subtotal: (i.price * newTotalQty) - i.discountAmount }
                 : i
             ),
           });
@@ -120,6 +124,7 @@ export const useCartStore = create<CartState>()(
               taxIncluded: product.taxIncluded ?? true,
               unitType: product.unitType ?? 'PIECE',
               allowFractions: product.allowFractions ?? false,
+              discountAmount: 0,
             }],
           });
         }
@@ -135,7 +140,17 @@ export const useCartStore = create<CartState>()(
         set({
           items: get().items.map(i =>
             i.productId === productId
-              ? { ...i, quantity: clampedQty, subtotal: i.price * clampedQty }
+              ? { ...i, quantity: clampedQty, subtotal: (i.price * clampedQty) - i.discountAmount }
+              : i
+          ),
+        });
+      },
+
+      setItemDiscount: (productId, discount) => {
+        set({
+          items: get().items.map(i =>
+            i.productId === productId
+              ? { ...i, discountAmount: discount, subtotal: (i.price * i.quantity) - discount }
               : i
           ),
         });
@@ -158,6 +173,7 @@ export const useCartStore = create<CartState>()(
           quantity: i.quantity,
           taxRate: i.taxRate,
           taxIncluded: i.taxIncluded,
+          discountAmount: i.discountAmount,
         }));
         return calculateCartTax(taxItems);
       },

@@ -19,9 +19,10 @@ import { useCartStore } from "@/store/useCartStore";
 import { ImageService } from "@/lib/services/image";
 import { formatCurrency, LOW_STOCK_THRESHOLD } from "@/lib/constants";
 import { toast } from "sonner";
-import { PackageX, AlertTriangle, Scale, Plus } from "lucide-react";
+import { PackageX, AlertTriangle, Scale, Plus, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { QuantityInputDialog } from "@/components/pos/quantity-input-dialog";
+import { getInventoryStyle } from "@/lib/utils/inventory";
 
 interface ProductCardProps {
   product: Product;
@@ -56,7 +57,9 @@ export function ProductCard({ product, currentStock, allowNegativeStock, unitInf
   // Deshabilitado: sin stock Y sin permiso de negativo Y no es fraccionario
   const isOutOfStock = !allowNegativeStock && currentStock <= 0;
   const isDisabled = isOutOfStock && !allowFractions;
-  const isLowStock = currentStock > 0 && currentStock <= LOW_STOCK_THRESHOLD;
+  
+  // Estilos dinámicos del Semáforo de Inventario
+  const invStyle = getInventoryStyle(currentStock, allowNegativeStock);
 
   const handleClick = () => {
     if (isDisabled) return;
@@ -115,11 +118,12 @@ export function ProductCard({ product, currentStock, allowNegativeStock, unitInf
         disabled={isDisabled}
         className={cn(
           "relative flex flex-col items-start w-full text-left rounded-xl border bg-card p-3 gap-2",
-          "transition-all duration-150 hover:shadow-md hover:border-primary/30 hover:-translate-y-0.5",
+          "transition-all duration-150 hover:shadow-md hover:-translate-y-0.5",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          "max-h-64",                          // Altura máxima: nunca se alarga feo avec pocos cárdenas
+          "max-h-64",
+          invStyle.borderClass,
           isDisabled && "opacity-50 cursor-not-allowed hover:shadow-none hover:translate-y-0 hover:border-border",
-          allowFractions && "border-primary/50 dark:border-primary/30"
+          allowFractions && !isOutOfStock && "border-primary/50 dark:border-primary/30"
         )}
       >
         <div className="w-full flex-1 min-h-0 rounded-lg bg-muted/30 flex items-center justify-center overflow-hidden border" style={{ maxHeight: '9rem' }}>
@@ -160,10 +164,13 @@ export function ProductCard({ product, currentStock, allowNegativeStock, unitInf
           </div>
         )}
 
-        {/* Badge Stock Bajo */}
-        {isLowStock && !isOutOfStock && (
-          <div className="absolute top-2 right-2 flex items-center gap-1 bg-secondary/90 text-secondary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-            <AlertTriangle className="h-3 w-3" />
+        {/* Badge Semáforo Stock (CA-2.1.2) */}
+        {!isOutOfStock && invStyle.status !== "success" && (
+          <div className={cn(
+            "absolute top-2 right-2 flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm",
+            invStyle.badgeClass
+          )}>
+            {invStyle.status === "danger" ? <AlertCircle className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3 w-3" />}
             {currentStock}
           </div>
         )}

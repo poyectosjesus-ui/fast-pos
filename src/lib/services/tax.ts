@@ -74,6 +74,7 @@ export interface CartItemForTax {
   quantity: number;
   taxRate: number;      // Puntos básicos
   taxIncluded: boolean;
+  discountAmount?: number; // Descuento TOTAL de la partida en centavos (SNAPSHOT)
 }
 
 /**
@@ -99,10 +100,17 @@ export function calculateCartTax(items: CartItemForTax[]): {
   let total = 0;
 
   for (const item of items) {
-    const calc = calculateItemTax(item.price, item.taxRate, item.taxIncluded);
-    subtotal += calc.basePrice * item.quantity;
-    tax      += calc.taxAmount * item.quantity;
-    total    += calc.total * item.quantity;
+    const disc = item.discountAmount || 0;
+    // El cálculo del IVA se basa en el total de la partida tras descontar
+    const lineTotal = (item.price * item.quantity) - disc;
+    
+    // Obtenemos el desglose para el monto final de la partida
+    // Si la partida es exenta o el monto es 0, calc manejará el caso
+    const calc = calculateItemTax(lineTotal, item.taxRate, item.taxIncluded);
+    
+    subtotal += calc.basePrice;
+    tax      += calc.taxAmount;
+    total    += calc.total;
   }
 
   return { subtotal, tax, total };

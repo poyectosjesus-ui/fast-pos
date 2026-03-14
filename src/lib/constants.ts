@@ -12,8 +12,14 @@ export const TAX_RATE = 0.16;
 /** Nombre del negocio que aparece en tickets y cabeceras */
 export const BUSINESS_NAME = "Fast POS";
 
-/** Umbral de stock bajo. Si stock <= este valor, se muestra alerta visual en el catálogo */
-export const LOW_STOCK_THRESHOLD = 5;
+/** Umbral de stock en peligro (Rojo). Si stock <= este valor. */
+export const DANGER_STOCK_LEVEL = 5;
+
+/** Umbral de stock bajo (Ámbar). Si stock <= este valor. */
+export const WARNING_STOCK_LEVEL = 12;
+
+/** @deprecated Usar DANGER_STOCK_LEVEL o WARNING_STOCK_LEVEL */
+export const LOW_STOCK_THRESHOLD = DANGER_STOCK_LEVEL;
 
 /**
  * Calcula el impuesto aplicado sobre un subtotal en centavos.

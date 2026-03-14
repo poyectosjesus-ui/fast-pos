@@ -20,10 +20,19 @@ function ZReportContent() {
         return;
       }
       try {
-        // Al usar T12 nos aseguramos de no caer en offset de timezone y capturar el día correcto localmente
         const targetDate = new Date(dateParam + "T12:00:00");
-        const fetchedStats = await OrderService.getStatsForDay(targetDate);
-        setStats(fetchedStats);
+        const startMs = new Date(targetDate).setHours(0,0,0,0);
+        const endMs = new Date(targetDate).setHours(23,59,59,999);
+
+        const [fetchedStats, profitRes] = await Promise.all([
+          OrderService.getStatsForDay(targetDate),
+          OrderService.getProfitStats(startMs, endMs)
+        ]);
+
+        setStats({
+          ...fetchedStats,
+          profitData: profitRes.success ? profitRes.summary : null
+        });
 
         const winApi = typeof window !== 'undefined' ? window.electronAPI : null;
         if (winApi) {
@@ -47,12 +56,13 @@ function ZReportContent() {
   }
 
   const businessName = settings["store_name"] || "MI NEGOCIO";
+  const titleParam = searchParams.get("title") || "CORTE Z - CIERRE DE CAJA";
   
   return (
     <div className="ticket-container w-[80mm] mx-auto bg-white text-black p-4 font-mono text-[12px] leading-tight print:p-0">
       <div className="text-center mb-4">
         <h1 className="text-lg font-black uppercase tracking-widest">{businessName}</h1>
-        <p className="mt-2 font-bold border-b border-black border-dashed pb-2 mb-2 text-[14px]">CORTE Z - CIERRE DE CAJA</p>
+        <p className="mt-2 font-bold border-b border-black border-dashed pb-2 mb-2 text-[14px] uppercase">{titleParam}</p>
         <p className="text-[10px] mt-1">FECHA DE CORTE: {dateParam}</p>
         <p className="text-[10px]">IMPRESIÓN: {new Date().toLocaleString("es-MX")}</p>
       </div>
@@ -75,6 +85,27 @@ function ZReportContent() {
           <span>{formatCurrency(stats.cardTotal)}</span>
         </div>
       </div>
+
+      {stats.profitData && (
+        <div className="mb-4 bg-gray-100 p-2 border border-black/20">
+          <h2 className="font-bold mb-1 border-b border-black/30">RENTABILIDAD DEL DÍA</h2>
+          <div className="flex justify-between mt-1">
+            <span>Ingreso Neto:</span>
+            <span>{formatCurrency(stats.profitData.revenue)}</span>
+          </div>
+          <div className="flex justify-between mt-1">
+            <span>Costo Mercancía:</span>
+            <span>{formatCurrency(stats.profitData.cost)}</span>
+          </div>
+          <div className="flex justify-between mt-2 pt-1 border-t border-black/10 font-black">
+            <span>UTILIDAD BRUTA:</span>
+            <span>{formatCurrency(stats.profitData.profit)}</span>
+          </div>
+          <div className="text-[9px] mt-1 italic text-right opacity-70">
+            Margen: {Math.round((stats.profitData.profit / (stats.profitData.revenue || 1)) * 100)}%
+          </div>
+        </div>
+      )}
 
       <div className="border-t border-dashed border-black/50 pt-3 mb-4 mt-8">
         <div className="flex justify-between text-[11px] mb-1">

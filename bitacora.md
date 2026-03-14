@@ -39,3 +39,4 @@ Este documento registra cronológicamente las acciones realizadas, decisiones to
 | 12-Mar | SQLite | **Fase 1.0 (B.S3)** | Instalación de `better-sqlite3` y configuración del motor nativo en `src/main/database.js`. |
 | 12-Mar | SQLite | Esquema SQL | Verificación atómica de tablas (Categories, Products, Orders) con Foreign Keys e integridad CHECK. |
 | 12-Mar | UI/DB | **Health Check** | Implementación de panel de salud en configuración con métricas en tiempo real de la DB SQLite. |
+| 14-Mar | Premium | Plan de Desarrollo 2.0 | Definición de hoja de ruta Premium. Actualización de Docs (Arquitectura v8). |

@@ -25,6 +25,7 @@ import {
 import { OrderService } from "@/lib/services/orders";
 import { Order } from "@/lib/schema";
 import { useCartStore } from "@/store/useCartStore";
+import { useSessionStore } from "@/store/useSessionStore";
 import { formatCents } from "@/lib/services/tax";
 import { BUSINESS_NAME } from "@/lib/constants";
 import { PrintTicketButton } from "@/components/pos/PrintTicketButton";
@@ -107,6 +108,7 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 
 export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
   const { items, clearCart, getCartTotals } = useCartStore();
+  const { user } = useSessionStore();
   const { subtotal, tax, total } = getCartTotals();
 
   const [step, setStep] = useState<Step>("payment");
@@ -134,7 +136,12 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
 
     setIsProcessing(true);
     try {
-      const result = await OrderService.checkout({ items, paymentMethod, source: saleSource });
+      const result = await OrderService.checkout({ 
+        items, 
+        paymentMethod, 
+        source: saleSource,
+        userId: user?.id 
+      });
 
       if (!result.success || !result.order) {
         toast.error("No pudimos procesar el cobro", { description: result.error, duration: 6000 });

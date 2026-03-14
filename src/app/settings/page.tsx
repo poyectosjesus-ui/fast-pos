@@ -64,6 +64,7 @@ import { Separator } from "@/components/ui/separator";
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { useThemeStore } from "@/store/useThemeStore";
+import { useSessionStore } from "@/store/useSessionStore";
 import { cn } from "@/lib/utils";
 
 // ─────────────────────────────────────────────
@@ -287,6 +288,7 @@ function TicketBrandingTab({ api }: { api: ElectronAPI | undefined }) {
 // ─────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const { user } = useSessionStore();
   const { themeColor, setThemeColor, themeMode, setThemeMode } = useThemeStore();
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -794,7 +796,7 @@ export default function SettingsPage() {
                                 const api = (window as any).electronAPI;
                                 const loadingToast = toast.loading("Borrando todo el inventario y ventas...");
                                 try {
-                                  const res = await api.factoryReset();
+                                  const res = await (api as any).factoryReset({ userId: user?.id });
                                   if (res.success) {
                                     toast.success("Borrado exitoso", { id: loadingToast });
                                     setTimeout(() => window.location.reload(), 1500);

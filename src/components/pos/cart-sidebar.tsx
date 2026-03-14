@@ -14,11 +14,12 @@
 
 import { useCartStore } from "@/store/useCartStore";
 import { formatCents } from "@/lib/services/tax";
-import { Minus, Plus, Trash2, ShoppingBag, Receipt, Scale } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingBag, Receipt, Scale, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 
 interface CartSidebarProps {
   onCheckout: () => void;
@@ -27,7 +28,7 @@ interface CartSidebarProps {
 }
 
 export function CartSidebar({ onCheckout, isProcessing, allowNegativeStock = false }: CartSidebarProps) {
-  const { items, setQuantity, removeItem, getCartTotals } = useCartStore();
+  const { items, setQuantity, setItemDiscount, removeItem, getCartTotals } = useCartStore();
   const { subtotal, tax, total } = getCartTotals();
 
   // El +999 es el cap permisivo para el sidebar — la validación real de stock
@@ -129,13 +130,43 @@ export function CartSidebar({ onCheckout, isProcessing, allowNegativeStock = fal
 
               {/* Subtotal del ítem + botón eliminar */}
               <div className="flex flex-col items-end gap-1 shrink-0">
-                <span className="text-sm font-bold text-primary">{formatCurrency(item.subtotal)}</span>
-                <button
-                  onClick={() => removeItem(item.productId)}
-                  className="text-muted-foreground hover:text-destructive transition-colors"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                <div className="flex items-center gap-2">
+                   {item.discountAmount > 0 ? (
+                     <div className="flex flex-col items-end">
+                        <span className="text-[10px] font-bold text-destructive line-through decoration-1">
+                           {formatCurrency(item.price * item.quantity)}
+                        </span>
+                        <span className="text-sm font-bold text-primary">{formatCurrency(item.subtotal)}</span>
+                     </div>
+                   ) : (
+                     <span className="text-sm font-bold text-primary">{formatCurrency(item.subtotal)}</span>
+                   )}
+                   
+                   <div className="flex flex-col gap-1">
+                      <button
+                        onClick={() => {
+                          const val = prompt("Monto de descuento (en pesos):", (item.discountAmount / 100).toString());
+                          if (val !== null) {
+                            const discCents = Math.round(parseFloat(val || "0") * 100);
+                            setItemDiscount(item.productId, discCents);
+                          }
+                        }}
+                        className={cn(
+                          "p-1 rounded-sm hover:bg-muted transition-colors",
+                          item.discountAmount > 0 ? "text-destructive" : "text-muted-foreground"
+                        )}
+                        title="Aplicar Descuento"
+                      >
+                        <Tag className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => removeItem(item.productId)}
+                        className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                   </div>
+                </div>
               </div>
             </div>
           );
@@ -150,6 +181,13 @@ export function CartSidebar({ onCheckout, isProcessing, allowNegativeStock = fal
             <span>Subtotal (sin IVA)</span>
             <span className="font-mono">{formatCents(subtotal)}</span>
           </div>
+          {/* Descuentos totales */}
+          {items.some(i => (i.discountAmount || 0) > 0) && (
+            <div className="flex justify-between text-destructive">
+               <span>Descuentos</span>
+               <span className="font-mono font-bold">-{formatCents(items.reduce((acc, i) => acc + (i.discountAmount || 0), 0))}</span>
+            </div>
+          )}
           {/* IVA — solo mostrar si hay impuesto */}
           {tax > 0 && (
             <div className="flex justify-between text-muted-foreground">

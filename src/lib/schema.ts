@@ -25,9 +25,13 @@ export const ProductSchema = z.object({
   id: z.string().uuid("El ID del producto debe ser un UUID válido"),
   categoryId: z.string().uuid("El producto debe pertenecer a una categoría válida"),
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres").trim(),
-  /** Precio en centavos (entero). NUNCA float. Ej: $99.50 → 9950 */
+  /** Precio de venta en centavos (entero). NUNCA float. Ej: $99.50 → 9950 */
   price: z.number().int().nonnegative("El precio no puede ser negativo"),
+  /** Precio de compra/costo en centavos (entero). Usado para calcular márgenes. Opciónal: 0 si no se define. */
+  costPrice: z.number().int().nonnegative("El costo no puede ser negativo").default(0),
   stock: z.number().nonnegative("El stock no puede ser negativo"),
+  /** Permitir vendor aun si el stock es 0 (negocios bajo pedido/elaboración propia) */
+  allowNegativeStock: z.boolean().default(false),
   sku: z.string().min(3, "El SKU debe tener al menos 3 caracteres").trim(),
   unitType: z.string().default("PIECE"),
   isVisible: z.boolean().default(true),
@@ -70,6 +74,8 @@ export const OrderSchema = z.object({
   paymentMethod: z.enum(["CASH", "CARD", "TRANSFER", "WHATSAPP", "ONLINE", "OTHER"]),
   /** Origen de la venta — LOCAL (mostrador) | ONLINE (WhatsApp, redes, etc.) */
   source: z.enum(["LOCAL", "ONLINE"]).default("LOCAL"),
+  /** ID del usuario que realizó la venta */
+  userId: z.string().uuid().nullable().optional(),
   createdAt: z.number(),
 });
 

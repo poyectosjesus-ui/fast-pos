@@ -14,6 +14,7 @@ import { formatCurrency, BUSINESS_NAME } from "@/lib/constants";
 import { OrderService } from "@/lib/services/orders";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Order } from "@/lib/schema";
+import { useSessionStore } from "@/store/useSessionStore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -55,6 +56,7 @@ import { Badge } from "@/components/ui/badge";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 
 export default function HistoryPage() {
+  const { user } = useSessionStore();
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'COMPLETED' | 'CANCELLED'>('ALL');
@@ -109,7 +111,7 @@ export default function HistoryPage() {
     if (!voidCandidate) return;
     setIsVoiding(true);
     try {
-      const result = await OrderService.voidOrder(voidCandidate.id);
+      const result = await OrderService.voidOrder(voidCandidate.id, user?.id);
       if (!result.success) {
         toast.error("No pudimos anular este ticket", { description: result.error });
         return;

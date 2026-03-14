@@ -9,7 +9,9 @@ import { BarcodeHandler } from "@/components/shared/barcode-handler";
 import { Product } from "@/lib/schema";
 import { ProductService } from "@/lib/services/products";
 import { CategoryService } from "@/lib/services/categories";
+import { useSessionStore } from "@/store/useSessionStore";
 import { calculateItemTax, formatCents, pctToRate, rateToPercent } from "@/lib/services/tax";
+import { getInventoryStyle } from "@/lib/utils/inventory";
 
 
 
@@ -17,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -62,6 +65,7 @@ function ProductImage({ filename, alt }: { filename: string; alt: string }) {
 }
 
 export function ProductsManager() {
+  const { user } = useSessionStore();
 
   // Estado SQLite
   type Unit = { id: string; name: string; symbol: string; allowFractions: number; isSystem: number };
@@ -86,6 +90,7 @@ export function ProductsManager() {
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
   const [priceStr, setPriceStr] = useState("");
+  const [costPriceStr, setCostPriceStr] = useState("");
   const [stockStr, setStockStr] = useState("");
   const [categoryId, setCategoryId] = useState("");
   // EPIC-003: filename guardado en DB ("uuid.webp") + previewUrl sólo para el formulario
@@ -97,6 +102,7 @@ export function ProductsManager() {
   const [taxRate, setTaxRate] = useState(1600);  // puntos básicos (1600 = 16%)
   const [taxIncluded, setTaxIncluded] = useState(true);
   const [taxPreset, setTaxPreset] = useState<"0" | "800" | "1600" | "custom">("1600");
+  const [allowNegativeStock, setAllowNegativeStock] = useState(false);
 
   // Preview IVA en tiempo real
   const priceInCents = useMemo(() => Math.round(parseFloat(priceStr || "0") * 100), [priceStr]);
@@ -141,6 +147,7 @@ export function ProductsManager() {
       setName(product.name);
       setSku(product.sku);
       setPriceStr((product.price / 100).toFixed(2));
+      setCostPriceStr((product.costPrice / 100).toFixed(2));
       setStockStr(product.stock.toString());
       setCategoryId(product.categoryId);
       setUnitType(product.unitType ?? "PIECE");
@@ -165,11 +172,13 @@ export function ProductsManager() {
       } else {
         setTaxPreset("custom");
       }
+      setAllowNegativeStock(product.allowNegativeStock ?? false);
     } else {
       setEditingId(null);
       setName("");
       setSku("");
       setPriceStr("");
+      setCostPriceStr("");
       setStockStr("");
       setUnitType("PIECE");
       setImageFilename(undefined);
@@ -179,6 +188,7 @@ export function ProductsManager() {
       setTaxIncluded(true);
       setTaxPreset("1600");
       setCategoryId(categories?.[0]?.id || "");
+      setAllowNegativeStock(false);
     }
     setIsOpen(true);
   };
@@ -192,11 +202,13 @@ export function ProductsManager() {
     setIsSaving(true);
     try {
       const priceInCentsVal = Math.round(parseFloat(priceStr) * 100);
+      const costInCentsVal = Math.round(parseFloat(costPriceStr || "0") * 100);
       const stock = parseFloat(stockStr) || 0;
       const payload = {
         name: name.trim(),
         sku: sku.trim().toUpperCase(),
         price: priceInCentsVal,
+        costPrice: costInCentsVal,
         stock,
         categoryId,
         unitType, // EPIC-008: Decimales y Medidas
@@ -204,9 +216,10 @@ export function ProductsManager() {
         image: imageFilename,
         taxRate,        // EPIC-002
         taxIncluded,    // EPIC-002
+        allowNegativeStock,
       };
       if (editingId) {
-        await ProductService.update(editingId, payload);
+        await ProductService.update(editingId, payload, user?.id);
         toast.success("¡Listo!", { description: "Los cambios de este producto han sido guardados." });
       } else {
         await ProductService.create(payload);
@@ -239,7 +252,7 @@ export function ProductsManager() {
       if (pendingDelete.image) {
         await ImageService.delete(pendingDelete.image);
       }
-      await ProductService.delete(pendingDelete.id);
+      await ProductService.delete(pendingDelete.id, user?.id);
       toast.success("Eliminado", { description: `"${pendingDelete.name}" ya no está en tu catálogo.` });
       await loadData();
     } catch (error: unknown) {
@@ -255,7 +268,7 @@ export function ProductsManager() {
     const newStock = currentStock + change;
     if (newStock < 0) return;
     try {
-      await ProductService.adjustStock(id, newStock);
+      await ProductService.adjustStock(id, newStock, user?.id);
       toast.success("Inventario listo", { description: change > 0 ? "Añadiste existencias" : "Retiraste existencias" });
       await loadData(); // Refrescar
     } catch (error: unknown) {
@@ -266,7 +279,7 @@ export function ProductsManager() {
 
   const handleToggleVisibility = async (id: string, currentVal: boolean) => {
     try {
-      await ProductService.toggleVisibility(id, !currentVal);
+      await ProductService.toggleVisibility(id, !currentVal, user?.id);
       toast.success("Visibilidad cambiada", { description: !currentVal ? "El producto volverá a verse en ventas." : "Ocultaste el producto del menú público." });
       await loadData(); // Refrescar
     } catch (error: unknown) {
@@ -501,8 +514,8 @@ export function ProductsManager() {
                   />
                   <p className="text-[10px] text-muted-foreground">Para búsquedas y lectora de códigos.</p>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="stock">Existencias (Inventario inicial)</Label>
+                <div className="space-y-1.5 uppercase">
+                  <Label htmlFor="stock" className="text-[10px] font-black opacity-70">Existencias (Stock)</Label>
                   <div className="relative border bg-muted/30 rounded-md overflow-hidden flex items-center h-11 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:bg-background">
                     <button 
                       type="button" 
@@ -532,6 +545,19 @@ export function ProductsManager() {
                 </div>
               </div>
 
+              {/* Flexibilidad de Stock (Venta sin stock) */}
+              <div className="flex items-center justify-between p-4 rounded-xl border border-dashed border-primary/30 bg-primary/5">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-bold">Venta sin stock</Label>
+                  <p className="text-[10px] text-muted-foreground">Permite vender aunque no haya existencias (Bajo pedido/Elaboración propia).</p>
+                </div>
+                <Switch 
+                  checked={allowNegativeStock} 
+                  onCheckedChange={setAllowNegativeStock} 
+                  disabled={isSaving}
+                />
+              </div>
+
               {/* Precio */}
               <div className="space-y-1.5">
                 <Label htmlFor="price">Precio de venta</Label>
@@ -549,13 +575,33 @@ export function ProductsManager() {
                     disabled={isSaving}
                   />
                 </div>
-                <p className="text-[10px] text-muted-foreground">
-                  {taxIncluded && taxRate > 0
-                    ? "Este precio ya incluye el IVA. El desglose se muestra abajo."
-                    : taxRate > 0
-                    ? "Al cobrar se sumará el IVA. El total real se muestra abajo."
-                    : "Producto exento de IVA."}
-                </p>
+              </div>
+
+              {/* Precio de Costo y Margen */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex justify-between items-end">
+                   <Label htmlFor="costPrice">Costo de compra (opcional)</Label>
+                   {parseFloat(priceStr) > 0 && parseFloat(costPriceStr) > 0 && (
+                     <Badge variant="outline" className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border-emerald-200">
+                        Margen: {(((parseFloat(priceStr) - parseFloat(costPriceStr)) / parseFloat(priceStr)) * 100).toFixed(1)}%
+                     </Badge>
+                   )}
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-muted-foreground font-bold text-sm">$</span>
+                  <Input
+                    id="costPrice"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    className="pl-7 h-11 text-base"
+                    value={costPriceStr}
+                    onChange={(e) => setCostPriceStr(e.target.value)}
+                    disabled={isSaving}
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground">Cuánto te cuesta a ti este producto. Se usa para reportes de utilidad.</p>
               </div>
 
               {/* ── IVA ──────────────────────────────── */}
@@ -723,15 +769,25 @@ export function ProductsManager() {
                         {catName}
                       </Badge>
                       <div className="flex flex-col items-end sm:items-center sm:flex-row ml-auto sm:ml-0 gap-1 sm:gap-4 ml-auto">
-                          <span className="font-bold text-primary sm:w-[80px] text-right">
-                            ${(product.price / 100).toFixed(2)}
-                          </span>
+                          <div className="flex flex-col items-end sm:w-[80px]">
+                            <span className="font-bold text-primary">
+                              ${(product.price / 100).toFixed(2)}
+                            </span>
+                            {product.costPrice > 0 && (
+                              <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1 rounded-sm">
+                                +{(((product.price - product.costPrice) / product.price) * 100).toFixed(0)}%
+                              </span>
+                            )}
+                          </div>
                           
                           <div className="flex items-center gap-2 bg-muted/40 rounded-full px-1.5 py-0.5 border border-border/50">
                              <button onClick={() => handleQuickStock(product.id, product.stock, -1)} disabled={product.stock === 0} className="hover:text-destructive disabled:opacity-30 transition-colors p-1">
                                 <MinusCircle className="h-4 w-4" />
                              </button>
-                             <span className={`text-[11px] font-bold w-[24px] text-center ${product.stock > 5 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                             <span className={cn(
+                               "text-[11px] font-bold w-[24px] text-center",
+                               getInventoryStyle(product.stock).textClass
+                             )}>
                                 {product.stock}
                              </span>
                              <button onClick={() => handleQuickStock(product.id, product.stock, 1)} className="hover:text-primary transition-colors p-1">

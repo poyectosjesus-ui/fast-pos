@@ -22,6 +22,7 @@ interface CheckoutInput {
   items: CartItem[];
   paymentMethod: 'CASH' | 'CARD' | 'TRANSFER' | 'WHATSAPP' | 'ONLINE' | 'OTHER';
   source?: 'LOCAL' | 'ONLINE';
+  userId?: string | null;
 }
 
 interface CheckoutResult {
@@ -76,6 +77,7 @@ export const OrderService = {
       status: 'COMPLETED',
       paymentMethod,
       source: input.source ?? 'LOCAL',
+      userId: input.userId ?? null,
       createdAt: Date.now(),
     });
 
@@ -227,10 +229,41 @@ export const OrderService = {
    * CA-4.3.3: Anular Venta — operación atómica via electronAPI.
    * El Main Process devuelve el stock automáticamente.
    */
-  async voidOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
+  async voidOrder(orderId: string, userId?: string): Promise<{ success: boolean; error?: string }> {
     const api = getAPI();
     if (!api) return { success: false, error: 'No disponible fuera de Electron.' };
-    const result = await api.voidOrder(orderId) as { success: boolean; error?: string };
+    const result = await (api as any).voidOrder({ orderId, userId }) as { success: boolean; error?: string };
     return result;
+  },
+
+  /**
+   * Obtiene estadísticas de rentabilidad real (Premium).
+   */
+  async getProfitStats(startDate: number, endDate: number): Promise<{
+    success: boolean;
+    summary: { revenue: number; cost: number; profit: number; orderCount: number };
+    dailyData: { date: string; revenue: number; cost: number }[];
+    error?: string;
+  }> {
+    const api = getAPI();
+    if (!api) throw new Error('Fuera de Electron');
+    return await api.getProfitStats({ startDate, endDate });
+  },
+
+  /**
+   * Obtiene el resumen rápido de KPIs para el día de hoy (Épica 2.2).
+   */
+  async getDaySummary(): Promise<{
+    success: boolean;
+    data?: {
+      totalRevenue: number;
+      netProfit: number;
+      ticketCount: number;
+    };
+    error?: string;
+  }> {
+    const api = getAPI();
+    if (!api) throw new Error('Fuera de Electron');
+    return await api.getSummary();
   },
 };

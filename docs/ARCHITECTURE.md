@@ -136,12 +136,16 @@ CREATE TABLE products (
 CREATE TABLE orders (
   id TEXT PK, subtotal INT, tax INT, total INT,
   status TEXT CHECK(status IN ('COMPLETED','CANCELLED')),
-  paymentMethod TEXT CHECK(paymentMethod IN ('CASH','CARD')),
-  createdAt INT
+  paymentMethod TEXT CHECK(paymentMethod IN ('CASH','CARD','TRANSFER','WHATSAPP','ONLINE','OTHER')),
+  userId TEXT, -- ID del cajero/admin que realizó la venta (v8)
+  source TEXT CHECK(source IN ('LOCAL','ONLINE')) DEFAULT 'LOCAL',
+  createdAt INT,
+  FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL
 );
 CREATE TABLE order_items (
   id INT AUTOINCREMENT PK, orderId TEXT, productId TEXT,
   name TEXT, price INT, quantity INT, subtotal INT,
+  discountAmount INT DEFAULT 0, -- Descuento en centavos por línea (v8+)
   FOREIGN KEY (orderId) REFERENCES orders(id) ON DELETE CASCADE
 );
 
@@ -155,6 +159,12 @@ CREATE TABLE users (
   id TEXT PK, name TEXT NOT NULL, pin TEXT NOT NULL, -- bcrypt hash
   role TEXT CHECK(role IN ('ADMIN','CASHIER')) NOT NULL,
   isActive INT DEFAULT 1, createdAt INT NOT NULL
+);
+-- v8: Fundación Premium (Usuarios y Márgenes)
+ALTER TABLE products ADD COLUMN costPrice INT NOT NULL DEFAULT 0; -- Precio de costo para margen
+CREATE TABLE audit_logs (
+  id TEXT PK, userId TEXT, action TEXT, details TEXT, createdAt INT,
+  FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL
 );
 ```
 

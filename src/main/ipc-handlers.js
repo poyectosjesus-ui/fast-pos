@@ -23,6 +23,27 @@ const { validateLicenseKey } = require("./licensing");
 
 function setupIpcHandlers() {
   console.log("[IPC] Registrando handlers de Fast-POS 2.0...");
+  
+  /**
+   * Helper para registrar logs de auditoría sin repetir código.
+   */
+  const logAudit = (userId, action, details) => {
+    try {
+      const db = getDb();
+      db.prepare(`
+        INSERT INTO audit_logs (id, userId, action, details, createdAt)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(
+        crypto.randomUUID(),
+        userId || null,
+        action,
+        typeof details === "string" ? details : JSON.stringify(details),
+        Date.now()
+      );
+    } catch (err) {
+      console.error("[AUDIT] Error al guardar log:", err.message);
+    }
+  };
 
   // ──────────────────────────────────────────
   // DOMINIO: db (Base de Datos)
@@ -345,6 +366,7 @@ function setupIpcHandlers() {
         ...p,
         isVisible: Boolean(p.isVisible),
         taxIncluded: Boolean(p.taxIncluded),
+        allowNegativeStock: Boolean(p.allowNegativeStock),
       }));
     } catch (err) {
       console.error("[IPC:products:getAll]", err.message);
@@ -361,13 +383,14 @@ function setupIpcHandlers() {
       const insert = db.transaction((p) => {
         db.prepare(`
           INSERT INTO products
-            (id, categoryId, name, price, stock, sku, isVisible, image, taxRate, taxIncluded, unitType, createdAt, updatedAt)
+            (id, categoryId, name, price, costPrice, stock, allowNegativeStock, sku, isVisible, image, taxRate, taxIncluded, unitType, createdAt, updatedAt)
           VALUES
-            (@id, @categoryId, @name, @price, @stock, @sku, @isVisible, @image, @taxRate, @taxIncluded, @unitType, @createdAt, @updatedAt)
+            (@id, @categoryId, @name, @price, @costPrice, @stock, @allowNegativeStock, @sku, @isVisible, @image, @taxRate, @taxIncluded, @unitType, @createdAt, @updatedAt)
         `).run({
           ...p,
           isVisible: p.isVisible ? 1 : 0,
           taxIncluded: p.taxIncluded ? 1 : 0,
+          allowNegativeStock: p.allowNegativeStock ? 1 : 0,
           taxRate: p.taxRate ?? 1600,
           unitType: p.unitType ?? "PIECE",
         });
@@ -392,7 +415,9 @@ function setupIpcHandlers() {
             categoryId  = @categoryId,
             name        = @name,
             price       = @price,
+            costPrice   = @costPrice,
             stock       = @stock,
+            allowNegativeStock = @allowNegativeStock,
             sku         = @sku,
             isVisible   = @isVisible,
             image       = @image,
@@ -405,9 +430,20 @@ function setupIpcHandlers() {
           ...p,
           isVisible: p.isVisible ? 1 : 0,
           taxIncluded: p.taxIncluded ? 1 : 0,
+          allowNegativeStock: p.allowNegativeStock ? 1 : 0,
           taxRate: p.taxRate ?? 1600,
           unitType: p.unitType ?? "PIECE",
         });
+
+        // Auditoría
+        logAudit(p.userId, "PRODUCT_UPDATE", { 
+          id: p.id, 
+          name: p.name, 
+          price: p.price, 
+          costPrice: p.costPrice, 
+          stock: p.stock 
+        });
+
         return { success: true };
       });
       return update(product);
@@ -420,9 +456,14 @@ function setupIpcHandlers() {
   /**
    * products:delete — Elimina un producto por su ID
    */
-  ipcMain.handle("products:delete", async (event, productId) => {
+  ipcMain.handle("products:delete", async (event, { productId, userId }) => {
     try {
-      getDb().prepare("DELETE FROM products WHERE id = ?").run(productId);
+      const db = getDb();
+      const product = db.prepare("SELECT name, sku FROM products WHERE id = ?").get(productId);
+      db.prepare("DELETE FROM products WHERE id = ?").run(productId);
+      
+      logAudit(userId, "PRODUCT_DELETE", { productId, name: product?.name, sku: product?.sku });
+      
       return { success: true };
     } catch (err) {
       console.error("[IPC:products:delete]", err.message);
@@ -450,12 +491,12 @@ function setupIpcHandlers() {
 
     const checkStock = db.prepare("SELECT stock FROM products WHERE id = ?");
     const insertOrder = db.prepare(`
-      INSERT INTO orders (id, subtotal, tax, total, status, paymentMethod, source, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO orders (id, subtotal, tax, total, status, paymentMethod, userId, source, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insertItem = db.prepare(`
-      INSERT INTO order_items (orderId, productId, name, price, quantity, subtotal)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO order_items (orderId, productId, name, price, quantity, subtotal, taxRate, taxIncluded, discountAmount, costPrice)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const updateStock = db.prepare(`
       UPDATE products SET stock = stock - ?, updatedAt = ? WHERE id = ?
@@ -483,19 +524,28 @@ function setupIpcHandlers() {
         orderData.total,
         orderData.status,
         orderData.paymentMethod,
+        orderData.userId || null,
         orderData.source ?? 'LOCAL',
         orderData.createdAt
       );
 
       // 3. Crear ítems y descontar stock
       for (const item of orderData.items) {
+        // Obtener el precio de costo actual del producto para el snapshot del reporte
+        const productInfo = db.prepare("SELECT costPrice FROM products WHERE id = ?").get(item.productId);
+        const snapshotCostPrice = productInfo?.costPrice ?? 0;
+
         insertItem.run(
           orderData.id,
           item.productId,
           item.name,
           item.price,
           item.quantity,
-          item.subtotal
+          item.subtotal,
+          item.taxRate ?? 1600,
+          item.taxIncluded ? 1 : 0,
+          item.discountAmount ?? 0,
+          snapshotCostPrice
         );
         if (!item.productId.startsWith("VGEN-")) {
           updateStock.run(item.quantity, Date.now(), item.productId);
@@ -519,7 +569,12 @@ function setupIpcHandlers() {
   ipcMain.handle("orders:getHistory", async () => {
     try {
       const db = getDb();
-      const orders = db.prepare("SELECT * FROM orders ORDER BY createdAt DESC").all();
+      const orders = db.prepare(`
+        SELECT o.*, u.name AS userName 
+        FROM orders o 
+        LEFT JOIN users u ON o.userId = u.id 
+        ORDER BY o.createdAt DESC
+      `).all();
       return orders.map((order) => ({
         ...order,
         items: db
@@ -538,7 +593,12 @@ function setupIpcHandlers() {
   ipcMain.handle("orders:getById", async (event, orderId) => {
     try {
       const db = getDb();
-      const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
+      const order = db.prepare(`
+        SELECT o.*, u.name AS userName 
+        FROM orders o 
+        LEFT JOIN users u ON o.userId = u.id 
+        WHERE o.id = ?
+      `).get(orderId);
       if (!order) return null;
       
       const items = db.prepare("SELECT * FROM order_items WHERE orderId = ?").all(orderId);
@@ -553,10 +613,104 @@ function setupIpcHandlers() {
    * orders:void — Anula una orden: cambia estado a CANCELLED y restaura el stock.
    * Operación atómica (rollback si falla la restauración de cualquier ítem).
    */
-  ipcMain.handle("orders:void", async (event, orderId) => {
+  /**
+   * orders:getProfitStats — Analítica de rentabilidad real (Premium)
+   * Compara el precio de venta (subtotal) vs el precio de costo histórico (COGS).
+   */
+  ipcMain.handle("orders:getProfitStats", async (event, { startDate, endDate }) => {
+    try {
+      const db = getDb();
+      // Solo órdenes completadas
+      const query = `
+        SELECT 
+          SUM(oi.subtotal) as totalRevenue,
+          SUM(oi.costPrice * oi.quantity) as totalCost,
+          COUNT(DISTINCT o.id) as orderCount
+        FROM orders o
+        JOIN order_items oi ON o.id = oi.orderId
+        WHERE o.status = 'COMPLETED'
+          AND o.createdAt >= ? 
+          AND o.createdAt <= ?
+      `;
+      
+      const stats = db.prepare(query).get(startDate, endDate);
+      
+      // Detalle por día para la gráfica
+      const dailyQuery = `
+        SELECT 
+          strftime('%Y-%m-%d', datetime(o.createdAt/1000, 'unixepoch', 'localtime')) as date,
+          SUM(oi.subtotal) as revenue,
+          SUM(oi.costPrice * oi.quantity) as cost
+        FROM orders o
+        JOIN order_items oi ON o.id = oi.orderId
+        WHERE o.status = 'COMPLETED'
+          AND o.createdAt >= ? 
+          AND o.createdAt <= ?
+        GROUP BY date
+        ORDER BY date ASC
+      `;
+      const dailyData = db.prepare(dailyQuery).all(startDate, endDate);
+
+      return {
+        success: true,
+        summary: {
+          revenue: stats.totalRevenue || 0,
+          cost: stats.totalCost || 0,
+          profit: (stats.totalRevenue || 0) - (stats.totalCost || 0),
+          orderCount: stats.orderCount || 0
+        },
+        dailyData
+      };
+    } catch (err) {
+      console.error("[IPC:orders:getProfitStats]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  /**
+   * analytics:getSummary — Resumen rápido de KPIs para el dashboard (Épica 2.2)
+   * Retorna ventas totales, ganancia neta y volumen de tickets del día actual.
+   */
+  ipcMain.handle("analytics:getSummary", async (event) => {
+    try {
+      const db = getDb();
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const startOfDay = now.getTime();
+      const endOfDay = Date.now();
+
+      const query = `
+        SELECT 
+          SUM(oi.subtotal) as totalRevenue,
+          SUM(oi.subtotal - (oi.costPrice * oi.quantity)) as netProfit,
+          COUNT(DISTINCT o.id) as ticketCount
+        FROM orders o
+        JOIN order_items oi ON o.id = oi.orderId
+        WHERE o.status = 'COMPLETED'
+          AND o.createdAt >= ? 
+          AND o.createdAt <= ?
+      `;
+
+      const summary = db.prepare(query).get(startOfDay, endOfDay);
+      
+      return {
+        success: true,
+        data: {
+          totalRevenue: summary.totalRevenue || 0,
+          netProfit: summary.netProfit || 0,
+          ticketCount: summary.ticketCount || 0
+        }
+      };
+    } catch (err) {
+      console.error("[IPC:analytics:getSummary]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("orders:void", async (event, { orderId, userId }) => {
     const db = getDb();
 
-    const voidTransaction = db.transaction((id) => {
+    const voidTransaction = db.transaction(({ id, userId }) => {
       const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(id);
       if (!order) throw new Error("Orden no encontrada.");
       if (order.status === "CANCELLED") throw new Error("Esta orden ya fue anulada.");
@@ -573,11 +727,13 @@ function setupIpcHandlers() {
         restoreStock.run(item.quantity, Date.now(), item.productId);
       }
 
+      logAudit(userId, "ORDER_VOID", { orderId: id, total: order.total });
+
       return { success: true };
     });
 
     try {
-      return voidTransaction(orderId);
+      return voidTransaction({ id: orderId, userId });
     } catch (err) {
       console.error("[IPC:orders:void]", err.message);
       return { success: false, error: err.message };
@@ -716,7 +872,7 @@ function setupIpcHandlers() {
     return win;
   }
 
-  async function createZReportWindow(dateString) {
+  async function createZReportWindow(dateString, title = "CORTE Z") {
     const isDev = process.env.NODE_ENV === "development";
     const win = new BrowserWindow({
       show: false,
@@ -729,11 +885,12 @@ function setupIpcHandlers() {
     });
 
     const reportUrl = isDev 
-      ? `http://localhost:3000/z-report?date=${dateString}`
-      : `file://${path.join(__dirname, "../../out/z-report.html")}?date=${dateString}`;
+      ? `http://localhost:3000/z-report?date=${dateString}&title=${encodeURIComponent(title)}`
+      : `file://${path.join(__dirname, "../../out/z-report.html")}?date=${dateString}&title=${encodeURIComponent(title)}`;
 
     await win.loadURL(reportUrl);
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Esperar a que Next.js hidrate y renderice el reporte dinámico
+    await new Promise(resolve => setTimeout(resolve, 2500));
     return win;
   }
 
@@ -929,9 +1086,11 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle("report:zReportPdf", async (event, dateString) => {
+  ipcMain.handle("report:zReportPdf", async (event, { dateString, title = "CORTE Z", userId }) => {
     try {
-      const win = await createZReportWindow(dateString);
+      // 1. Crear ventana invisible para renderizar el reporte
+      // Pasamos el título en la URL para que el componente React lo use
+      const win = await createZReportWindow(dateString, title);
       
       const pdfData = await win.webContents.printToPDF({
         printBackground: true,
@@ -943,14 +1102,18 @@ function setupIpcHandlers() {
       win.close();
 
       const { canceled, filePath } = await dialog.showSaveDialog({
-        title: "Guardar Corte Z",
-        defaultPath: path.join(app.getPath("documents"), `Corte-Z-${dateString}.pdf`),
+        title: `Guardar ${title}`,
+        defaultPath: path.join(app.getPath("documents"), `${title.replace(/ /g, '-')}-${dateString}.pdf`),
         filters: [{ name: "PDF", extensions: ["pdf"] }]
       });
 
       if (canceled || !filePath) return { success: true, canceled: true };
       
       fs.writeFileSync(filePath, pdfData);
+
+      // Registrar auditoría
+      logAudit(userId, "REPORT_GENERATED", { type: title, date: dateString });
+
       return { success: true, filePath };
     } catch (err) {
       console.error("[IPC:report:zReportPdf]", err.message);
@@ -1190,12 +1353,33 @@ function setupIpcHandlers() {
       return { success: false, error: err.message };
     }
   });
+  ipcMain.handle("cash:getSessionStartTime", async () => {
+    try {
+      const db = getDb();
+      const todayStart = new Date();
+      todayStart.setHours(0,0,0,0);
+      const startMs = todayStart.getTime();
+
+      const lastOpening = db.prepare(`
+        SELECT createdAt 
+        FROM cash_movements 
+        WHERE type = 'OPENING' AND createdAt >= ? 
+        ORDER BY createdAt DESC 
+        LIMIT 1
+      `).get(startMs);
+
+      return { success: true, startTime: lastOpening ? lastOpening.createdAt : null };
+    } catch (err) {
+      console.error("[IPC:cash:getSessionStartTime]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
 
   // ──────────────────────────────────────────
   // DOMINIO: system (Operaciones Críticas del Sistema)
   // ──────────────────────────────────────────
 
-  ipcMain.handle("system:factoryReset", async () => {
+  ipcMain.handle("system:factoryReset", async (event, { userId }) => {
     try {
       const db = getDb();
       const runReset = db.transaction(() => {
@@ -1205,9 +1389,11 @@ function setupIpcHandlers() {
         db.prepare("DELETE FROM products").run();
         db.prepare("DELETE FROM categories").run();
         db.prepare("DELETE FROM cash_movements").run();
+        
+        logAudit(userId, "FACTORY_RESET", { timestamp: Date.now() });
       });
       runReset();
-      console.log("[SYSTEM] Factory Reset Completado: Datos de inventario y ventas eliminados.");
+      console.log("[SYSTEM] Factory Reset Completado.");
       return { success: true };
     } catch (err) {
       console.error("[IPC:system:factoryReset]", err.message);

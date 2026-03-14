@@ -296,6 +296,46 @@ function runMigrations(db) {
     console.log("[DB] Migración v7 aplicada: Tabla cash_movements creada.");
   }
 
+  // ── v7 → v8: Fundación Premium (Usuarios, Márgenes y Auditoría) ────────
+  if (currentVersion < 8) {
+    db.exec(`
+      -- 1. Vincular órdenes a usuarios
+      ALTER TABLE orders ADD COLUMN userId TEXT;
+      CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(userId);
+
+      -- 2. Soporte para margen de ganancia real
+      ALTER TABLE products ADD COLUMN costPrice INTEGER NOT NULL DEFAULT 0;
+
+      -- 3. Auditoría de impuestos, costos y descuentos por partida
+      ALTER TABLE order_items ADD COLUMN taxRate INTEGER NOT NULL DEFAULT 1600;
+      ALTER TABLE order_items ADD COLUMN taxIncluded INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE order_items ADD COLUMN discountAmount INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE order_items ADD COLUMN costPrice INTEGER NOT NULL DEFAULT 0;
+
+      -- 4. Tabla de auditoría para acciones sensibles
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        action TEXT NOT NULL,
+        details TEXT,
+        createdAt INTEGER NOT NULL,
+        FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL
+      );
+    `);
+
+    db.pragma("user_version = 8");
+    console.log("[DB] Migración v8 aplicada: userId, costPrice y audit_logs configurados.");
+  }
+  if (currentVersion < 9) {
+    db.exec(`
+      -- Permitir ventas sin stock (bajo pedido)
+      ALTER TABLE products ADD COLUMN allowNegativeStock INTEGER NOT NULL DEFAULT 0;
+    `);
+
+    db.pragma("user_version = 9");
+    console.log("[DB] Migración v9 aplicada: allowNegativeStock configurada.");
+  }
+
   const newVersion = db.pragma("user_version", { simple: true });
   console.log(`[DB] Esquema actualizado a v${newVersion}. Listo.`);
 }

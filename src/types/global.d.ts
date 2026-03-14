@@ -34,7 +34,9 @@ declare global {
       checkout: (order: any) => Promise<{ success: boolean; error?: string }>;
       getOrderHistory: () => Promise<any[]>;
       getOrderById: (id: string) => Promise<any | null>;
-      voidOrder: (id: string) => Promise<{ success: boolean; error?: string }>;
+      voidOrder: (id: string, userId?: string) => Promise<{ success: boolean; error?: string }>;
+      getProfitStats: (params: { startDate: number; endDate: number }) => Promise<{ success: boolean; summary: any; dailyData: any[]; error?: string }>;
+      getSummary: () => Promise<{ success: boolean; data?: { totalRevenue: number; netProfit: number; ticketCount: number }; error?: string }>;
 
       // ── Imágenes
       saveImage: (base64: string, filename: string) => Promise<{ success: boolean; url?: string; error?: string }>;
@@ -42,7 +44,7 @@ declare global {
       deleteImage: (filename: string) => Promise<{ success: boolean; error?: string }>;
 
       // ── Módulo de Reportes (Corte Z)
-      generateZReportPdf: (dateString: string) => Promise<{ success: boolean; filePath?: string; canceled?: boolean; error?: string }>;
+      generateZReportPdf: (params: { dateString: string; title?: string; userId?: string }) => Promise<{ success: boolean; filePath?: string; canceled?: boolean; error?: string }>;
 
       // ── Ticket / Impresión
       getPrinters: () => Promise<any[]>;
@@ -68,6 +70,7 @@ declare global {
       registerMovement: (movement: any) => Promise<{ success: boolean; error?: string }>;
       getTodayMovements: () => Promise<{ success: boolean; movements?: any[]; error?: string }>;
       getTodayBalance: () => Promise<{ success: boolean; balance?: { opening: number; cashIn: number; cashOut: number; cashSales: number; expectedBalance: number }; error?: string }>;
+      getSessionStartTime: () => Promise<{ success: boolean; startTime: number | null; error?: string }>;
 
       // ── Sistema y Eventos Nativos
       selectStorageFolder: () => Promise<{ success: boolean; canceled?: boolean; path?: string }>;

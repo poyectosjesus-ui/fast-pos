@@ -53,7 +53,8 @@ Todo código nuevo DEBE pasar estos criterios sin excepción.
 ### CA-POS-2: Checkout
 - [ ] El total en pantalla coincide exactamente (centavo a centavo) con lo guardado en la DB.
 - [ ] El desglose muestra: Subtotal, IVA (si aplica), Total.
-- [ ] El método de pago (Efectivo/Tarjeta) es obligatorio para proceder.
+- [ ] El método de pago (Efectivo/Tarjeta/Transferencia) es obligatorio para proceder.
+- [ ] **CA-POS-4 (v8):** Toda venta registrada debe contener el `userId` del usuario en sesión.
 - [ ] Al completar la venta: el stock de cada producto disminuye, la orden se guarda y el carrito se vacía.
 - [ ] Si la transacción falla, el stock y la orden NO se modifican (rollback).
 
