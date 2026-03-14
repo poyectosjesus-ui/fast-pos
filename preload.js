@@ -69,9 +69,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
   createUnit:   (unit) => ipcRenderer.invoke("units:create", unit),
   deleteUnit:   (id)   => ipcRenderer.invoke("units:delete", id),
 
+  // ── Caja y Efectivo (Cash Management) ──────────────────────────────────────
+  registerMovement: (movement) => ipcRenderer.invoke("cash:registerMovement", movement),
+  getTodayMovements:()         => ipcRenderer.invoke("cash:getTodayMovements"),
+  getTodayBalance:  ()         => ipcRenderer.invoke("cash:getTodayBalance"),
+
   // ── Menú Nativo macOS y Storage (Fase App Store) ─────────────────────────
   selectStorageFolder: () => ipcRenderer.invoke("system:selectStorageFolder"),
   saveStorageConfig: (path) => ipcRenderer.invoke("system:saveStorageConfig", path),
+  factoryReset: () => ipcRenderer.invoke("system:factoryReset"),
   
   onNewTicket: (callback) => {
     ipcRenderer.on("menu:new-ticket", () => callback());

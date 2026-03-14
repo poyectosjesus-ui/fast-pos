@@ -64,9 +64,15 @@ declare global {
       createUnit: (unit: any) => Promise<{ success: boolean; id?: string; error?: string }>;
       deleteUnit: (id: string) => Promise<{ success: boolean; error?: string }>;
 
+      // ── Caja y Efectivo (Cash Management)
+      registerMovement: (movement: any) => Promise<{ success: boolean; error?: string }>;
+      getTodayMovements: () => Promise<{ success: boolean; movements?: any[]; error?: string }>;
+      getTodayBalance: () => Promise<{ success: boolean; balance?: { opening: number; cashIn: number; cashOut: number; cashSales: number; expectedBalance: number }; error?: string }>;
+
       // ── Sistema y Eventos Nativos
       selectStorageFolder: () => Promise<{ success: boolean; canceled?: boolean; path?: string }>;
       saveStorageConfig: (path: string) => Promise<{ success: boolean; error?: string }>;
+      factoryReset: () => Promise<{ success: boolean; error?: string }>;
       onNewTicket: (callback: () => void) => void;
       onOpenSettings: (callback: () => void) => void;
       onExportBackup: (callback: () => void) => void;

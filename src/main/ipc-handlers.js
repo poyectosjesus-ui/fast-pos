@@ -637,15 +637,15 @@ function setupIpcHandlers() {
    */
   ipcMain.handle("images:getUrl", async (event, filename) => {
     try {
-      if (!filename) return null;
+      if (!filename) return { success: false, error: "No filename provided" };
 
       // Si ya es base64 legacy (data:...), lo pasamos tal cual
-      if (filename.startsWith("data:")) return filename;
+      if (filename.startsWith("data:")) return { success: true, url: filename };
 
       const filePath = path.join(app.getPath("userData"), "images", filename);
       if (!fs.existsSync(filePath)) {
         console.warn("[IMAGE] Archivo no encontrado:", filename);
-        return null;
+        return { success: false, error: "Not found" };
       }
 
       const buffer = fs.readFileSync(filePath);
@@ -656,10 +656,10 @@ function setupIpcHandlers() {
                  : ext === "png" ? "image/png"
                  : "image/webp";
 
-      return `data:${mime};base64,${base64}`;
+      return { success: true, url: `data:${mime};base64,${base64}` };
     } catch (err) {
       console.error("[IPC:images:getUrl]", err.message);
-      return null;
+      return { success: false, error: err.message };
     }
   });
 
@@ -1116,6 +1116,102 @@ function setupIpcHandlers() {
     } catch (err) {
       console.error("[IPC:license:validate]", err.message);
       return { isValid: false, error: err.message };
+    }
+  });
+
+  // ──────────────────────────────────────────
+  // DOMINIO: cash (Movimientos de Caja)
+  // ──────────────────────────────────────────
+
+  ipcMain.handle("cash:registerMovement", async (event, movement) => {
+    try {
+      const db = getDb();
+      const insert = db.prepare(`
+        INSERT INTO cash_movements (id, type, amount, concept, userId, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+      insert.run(
+        movement.id,
+        movement.type,
+        movement.amount,
+        movement.concept,
+        movement.userId,
+        movement.createdAt || Date.now()
+      );
+      return { success: true };
+    } catch (err) {
+      console.error("[IPC:cash:registerMovement]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("cash:getTodayMovements", async () => {
+    try {
+      const db = getDb();
+      const todayStart = new Date();
+      todayStart.setHours(0,0,0,0);
+      const startMs = todayStart.getTime();
+
+      const stmt = db.prepare("SELECT * FROM cash_movements WHERE createdAt >= ? ORDER BY createdAt DESC");
+      const movements = stmt.all(startMs);
+      return { success: true, movements };
+    } catch (err) {
+      console.error("[IPC:cash:getTodayMovements]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("cash:getTodayBalance", async () => {
+    try {
+      const db = getDb();
+      const todayStart = new Date();
+      todayStart.setHours(0,0,0,0);
+      const startMs = todayStart.getTime();
+
+      let opening = 0, cashIn = 0, cashOut = 0;
+      const movs = db.prepare("SELECT type, amount FROM cash_movements WHERE createdAt >= ?").all(startMs);
+      for (const m of movs) {
+        if (m.type === 'OPENING') opening += m.amount;
+        else if (m.type === 'IN') cashIn += m.amount;
+        else if (m.type === 'OUT') cashOut += m.amount;
+      }
+
+      const cashSalesRow = db.prepare("SELECT SUM(total) as t FROM orders WHERE status = 'COMPLETED' AND paymentMethod = 'CASH' AND createdAt >= ?").get(startMs);
+      const salesAmount = cashSalesRow && cashSalesRow.t ? cashSalesRow.t : 0;
+
+      const expectedBalance = opening + cashIn + salesAmount - cashOut;
+
+      return { 
+        success: true, 
+        balance: { opening, cashIn, cashOut, cashSales: salesAmount, expectedBalance } 
+      };
+    } catch (err) {
+      console.error("[IPC:cash:getTodayBalance]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ──────────────────────────────────────────
+  // DOMINIO: system (Operaciones Críticas del Sistema)
+  // ──────────────────────────────────────────
+
+  ipcMain.handle("system:factoryReset", async () => {
+    try {
+      const db = getDb();
+      const runReset = db.transaction(() => {
+        // Eliminar registros de datos comerciales transaccionales
+        db.prepare("DELETE FROM order_items").run();
+        db.prepare("DELETE FROM orders").run();
+        db.prepare("DELETE FROM products").run();
+        db.prepare("DELETE FROM categories").run();
+        db.prepare("DELETE FROM cash_movements").run();
+      });
+      runReset();
+      console.log("[SYSTEM] Factory Reset Completado: Datos de inventario y ventas eliminados.");
+      return { success: true };
+    } catch (err) {
+      console.error("[IPC:system:factoryReset]", err.message);
+      return { success: false, error: err.message };
     }
   });
 

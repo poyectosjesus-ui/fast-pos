@@ -788,9 +788,25 @@ export default function SettingsPage() {
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
                           <AlertDialogAction
                             className="bg-destructive hover:bg-destructive/90"
-                            onClick={() => {
+                            onClick={async () => {
                               setShowNukeDialog(false);
-                              toast.info("Factory Reset disponible en v2.1 con autenticación ADMIN.");
+                              if (typeof window !== "undefined" && (window as any).electronAPI) {
+                                const api = (window as any).electronAPI;
+                                const loadingToast = toast.loading("Borrando todo el inventario y ventas...");
+                                try {
+                                  const res = await api.factoryReset();
+                                  if (res.success) {
+                                    toast.success("Borrado exitoso", { id: loadingToast });
+                                    setTimeout(() => window.location.reload(), 1500);
+                                  } else {
+                                    toast.error("Error al borrar datos", { description: res.error, id: loadingToast });
+                                  }
+                                } catch (err: any) {
+                                  toast.error("Fallo inesperado", { description: err.message, id: loadingToast });
+                                }
+                              } else {
+                                toast.error("Solo disponible en versión de escritorio.");
+                              }
                             }}
                           >
                             Sí, borrar todo

@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { ShoppingCart, Scan, PackageOpen } from "lucide-react";
+import { ShoppingCart, Scan, PackageOpen, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
 
@@ -21,6 +21,8 @@ import { CartSidebar } from "@/components/pos/cart-sidebar";
 import { CheckoutDialog } from "@/components/pos/checkout-dialog";
 import { QuickSaleDialog } from "@/components/pos/quick-sale-dialog";
 import { QuantityInputDialog } from "@/components/pos/quantity-input-dialog";
+import { OpenRegisterDialog } from "@/components/pos/open-register-dialog";
+import { CashMovementDialog } from "@/components/pos/cash-movement-dialog";
 import { GridDensitySelector, type GridDensity, GRID_COLS_MAP, GRID_DENSITY_KEY } from "@/components/pos/grid-density-selector";
 import { SearchInput } from "@/components/ui/search-input";
 import { useCartStore } from "@/store/useCartStore";
@@ -34,6 +36,7 @@ export default function POSPage() {
   const [activeCategory, setActiveCategory] = useState<string>("ALL");
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isQuickSaleOpen, setIsQuickSaleOpen] = useState(false);
+  const [isCashMovementOpen, setIsCashMovementOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
   const [isProcessing, setIsProcessing] = useState(false);
@@ -213,6 +216,16 @@ export default function POSPage() {
 
             <Button
               variant="outline"
+              className="shrink-0 text-muted-foreground border-border hover:bg-muted"
+              onClick={() => setIsCashMovementOpen(true)}
+              title="Movimientos de Caja"
+            >
+              <Wallet className="h-4 w-4" />
+              <span className="hidden sm:inline-block ml-2 text-xs">Caja</span>
+            </Button>
+
+            <Button
+              variant="outline"
               className="shrink-0 text-secondary-foreground border-border bg-secondary hover:bg-secondary/80"
               onClick={() => setIsQuickSaleOpen(true)}
               title="Venta Libre"
@@ -322,16 +335,23 @@ export default function POSPage() {
       </aside>
 
       {/* Modal de Checkout (CA-3.3.x y CA-3.4.x) */}
-      <CheckoutDialog
-        open={isCheckoutOpen}
-        onClose={() => setIsCheckoutOpen(false)}
-      />
+        <CheckoutDialog 
+          open={isCheckoutOpen}
+          onClose={() => setIsCheckoutOpen(false)}
+        />
 
-      <QuickSaleDialog
-        open={isQuickSaleOpen}
-        onClose={() => setIsQuickSaleOpen(false)}
-      />
-    </div>
+        <QuickSaleDialog
+          open={isQuickSaleOpen}
+          onClose={() => setIsQuickSaleOpen(false)}
+        />
+
+        <CashMovementDialog
+          open={isCashMovementOpen}
+          onOpenChange={setIsCashMovementOpen}
+        />
+
+        <OpenRegisterDialog />
+      </div>
     </ProtectedRoute>
   );
 }

@@ -73,6 +73,17 @@ export const OrderSchema = z.object({
   createdAt: z.number(),
 });
 
+// ── MOVIMIENTOS DE CAJA ──────────────────────────────────────────────────────
+
+export const CashMovementSchema = z.object({
+  id: z.string().uuid(),
+  type: z.enum(["OPENING", "IN", "OUT"]),
+  amount: z.number().int().positive("El monto debe ser positivo y en centavos"),
+  concept: z.string().min(2, "Ingresa un concepto"),
+  userId: z.string().min(1),
+  createdAt: z.number(),
+});
+
 // ── CONFIGURACIÓN FISCAL ──────────────────────────────────────────────────────
 
 /** Configuración global del IVA del negocio (leída de `settings` en SQLite) */
@@ -100,3 +111,4 @@ export type OrderItem      = z.infer<typeof OrderItemSchema>;
 export type Order          = z.infer<typeof OrderSchema>;
 export type TaxConfig      = z.infer<typeof TaxConfigSchema>;
 export type TaxCalculation = z.infer<typeof TaxCalculationSchema>;
+export type CashMovement   = z.infer<typeof CashMovementSchema>;

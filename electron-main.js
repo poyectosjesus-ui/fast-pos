@@ -111,10 +111,10 @@ function createWindow() {
   Logger.info(`📄 Cargando URL: ${startUrl}`);
   mainWindow.loadURL(startUrl);
 
-  // DevTools solo en desarrollo
+  // DevTools solo en desarrollo (DESHABILITADO POR EL USUARIO)
   if (isDev) {
     Logger.info("🔧 Modo desarrollo detectado");
-    mainWindow.webContents.openDevTools();
+    // mainWindow.webContents.openDevTools();
   }
 
   // Listeners

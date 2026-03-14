@@ -279,6 +279,23 @@ function runMigrations(db) {
     console.log("[DB] Migración v6 aplicada: Branding + métodos de pago flexibles.");
   }
 
+  // ── v6 → v7: Control de Caja ────────
+  if (currentVersion < 7) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS cash_movements (
+        id TEXT PRIMARY KEY,
+        type TEXT CHECK(type IN ('OPENING', 'IN', 'OUT')) NOT NULL,
+        amount INTEGER NOT NULL,
+        concept TEXT NOT NULL,
+        userId TEXT NOT NULL,
+        createdAt INTEGER NOT NULL
+      );
+    `);
+
+    db.pragma("user_version = 7");
+    console.log("[DB] Migración v7 aplicada: Tabla cash_movements creada.");
+  }
+
   const newVersion = db.pragma("user_version", { simple: true });
   console.log(`[DB] Esquema actualizado a v${newVersion}. Listo.`);
 }
