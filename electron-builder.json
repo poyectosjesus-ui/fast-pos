@@ -1,0 +1,26 @@
+{
+  "appId": "com.fastpos.app",
+  "productName": "Fast-POS",
+  "directories": {
+    "output": "dist"
+  },
+  "files": [
+    "out/**/*",
+    "electron-main.js",
+    "preload.js",
+    "src/main/**/*",
+    "package.json"
+  ],
+  "mac": {
+    "target": ["dmg", "zip"],
+    "icon": "public/icon-512x512.icns",
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "entitlements": "entitlements.mac.plist",
+    "entitlementsInherit": "entitlements.mac.plist",
+    "category": "public.app-category.business"
+  },
+  "dmg": {
+    "sign": false
+  }
+}

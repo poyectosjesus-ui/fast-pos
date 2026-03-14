@@ -227,9 +227,96 @@ app.on("ready", () => {
 
   createWindow();
 
-  // Eliminar menú
+  createWindow();
+
+  // Configurar Menú Nativo macOS (Cmd+N, Cmd+S, Editar, Portapapeles)
   const { Menu } = require("electron");
-  Menu.setApplicationMenu(null);
+  const isMac = process.platform === 'darwin';
+  
+  const template = [
+    ...(isMac ? [{
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    }] : []),
+    {
+      label: 'Archivo',
+      submenu: [
+        { 
+          label: 'Nuevo Ticket', 
+          accelerator: 'CmdOrCtrl+N',
+          click: () => { if (mainWindow) mainWindow.webContents.send("menu:new-ticket"); }
+        },
+        { type: 'separator' },
+        {
+          label: 'Exportar Backup',
+          accelerator: 'CmdOrCtrl+S',
+          click: () => { if (mainWindow) mainWindow.webContents.send("menu:export-backup"); }
+        },
+        {
+          label: 'Ajustes de Almacenamiento',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => { if (mainWindow) mainWindow.webContents.send("menu:open-settings"); }
+        },
+        isMac ? { role: 'close' } : { role: 'quit' }
+      ]
+    },
+    {
+      label: 'Editar',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        ...(isMac ? [
+          { role: 'pasteAndMatchStyle' },
+          { role: 'delete' },
+          { role: 'selectAll' },
+          { type: 'separator' },
+          {
+            label: 'Speech',
+            submenu: [
+              { role: 'startSpeaking' },
+              { role: 'stopSpeaking' }
+            ]
+          }
+        ] : [
+          { role: 'delete' },
+          { type: 'separator' },
+          { role: 'selectAll' }
+        ])
+      ]
+    },
+    {
+      label: 'Ventana',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(isMac ? [
+          { type: 'separator' },
+          { role: 'front' },
+          { type: 'separator' },
+          { role: 'window' }
+        ] : [
+          { role: 'close' }
+        ])
+      ]
+    }
+  ];
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
 
   registerBlockedShortcuts();
 
@@ -280,8 +367,33 @@ ipcMain.handle("get-paths", async () => {
   };
 });
 
+/**
+ * Selector de almacenamiento local flexible (Nativo macOS/Win)
+ */
+ipcMain.handle("system:selectStorageFolder", async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Selecciona el directorio de almacenamiento",
+    properties: ["openDirectory", "createDirectory", "promptToCreate"]
+  });
+  
+  if (result.canceled || result.filePaths.length === 0) {
+    return { success: false, canceled: true };
+  }
+  
+  return { success: true, path: result.filePaths[0] };
+});
 
-
+ipcMain.handle("system:saveStorageConfig", async (event, storagePath) => {
+  try {
+    const fs = require("fs");
+    const configPath = path.join(app.getPath("userData"), "config.json");
+    const payload = JSON.stringify({ storagePath }, null, 2);
+    fs.writeFileSync(configPath, payload, "utf-8");
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
 /**
  * Mostrar diálogo de confirmación
  */

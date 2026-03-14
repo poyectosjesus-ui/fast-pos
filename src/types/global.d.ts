@@ -63,6 +63,13 @@ declare global {
       getAllUnits: () => Promise<any[]>;
       createUnit: (unit: any) => Promise<{ success: boolean; id?: string; error?: string }>;
       deleteUnit: (id: string) => Promise<{ success: boolean; error?: string }>;
+
+      // ── Sistema y Eventos Nativos
+      selectStorageFolder: () => Promise<{ success: boolean; canceled?: boolean; path?: string }>;
+      saveStorageConfig: (path: string) => Promise<{ success: boolean; error?: string }>;
+      onNewTicket: (callback: () => void) => void;
+      onOpenSettings: (callback: () => void) => void;
+      onExportBackup: (callback: () => void) => void;
     };
   }
 }

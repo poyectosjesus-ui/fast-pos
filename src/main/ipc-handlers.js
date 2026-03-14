@@ -770,31 +770,159 @@ function setupIpcHandlers() {
 
   ipcMain.handle("ticket:printToPdf", async (event, orderId) => {
     try {
-      const win = await createTicketWindow(orderId);
+      const PDFDocument = require("pdfkit");
+      const db = getDb();
       
-      const pdfData = await win.webContents.printToPDF({
-        printBackground: true,
-        // preferCSSPageSize: true — Electron usa @page CSS del ticket
-        // El ticket define: @page { size: 80mm auto; margin: 0 }
-        preferCSSPageSize: true,
-        margins: { top: 0, bottom: 0, left: 0, right: 0 },
-        landscape: false,
-        // scaleFactor: 100 = sin escala adicional
-        // (el layout ya está en CSS a 80mm, preferCSSPageSize lo toma tal cual)
-        scaleFactor: 100,
+      function getSettingValue(k, def) {
+        const r = db.prepare("SELECT value FROM settings WHERE key = ?").get(k);
+        return r && r.value !== "" ? r.value : def;
+      }
+
+      // 1. Configuraciones de base de datos
+      const printerWidthStr = getSettingValue("printer_width", "80");
+      const printerMarginStr = getSettingValue("ticket_margin", "5");
+      let widthMm = parseFloat(printerWidthStr) || 80;
+      let marginMm = parseFloat(printerMarginStr) || 5;
+
+      const mmToPt = 2.83465; // 72 puntos por pulgada / 25.4 mm
+      const widthPt = widthMm * mmToPt;
+      const marginPt = marginMm * mmToPt;
+      const printableWidthPt = widthPt - (marginPt * 2);
+
+      const fontSize = 10;
+      // Ancho aprox de cada caracter en Courier 10pt = 6pt
+      const charWidth = 6; 
+      const MAX_CHARS = Math.floor(printableWidthPt / charWidth);
+
+      const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
+      if (!order) return { success: false, error: "Orden no encontrada" };
+      
+      const items = db.prepare("SELECT * FROM order_items WHERE orderId = ?").all(orderId);
+      const formatCurr = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val / 100);
+
+      const lines = [];
+      const addLine = (text, align = "left", isBold = false) => lines.push({ text: String(text), align, isBold });
+      // Usar líneas ASCII
+      const addSeparator = () => addLine("─".repeat(MAX_CHARS), "center");
+
+      // Header
+      addLine(getSettingValue("store_name", "MI NEGOCIO").toUpperCase(), "center", true);
+      const rfc = getSettingValue("store_tax_id", "");
+      if (rfc) addLine("RFC: " + rfc, "center");
+      const addr = getSettingValue("store_address", "");
+      if (addr) addr.split(/\n|\\n/).forEach(l => addLine(l, "center"));
+      const phone = getSettingValue("store_phone", "");
+      if (phone) addLine("Tel: " + phone, "center");
+      addLine("");
+
+      // Datos de Venta
+      addLine(`TICKET: ${order.id.split('-')[0].toUpperCase()}`);
+      const dateStr = new Date(order.createdAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
+      addLine(`FECHA: ${dateStr}`);
+      const statusStr = order.status === "COMPLETED" ? "PAGADO" : "CANCELADO / NULO";
+      addLine(`ESTADO: ${statusStr}`);
+      const methodMap = { CASH: "EFECTIVO", CARD: "TARJETA", TRANSFER: "TRANSFERENCIA", WHATSAPP: "WHATSAPP", ONLINE: "PAGO EN LÍNEA", OTHER: "OTRO" };
+      addLine(`PAGO: ${methodMap[order.paymentMethod] || order.paymentMethod}`);
+      if (order.source === "ONLINE") addLine(`ORIGEN: VENTA EN LÍNEA`);
+      addLine("");
+
+      // Items Header
+      addSeparator();
+      const descLen = Math.max(MAX_CHARS - 15, 5); // CANT (4) + IMPORTE (9) + espacios
+      const headerStr = "CANT".padEnd(4) + " " + "DESCR".padEnd(descLen).substring(0, descLen) + " " + "IMPORTE".padStart(9);
+      addLine(headerStr, "left", true);
+      addSeparator();
+
+      // Items List
+      items.forEach(item => {
+        const cantStr = String(item.quantity).padEnd(4).substring(0, 4);
+        const subtotalStr = formatCurr(item.subtotal).padStart(9).substring(0, 9);
+        
+        const nameLines = [];
+        let rName = item.name;
+        while (rName.length > 0) {
+          nameLines.push(rName.substring(0, descLen));
+          rName = rName.substring(descLen);
+        }
+
+        const firstLine = cantStr + " " + nameLines[0].padEnd(descLen) + " " + subtotalStr;
+        addLine(firstLine);
+        for (let i = 1; i < nameLines.length; i++) {
+          addLine("     " + nameLines[i]);
+        }
       });
-      win.close();
+      addSeparator();
+
+      // Totales
+      addLine(`SUBTOTAL: ${formatCurr(order.subtotal)}`.padStart(MAX_CHARS));
+      const taxName = getSettingValue("tax_name", "IVA");
+      if (order.tax > 0) {
+         addLine(`IMPUESTOS (${taxName}): ${formatCurr(order.tax)}`.padStart(MAX_CHARS));
+      }
+      addLine(`TOTAL: ${formatCurr(order.total)}`.padStart(MAX_CHARS), "left", true);
+      addLine("");
+
+      // Footer
+      const footer = getSettingValue("store_footer_message", "¡Gracias por su compra!");
+      if (footer) footer.split(/\n|\\n/).forEach(l => addLine(l, "center", true));
+      const policies = getSettingValue("store_policies", "");
+      if (policies) policies.split(/\n|\\n/).forEach(l => addLine(l, "center"));
+      addLine("");
+
+      // Redes
+      const socials = [
+        { k: "store_whatsapp", p: "WA" },
+        { k: "store_instagram", p: "IG" },
+        { k: "store_facebook", p: "FB" },
+        { k: "store_website", p: "Web" }
+      ];
+      socials.forEach(s => {
+        const val = getSettingValue(s.k, "");
+        if (val) addLine(`${s.p}: ${val}`, "center");
+      });
+      
+      addLine("");
+      addLine("--- FIN DE TICKET ---", "center");
+
+      // Alto dinámico exacto
+      const lineHeight = fontSize * 1.2;
+      const contentHeight = lines.length * lineHeight;
+      const heightPt = contentHeight + (marginPt * 2);
+
+      // 3. Crear PDF nativo
+      const doc = new PDFDocument({
+        size: [widthPt, heightPt],
+        margins: { top: marginPt, bottom: marginPt, left: marginPt, right: marginPt },
+        info: { Title: "Ticket " + order.id.split('-')[0] }
+      });
+
+      const timestamp = Math.floor(Date.now() / 1000);
+      const defaultFileName = `ticket_${order.id.split("-")[0]}_${timestamp}.pdf`;
 
       const { canceled, filePath } = await dialog.showSaveDialog({
-        title: "Guardar Ticket PDF",
-        defaultPath: path.join(app.getPath("documents"), `ticket-${orderId.split("-")[0]}.pdf`),
+        title: "Exportar Ticket PDF Térmico",
+        defaultPath: path.join(app.getPath("documents"), defaultFileName),
         filters: [{ name: "PDF", extensions: ["pdf"] }]
       });
 
       if (canceled || !filePath) return { success: true, canceled: true };
-      
-      fs.writeFileSync(filePath, pdfData);
-      return { success: true, filePath };
+
+      const stream = fs.createWriteStream(filePath);
+      doc.pipe(stream);
+
+      // Renderizado texto a texto
+      lines.forEach(l => {
+         doc.font(l.isBold ? "Courier-Bold" : "Courier");
+         doc.fontSize(fontSize);
+         doc.text(l.text, { align: l.align, width: printableWidthPt, lineBreak: false });
+      });
+
+      doc.end();
+
+      return new Promise((resolve, reject) => {
+         stream.on('finish', () => resolve({ success: true, filePath }));
+         stream.on('error', (e) => reject({ success: false, error: e.message }));
+      });
     } catch (err) {
       console.error("[IPC:ticket:printToPdf]", err.message);
       return { success: false, error: err.message };

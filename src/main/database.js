@@ -24,9 +24,25 @@ let db = null;
 
 function getDbPath() {
   const isDev = process.env.NODE_ENV === "development";
-  return isDev
-    ? path.join(__dirname, "../../fast-pos-dev.db")
-    : path.join(app.getPath("userData"), "fast-pos.db");
+  if (isDev) return path.join(__dirname, "../../fast-pos-dev.db");
+
+  const userDataPath = app.getPath("userData");
+  const configPath = path.join(userDataPath, "config.json");
+  
+  let targetDir = path.join(userDataPath, "data"); // Fallback original
+  
+  if (fs.existsSync(configPath)) {
+    try {
+      const configObj = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      if (configObj.storagePath) {
+        targetDir = configObj.storagePath;
+      }
+    } catch (err) {
+      console.warn("[DB] Error leyendo config.json", err);
+    }
+  }
+  
+  return path.join(targetDir, "fast-pos.db");
 }
 
 // ─────────────────────────────────────────────

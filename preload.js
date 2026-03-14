@@ -68,7 +68,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getAllUnits:  ()     => ipcRenderer.invoke("units:getAll"),
   createUnit:   (unit) => ipcRenderer.invoke("units:create", unit),
   deleteUnit:   (id)   => ipcRenderer.invoke("units:delete", id),
-});
 
+  // ── Menú Nativo macOS y Storage (Fase App Store) ─────────────────────────
+  selectStorageFolder: () => ipcRenderer.invoke("system:selectStorageFolder"),
+  saveStorageConfig: (path) => ipcRenderer.invoke("system:saveStorageConfig", path),
+  
+  onNewTicket: (callback) => {
+    ipcRenderer.on("menu:new-ticket", () => callback());
+  },
+  onOpenSettings: (callback) => {
+    ipcRenderer.on("menu:open-settings", () => callback());
+  },
+  onExportBackup: (callback) => {
+    ipcRenderer.on("menu:export-backup", () => callback());
+  }
+});
 
 console.log("[Preload] Fast-POS 2.0 — electronAPI disponible.");
