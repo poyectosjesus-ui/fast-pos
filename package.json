@@ -10,6 +10,7 @@
     "lint": "eslint",
     "electron:dev": "NODE_ENV=development electron .",
     "dev:native": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && npm run electron:dev\"",
+    "reset": "rm -f fast-pos-dev.db && echo 'Base de datos eliminada. Reinicia la app para comenzar de cero.'",
     "build:ui": "next build --webpack",
     "build:electron": "echo 'No compilation needed for main.js yet'",
     "dist:mac": "npm run build:ui && npm run build:electron && electron-builder -m"

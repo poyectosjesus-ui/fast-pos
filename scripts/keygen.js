@@ -97,6 +97,13 @@ const signature = crypto
  */
 const finalLicenseKey = `FAST-${payloadBase64}-${signature}`;
 
+const fs = require("fs");
+const outputDir = process.cwd();
+const safeName = params.client.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+const fileName = `${safeName}.fastkey`;
+const filePath = require("path").join(outputDir, fileName);
+fs.writeFileSync(filePath, finalLicenseKey, "utf8");
+
 console.log("\n=======================================================");
 console.log("🟢 LICENCIA GENERADA CON ÉXITO");
 console.log("=======================================================");
@@ -106,7 +113,12 @@ console.log("  📦 PLAN         :", params.plan);
 console.log("  🗓  VIGENCIA     :", params.minutes != null ? `${params.minutes} Minuto(s)` : params.days === 0 ? "ILIMITADA (Lifetime)" : `${params.days} Días`);
 console.log("  🏪 MAX SUCURSALES:", params.stores);
 console.log("");
-console.log("==================== COPIAR ABAJO =====================");
+console.log("==================== ARCHIVO GENERADO =====================");
+console.log("");
+console.log("  📄 Archivo .fastkey:", fileName);
+console.log("  📂 Ubicación:", filePath);
+console.log("");
+console.log("==================== CLAVE EN TEXTO =====================");
 console.log("");
 console.log(finalLicenseKey);
 console.log("");

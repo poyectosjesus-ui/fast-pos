@@ -60,6 +60,7 @@ declare global {
 
       // ── Licencia
       validateLicense: (key: string) => Promise<{ isValid: boolean; error?: string }>;
+      openLicenseFile: () => Promise<{ success: boolean; key?: string; fileName?: string; canceled?: boolean; error?: string }>;
 
       // ── Unidades de Medida
       getAllUnits: () => Promise<any[]>;

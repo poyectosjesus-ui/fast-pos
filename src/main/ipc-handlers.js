@@ -269,6 +269,12 @@ function setupIpcHandlers() {
         upsertSetting.run("currency_symbol", setupData.fiscal.currency || "$");
         upsertSetting.run("license_key", setupData.license.key || "");
         
+        // Redes Sociales (Premium)
+        upsertSetting.run("store_whatsapp", setupData.social?.whatsapp || "");
+        upsertSetting.run("store_instagram", setupData.social?.instagram || "");
+        upsertSetting.run("store_facebook", setupData.social?.facebook || "");
+        upsertSetting.run("store_website", setupData.social?.website || "");
+        
         // Extraemos detalles del payload criptográfico pre-aprobado para guardar como metadata referencial
         upsertSetting.run("license_plan", licenseCheck.payload.plan || "BASIC");
         upsertSetting.run("license_expires", String(licenseCheck.payload.exp || "LIFETIME"));
@@ -1279,6 +1285,36 @@ function setupIpcHandlers() {
     } catch (err) {
       console.error("[IPC:license:validate]", err.message);
       return { isValid: false, error: err.message };
+    }
+  });
+
+  /**
+   * license:openFile — Abre el diálogo nativo para seleccionar un archivo .fastkey
+   * y devuelve la clave leída desde el mismo.
+   */
+  ipcMain.handle("license:openFile", async (event) => {
+    try {
+      const win = BrowserWindow.getFocusedWindow();
+      const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+        title: "Seleccionar Archivo de Licencia Fast-POS",
+        buttonLabel: "Cargar Licencia",
+        filters: [{ name: "Licencia Fast-POS", extensions: ["fastkey"] }],
+        properties: ["openFile"],
+      });
+
+      if (canceled || filePaths.length === 0) {
+        return { success: false, canceled: true };
+      }
+
+      const rawKey = fs.readFileSync(filePaths[0], "utf8").trim();
+      if (!rawKey.startsWith("FAST-")) {
+        return { success: false, error: "El archivo no contiene una licencia Fast-POS válida." };
+      }
+
+      return { success: true, key: rawKey, fileName: path.basename(filePaths[0]) };
+    } catch (err) {
+      console.error("[IPC:license:openFile]", err.message);
+      return { success: false, error: "No se pudo leer el archivo de licencia: " + err.message };
     }
   });
 
