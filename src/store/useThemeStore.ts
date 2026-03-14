@@ -14,13 +14,15 @@ interface ThemeState {
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
-      themeColor: 'zinc',
+      themeColor: 'emerald',
       setThemeColor: (color) => set({ themeColor: color }),
       themeMode: 'dark', // Por defecto dark como era originalmente
       setThemeMode: (mode) => set({ themeMode: mode }),
     }),
     {
       name: 'fast-pos-theme',
+      version: 2, // Al incrementar, el cache viejo se descarta y toma el nuevo default
+      migrate: () => ({ themeColor: 'emerald', themeMode: 'dark' }),
     }
   )
 );

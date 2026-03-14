@@ -58,11 +58,14 @@ export default function SetupWizardPage() {
 
   const [setupData, setSetupData] = useState({
     license: { key: "" },
-    business: { name: "", address: "", phone: "", taxId: "" },
+    business: { name: "", address: "", phone: "", taxId: "", businessType: "", businessTypeCustom: "" },
     fiscal: { currency: "MXN", taxName: "IVA", taxRate: "1600" },
     social: { whatsapp: "", instagram: "", facebook: "", website: "" },
     admin: { name: "", pin: "", pinConfirm: "" },
   });
+  const [loadedFileName, setLoadedFileName] = useState<string | null>(null);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   // ── helpers locales ──────────────────────────────────────────────────────
   function setErr(field: string, msg: string) {
@@ -144,6 +147,7 @@ export default function SetupWizardPage() {
       if (isEmpty(setupData.admin.name)) { setErr("aName", "El nombre del administrador es obligatorio."); ok = false; }
       if (setupData.admin.pin.length !== 4) { setErr("pin", "El PIN debe ser exactamente 4 dígitos numéricos."); ok = false; }
       if (setupData.admin.pin !== setupData.admin.pinConfirm) { setErr("pinConfirm", "Los PINs no coinciden."); ok = false; }
+      if (!privacyAccepted) { setErr("privacy", "Debe aceptar los Términos y el Aviso de Privacidad para continuar."); ok = false; }
       return ok;
     }
 
@@ -301,16 +305,68 @@ export default function SetupWizardPage() {
             {step === 1 && (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-400">
                 <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 text-sm text-neutral-400 leading-relaxed">
-                  <span className="font-bold text-blue-400">Nota:</span> La clave de activación fue entregada al momento de adquirir su licencia. Ingrésela exactamente como aparece en el documento de entrega.
+                  <span className="font-bold text-blue-400">Nota:</span> La clave de activación fue entregada en forma de archivo <code className="bg-white/10 px-1 rounded text-white font-mono">.fastkey</code> al adquirir su licencia. También puede ingresarla manualmente.
                 </div>
 
-                <FieldWrapper label="Clave de Activación" error={fieldErrors["key"]} required>
+                {/* Opción primaria: cargar archivo .fastkey */}
+                <button
+                  type="button"
+                  disabled={isValidatingKey}
+                  onClick={async () => {
+                    const api = (window as any).electronAPI;
+                    if (!api) return toast.error("Motor de aplicación no detectado.");
+                    const res = await api.openLicenseFile();
+                    if (res.canceled) return;
+                    if (!res.success) {
+                      setErr("key", res.error || "No se pudo leer el archivo.");
+                      return;
+                    }
+                    clearErr("key");
+                    setLoadedFileName(res.fileName!);
+                    setSetupData(p => ({ ...p, license: { key: res.key! } }));
+                    toast.success("Archivo de licencia cargado.", { description: res.fileName });
+                  }}
+                  className="w-full flex flex-col items-center justify-center gap-3 p-8 rounded-2xl border-2 border-dashed border-white/10 hover:border-primary/40 hover:bg-white/[0.02] transition-all group cursor-pointer disabled:opacity-50"
+                >
+                  {loadedFileName ? (
+                    <>
+                      <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                        <CheckCircle2 className="h-6 w-6 text-emerald-400" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-bold text-white font-mono">{loadedFileName}</p>
+                        <p className="text-xs text-emerald-400 mt-0.5">Archivo cargado — listo para verificar</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-12 h-12 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center group-hover:bg-primary/10 group-hover:border-primary/30 transition-all">
+                        <KeyRound className="h-6 w-6 text-neutral-500 group-hover:text-primary transition-colors" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-bold text-neutral-300">Cargar archivo de licencia</p>
+                        <p className="text-xs text-neutral-600 mt-0.5">Seleccionar archivo <span className="text-neutral-400 font-mono">.fastkey</span></p>
+                      </div>
+                    </>
+                  )}
+                </button>
+
+                {/* Separador */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-white/[0.06]" />
+                  <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-widest">o ingrese manualmente</span>
+                  <div className="flex-1 h-px bg-white/[0.06]" />
+                </div>
+
+                {/* Opción secundaria: texto manual */}
+                <FieldWrapper label="Clave de Activación" error={fieldErrors["key"]}>
                   <Input
                     placeholder="FAST-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxx"
                     disabled={isValidatingKey}
                     value={setupData.license.key}
                     onChange={e => {
                       clearErr("key");
+                      setLoadedFileName(null);
                       setSetupData(p => ({ ...p, license: { key: e.target.value } }));
                     }}
                     className={inputCls(hasErr("key"))}
@@ -335,6 +391,54 @@ export default function SetupWizardPage() {
                   <Input placeholder="Ej. Distribuidora Central S.A. de C.V." value={setupData.business.name}
                     onChange={e => updateBusiness("name", e.target.value)} className={inputCls(hasErr("name"))} />
                 </FieldWrapper>
+
+                {/* Giro del negocio */}
+                <FieldWrapper label="Giro o Actividad Principal" hint="Seleccione la categoría que mejor describe su negocio">
+                  <Select
+                    value={setupData.business.businessType}
+                    onValueChange={val => updateBusiness("businessType", val ?? "")}
+                  >
+                    <SelectTrigger className={inputCls(false)}>
+                      <SelectValue placeholder="Seleccionar giro..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-neutral-950 border-white/10 max-h-64">
+                      {[
+                        "Abarrotes / Minisuper",
+                        "Restaurante / Taquería / Fonda",
+                        "Papelería / Librería",
+                        "Ropa / Calzado / Accesorios",
+                        "Farmacia / Botica",
+                        "Ferretería / Tlapalería",
+                        "Panadería / Pastelería / Repostería",
+                        "Estética / Salón de Belleza",
+                        "Taller Mecánico / Vulcanizadora",
+                        "Electrónica / Celulares / Cómputo",
+                        "Verdulería / Frutería",
+                        "Carnicería / Pescadería",
+                        "Cafetería / Dulcería / Heladería",
+                        "Joyería / Relojería",
+                        "Lavandería / Tintorería",
+                        "Materiales para Construcción",
+                        "Servicios Profesionales",
+                        "Otro",
+                      ].map(giro => (
+                        <SelectItem key={giro} value={giro}>{giro}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FieldWrapper>
+
+                {/* Campo libre si eligió "Otro" */}
+                {setupData.business.businessType === "Otro" && (
+                  <FieldWrapper label="Especifique el giro" required>
+                    <Input
+                      placeholder="Ej. Vivero, Videojuegos, Veterinaria..."
+                      value={setupData.business.businessTypeCustom}
+                      onChange={e => updateBusiness("businessTypeCustom", e.target.value)}
+                      className={inputCls(false)}
+                    />
+                  </FieldWrapper>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <FieldWrapper label="Teléfono de contacto" error={fieldErrors["phone"]}>
@@ -363,7 +467,7 @@ export default function SetupWizardPage() {
 
                 <div className="grid grid-cols-2 gap-5">
                   <FieldWrapper label="Moneda" required>
-                    <Select value={setupData.fiscal.currency} onValueChange={val => setSetupData(p => ({ ...p, fiscal: { ...p.fiscal, currency: val } }))}>
+                    <Select value={setupData.fiscal.currency} onValueChange={val => setSetupData(p => ({ ...p, fiscal: { ...p.fiscal, currency: val ?? p.fiscal.currency } }))}>
                       <SelectTrigger className={inputCls(false)}><SelectValue /></SelectTrigger>
                       <SelectContent className="bg-neutral-950 border-white/10">
                         <SelectItem value="MXN">MXN — Peso Mexicano</SelectItem>
@@ -476,6 +580,71 @@ export default function SetupWizardPage() {
                       onChange={e => updateAdmin("pinConfirm", e.target.value.replace(/[^0-9]/g, ""))}
                       className={cn(inputCls(hasErr("pinConfirm")), "text-center text-2xl font-mono tracking-[0.5em]")} />
                   </FieldWrapper>
+                </div>
+
+                {/* ── Aviso de Privacidad + Términos ── */}
+                <div className="pt-2">
+                  {/* Toggle para leer */}
+                  <button
+                    type="button"
+                    onClick={() => setShowPrivacy(v => !v)}
+                    className="w-full flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:border-white/10 transition-all text-left group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-7 h-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                        <Lock className="h-3.5 w-3.5 text-primary" />
+                      </div>
+                      <span className="text-xs font-bold text-neutral-300">Aviso de Privacidad y Términos de Uso</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-primary uppercase tracking-widest">
+                      {showPrivacy ? "Cerrar" : "Leer"}
+                    </span>
+                  </button>
+
+                  {/* Contenido legal expandible */}
+                  {showPrivacy && (
+                    <div className="mt-2 rounded-xl border border-white/[0.06] bg-white/[0.015] p-5 text-[11px] text-neutral-400 leading-relaxed max-h-52 overflow-y-auto space-y-3 scrollbar-thin scrollbar-track-white/5 scrollbar-thumb-white/10">
+                      <p className="font-bold text-white text-xs">AVISO DE PRIVACIDAD — Fast-POS</p>
+                      <p><span className="text-neutral-300 font-semibold">Responsable del tratamiento:</span> El proveedor de la licencia Fast-POS (en adelante &quot;Fast-POS&quot;) es responsable del tratamiento de sus datos personales, conforme a lo establecido en la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP) y su Reglamento.</p>
+                      <p><span className="text-neutral-300 font-semibold">Datos que recopilamos:</span> Durante el proceso de configuración inicial, recopilamos: nombre del negocio, giro comercial, datos de contacto (teléfono, dirección, RFC), nombre del administrador, información de presencia digital (redes sociales y sitio web), así como información técnica del dispositivo (sistema operativo, versión del software) con fines de soporte técnico.</p>
+                      <p><span className="text-neutral-300 font-semibold">Finalidades del tratamiento:</span> Los datos son utilizados exclusivamente para: (1) Gestión y validación de licencias de uso del software, (2) Prestación de servicios de soporte técnico, (3) Envío de notificaciones relacionadas con el servicio (renovaciones, actualizaciones), (4) Mejora continua del producto.</p>
+                      <p><span className="text-neutral-300 font-semibold">Transferencia de datos:</span> Sus datos no serán compartidos con terceros ajenos a Fast-POS, salvo obligación legal expresa.</p>
+                      <p><span className="text-neutral-300 font-semibold">Derechos ARCO:</span> Usted tiene derecho a Acceder, Rectificar, Cancelar u Oponerse al tratamiento de sus datos personales. Para ejercer estos derechos, comuníquese con el responsable a través de los canales de soporte de Fast-POS.</p>
+                      <p><span className="text-neutral-300 font-semibold">Datos operativos del negocio:</span> La información de ventas, productos, clientes y movimientos registrada en el sistema es propiedad exclusiva del usuario. Fast-POS no accede a estos datos con fines comerciales ni los comparte con terceros.</p>
+                      <p className="border-t border-white/[0.06] pt-3 font-bold text-white text-xs">TÉRMINOS DE USO — Fast-POS</p>
+                      <p><span className="text-neutral-300 font-semibold">Licencia de uso:</span> Fast-POS otorga una licencia de uso no exclusiva, intransferible y limitada al número de instalaciones estipuladas en la licencia adquirida. Queda prohibida la reproducción, distribución, modificación o ingeniería inversa del software.</p>
+                      <p><span className="text-neutral-300 font-semibold">Vigencia:</span> La licencia es válida por el período indicado al momento de la activación. Al vencimiento, el acceso al sistema puede restringirse hasta la renovación de la misma.</p>
+                      <p><span className="text-neutral-300 font-semibold">Limitación de responsabilidad:</span> Fast-POS no se hace responsable por pérdidas de datos derivadas de fallos del hardware, cortes de energía, uso indebido del software o eventos de fuerza mayor. Se recomienda realizar respaldos periódicos de la base de datos.</p>
+                      <p><span className="text-neutral-300 font-semibold">Modificaciones:</span> Fast-POS se reserva el derecho de actualizar los presentes términos. Las modificaciones serán notificadas a través de los canales oficiales del producto.</p>
+                      <p className="text-neutral-600">Versión 1.0 — Marzo 2026</p>
+                    </div>
+                  )}
+
+                  {/* Checkbox de aceptación */}
+                  <button
+                    type="button"
+                    onClick={() => { setPrivacyAccepted(v => !v); clearErr("privacy"); }}
+                    className="mt-3 flex items-start gap-3 w-full text-left"
+                  >
+                    <div className={cn(
+                      "mt-0.5 w-5 h-5 rounded border-2 shrink-0 flex items-center justify-center transition-all",
+                      privacyAccepted
+                        ? "bg-primary border-primary"
+                        : hasErr("privacy")
+                          ? "border-red-500 bg-red-500/5"
+                          : "border-white/20 bg-white/[0.02]"
+                    )}>
+                      {privacyAccepted && <CheckCircle2 className="h-3 w-3 text-white" />}
+                    </div>
+                    <span className="text-xs text-neutral-400 leading-relaxed">
+                      He leído y acepto el <span className="text-white font-semibold">Aviso de Privacidad</span> y los <span className="text-white font-semibold">Términos de Uso</span> de Fast-POS. Entiendo el alcance del tratamiento de mis datos personales.
+                    </span>
+                  </button>
+                  {fieldErrors["privacy"] && (
+                    <p className="text-[11px] text-red-400 flex items-center gap-1.5 mt-1.5 font-medium">
+                      <AlertCircle className="h-3 w-3 shrink-0" />{fieldErrors["privacy"]}
+                    </p>
+                  )}
                 </div>
               </div>
             )}

@@ -1,0 +1,103 @@
+FAST-POS — LICENCIA DE SOFTWARE PROPIETARIO
+============================================
+
+Copyright (c) 2024–2026 Jesús Ruiz López. Todos los derechos reservados.
+
+AVISO IMPORTANTE: LEA ESTE DOCUMENTO CUIDADOSAMENTE ANTES DE USAR EL SOFTWARE.
+
+Este software y el código fuente que lo acompaña (en adelante "el Software") son
+propiedad intelectual exclusiva de Jesús Ruiz López (en adelante "el Autor") y
+están protegidos por las leyes de propiedad intelectual de los Estados Unidos
+Mexicanos, los tratados internacionales de derechos de autor y demás legislación
+aplicable.
+
+────────────────────────────────────────────────────────────────────────────────
+1. DERECHOS RESERVADOS
+────────────────────────────────────────────────────────────────────────────────
+
+Queda estrictamente PROHIBIDO, sin autorización previa y por escrito del Autor:
+
+  a) Copiar, reproducir, distribuir, sublicenciar o vender el Software o
+     cualquier parte del mismo.
+
+  b) Modificar, adaptar, traducir, descompilar, desensamblar o aplicar
+     ingeniería inversa al Software.
+
+  c) Eliminar o alterar cualquier aviso de derechos de autor, marcas
+     comerciales u otras notificaciones de propiedad incluidas en el Software.
+
+  d) Usar el Software para desarrollar productos o servicios competidores.
+
+────────────────────────────────────────────────────────────────────────────────
+2. LICENCIA DE USO
+────────────────────────────────────────────────────────────────────────────────
+
+El Autor otorga al titular de una licencia válida (en adelante "el Licenciatario")
+una licencia de uso no exclusiva, intransferible y revocable, limitada a:
+
+  · Instalar y ejecutar el Software en el número de dispositivos especificado
+    en la licencia adquirida.
+  · Usar el Software para las operaciones internas del negocio del Licenciatario.
+
+Esta licencia entra en vigor en la fecha de activación y permanece vigente
+durante el período contratado o hasta su revocación por incumplimiento de estos
+términos.
+
+────────────────────────────────────────────────────────────────────────────────
+3. PROPIEDAD DE LOS DATOS
+────────────────────────────────────────────────────────────────────────────────
+
+Los datos operativos del negocio (productos, ventas, clientes, movimientos de
+caja, etc.) son propiedad exclusiva del Licenciatario. El Autor no reclama
+derechos sobre dichos datos y se compromete a no acceder a ellos con fines
+ajenos al soporte técnico solicitado expresamente por el Licenciatario.
+
+────────────────────────────────────────────────────────────────────────────────
+4. GARANTÍA LIMITADA Y LIMITACIÓN DE RESPONSABILIDAD
+────────────────────────────────────────────────────────────────────────────────
+
+EL SOFTWARE SE PROPORCIONA "TAL COMO ESTÁ". EL AUTOR NO OFRECE GARANTÍAS DE
+NINGÚN TIPO, EXPRESAS O IMPLÍCITAS, INCLUYENDO, SIN LIMITACIÓN, GARANTÍAS DE
+COMERCIABILIDAD, IDONEIDAD PARA UN FIN PARTICULAR O NO INFRACCIÓN.
+
+EN NINGÚN CASO EL AUTOR SERÁ RESPONSABLE POR DAÑOS DIRECTOS, INDIRECTOS,
+INCIDENTALES, ESPECIALES, PUNITIVOS O CONSECUENTES QUE RESULTEN DEL USO O LA
+IMPOSIBILIDAD DE USO DEL SOFTWARE, INCLUYENDO PERO NO LIMITADO A PÉRDIDA DE
+DATOS, PÉRDIDAS COMERCIALES O INTERRUPCIÓN DE OPERACIONES.
+
+────────────────────────────────────────────────────────────────────────────────
+5. DEPENDENCIAS DE TERCEROS
+────────────────────────────────────────────────────────────────────────────────
+
+Este Software incorpora componentes de código abierto (incluyendo pero no
+limitado a: Electron, Next.js, React, SQLite, Tailwind CSS), cada uno sujeto
+a su respectiva licencia de código abierto. Dichas licencias no otorgan
+derechos adicionales sobre el Software propietario en su conjunto.
+
+────────────────────────────────────────────────────────────────────────────────
+6. LEY APLICABLE Y JURISDICCIÓN
+────────────────────────────────────────────────────────────────────────────────
+
+Este acuerdo se rige por las leyes de los Estados Unidos Mexicanos. Cualquier
+disputa derivada del mismo se someterá a la jurisdicción de los tribunales
+competentes del estado de Hidalgo, México, renunciando las partes a cualquier
+otro fuero que pudiera corresponderles.
+
+────────────────────────────────────────────────────────────────────────────────
+7. CONTACTO
+────────────────────────────────────────────────────────────────────────────────
+
+Para consultas, soporte técnico o solicitudes de licencia adicional:
+
+  Desarrollador: Jesús Ruiz López
+  Producto:      Fast-POS v2.0
+  Sitio web:     [tu sitio web]
+  Correo:        [tu correo de soporte]
+  WhatsApp:      [tu número de soporte]
+
+────────────────────────────────────────────────────────────────────────────────
+
+Al instalar, copiar o usar el Software, el Licenciatario manifiesta su plena
+aceptación de los términos de esta licencia.
+
+Fast-POS © 2024–2026 Jesús Ruiz López — Todos los derechos reservados.
