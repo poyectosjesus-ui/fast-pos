@@ -59,6 +59,11 @@ import {
   Image as ImageIcon,
   Sun,
   Moon,
+  KeyRound,
+  BadgeCheck,
+  Calendar,
+  Clock,
+  CircleAlert,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
@@ -66,6 +71,140 @@ import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { useThemeStore } from "@/store/useThemeStore";
 import { useSessionStore } from "@/store/useSessionStore";
 import { cn } from "@/lib/utils";
+
+// ─────────────────────────────────────────────
+// Sub-componente: Panel de Licencia Activa
+// ─────────────────────────────────────────────
+
+function LicensePanel() {
+  const [licInfo, setLicInfo] = useState<{
+    key?: string;
+    plan?: string;
+    exp?: string;
+    client?: string;
+    isValid?: boolean;
+    daysLeft?: number | null;
+  } | null>(null);
+
+  useEffect(() => {
+    const api = (window as Window & { electronAPI?: any }).electronAPI;
+    if (!api) return;
+    api.getAllSettings().then((settings: Record<string, string>) => {
+      const key = settings["license_key"] || "";
+      const plan = settings["license_plan"] || "—";
+      const exp  = settings["license_expires"] || "LIFETIME";
+      const client = settings["license_client"] || "—";
+
+      // Calcular días restantes
+      let daysLeft: number | null = null;
+      let isValid = true;
+      if (exp !== "LIFETIME" && exp) {
+        const msLeft = parseInt(exp) - Date.now();
+        daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+        if (daysLeft <= 0) isValid = false;
+      }
+
+      setLicInfo({ key: key.slice(0, 16) + "...", plan, exp, client, isValid, daysLeft });
+    }).catch(() => {});
+  }, []);
+
+  if (!licInfo) return null;
+
+  const isLifetime = licInfo.exp === "LIFETIME";
+  const isExpired  = !licInfo.isValid;
+  const isWarning  = !isLifetime && !isExpired && (licInfo.daysLeft ?? -1) >= 0 && (licInfo.daysLeft ?? 999) <= 30;
+
+  return (
+    <Card className={cn(
+      "border overflow-hidden",
+      isExpired  ? "border-red-500/30 bg-red-500/[0.03]" :
+      isWarning  ? "border-amber-500/30 bg-amber-500/[0.03]" :
+                   "border-primary/20 bg-primary/[0.03]"
+    )}>
+      <CardHeader className="flex flex-row items-center gap-4 pb-3">
+        <div className={cn(
+          "p-2.5 rounded-xl",
+          isExpired ? "bg-red-500/10" : isWarning ? "bg-amber-500/10" : "bg-primary/10"
+        )}>
+          <KeyRound className={cn(
+            "h-5 w-5",
+            isExpired ? "text-red-400" : isWarning ? "text-amber-400" : "text-primary"
+          )} />
+        </div>
+        <div className="flex-1">
+          <CardTitle className="text-base">Licencia Activa</CardTitle>
+          <CardDescription className="font-mono text-xs">{licInfo.key}</CardDescription>
+        </div>
+        <Badge className={cn(
+          "text-[10px] font-black uppercase tracking-widest border",
+          isExpired  ? "bg-red-500/10 text-red-400 border-red-500/20" :
+          isWarning  ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                       "bg-primary/10 text-primary border-primary/20"
+        )}>
+          {isExpired ? "EXPIRADA" : licInfo.plan}
+        </Badge>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Estado */}
+          <div className="flex flex-col gap-1.5">
+            <p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Estado</p>
+            <div className={cn(
+              "flex items-center gap-1.5 font-bold text-sm",
+              isExpired ? "text-red-400" : isWarning ? "text-amber-400" : "text-primary"
+            )}>
+              {isExpired ? <CircleAlert className="h-4 w-4" /> : <BadgeCheck className="h-4 w-4" />}
+              {isExpired ? "Licencia expirada" : "Activa y válida"}
+            </div>
+          </div>
+
+          {/* Vigencia */}
+          <div className="flex flex-col gap-1.5">
+            <p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Vigencia</p>
+            <div className="flex items-center gap-1.5 text-sm font-bold">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              {isLifetime
+                ? <span className="text-primary">♾️ Permanente</span>
+                : <span>{new Date(parseInt(licInfo.exp!)).toLocaleDateString("es-MX")}</span>
+              }
+            </div>
+          </div>
+
+          {/* Días restantes */}
+          <div className="flex flex-col gap-1.5">
+            <p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Tiempo Restante</p>
+            <div className="flex items-center gap-1.5 text-sm font-bold">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              {isLifetime ? (
+                <span className="text-muted-foreground">Sin vencimiento</span>
+              ) : isExpired ? (
+                <span className="text-red-400">Venció hace {Math.abs(licInfo.daysLeft ?? 0)} días</span>
+              ) : isWarning ? (
+                <span className="text-amber-400">⚠️ {licInfo.daysLeft} días restantes</span>
+              ) : (
+                <span>{licInfo.daysLeft} días restantes</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Alerta de expiración próxima o vencida */}
+        {(isExpired || isWarning) && (
+          <div className={cn(
+            "mt-4 p-3 rounded-lg text-xs font-medium flex items-start gap-2",
+            isExpired ? "bg-red-500/10 text-red-300" : "bg-amber-500/10 text-amber-300"
+          )}>
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            {isExpired
+              ? "Tu licencia ha expirado. Las ventas están bloqueadas. Contacta a soporte técnico para renovar."
+              : `Tu licencia vence en ${licInfo.daysLeft} días. Contacta a soporte para renovar y evitar interrupciones.`
+            }
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 // ─────────────────────────────────────────────
 // Sub-componente: Panel de salud de la DB
@@ -672,6 +811,9 @@ export default function SettingsPage() {
 
             {/* ── PESTAÑA: SISTEMA, HARDWARE Y SEGURIDAD ── */}
             <TabsContent value="system" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
+              {/* Panel de Licencia */}
+              <LicensePanel />
+
               <Card>
                 <CardHeader className="flex flex-row items-center gap-4">
                   <div className="p-2 bg-primary/10 rounded-lg">
