@@ -14,31 +14,25 @@ import { formatCurrency } from "@/lib/constants";
 /**
  * OpenRegisterDialog (Apertura de Turno/Caja)
  *
- * Bloquea la interfaz de ventas principal si la caja no ha sido abierta
- * el día de hoy. Obliga a ingresar el fondo inicial.
+ * Modo controlado: recibe `open` y `onSuccess` desde el padre.
+ * La lógica de verificar si la caja está abierta queda en page.tsx,
+ * de forma que el diálogo solo se muestra al intentar cobrar — no al cargar la pantalla.
  */
-export function OpenRegisterDialog() {
-  const [isOpen, setIsOpen] = useState(false);
+interface OpenRegisterDialogProps {
+  open: boolean;
+  onSuccess: () => void;
+  onCancel: () => void;
+}
+
+export function OpenRegisterDialog({ open, onSuccess, onCancel }: OpenRegisterDialogProps) {
   const [amountStr, setAmountStr] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const user = useSessionStore((s) => s.user);
 
+  // Limpiar el campo al abrir
   useEffect(() => {
-    // Verificar si la caja ya está abierta al cargar
-    let mounted = true;
-    const checkStatus = async () => {
-      try {
-        const isOpenToday = await CashService.isRegisterOpen();
-        if (!isOpenToday && mounted) {
-          setIsOpen(true);
-        }
-      } catch (err) {
-        console.error("Error al validar estado de caja:", err);
-      }
-    };
-    checkStatus();
-    return () => { mounted = false; };
-  }, []);
+    if (open) setAmountStr("");
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +60,7 @@ export function OpenRegisterDialog() {
         description: `Fondo inicial registrado: ${formatCurrency(amountNum)}`,
         icon: "💳"
       });
-      setIsOpen(false);
+      onSuccess();
     } catch (err: any) {
       toast.error("Error al abrir caja", { description: err.message });
     } finally {
@@ -75,16 +69,15 @@ export function OpenRegisterDialog() {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={() => {}}>
-      {/* No poner onOpenChange permite que sea in-cerrable (dismissable=false) */}
-      <DialogContent className="sm:max-w-[425px] [&>button]:hidden">
+    <Dialog open={open} onOpenChange={(o) => { if (!o && !isSubmitting) onCancel(); }}>
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
             <Wallet className="h-6 w-6 text-primary" />
           </div>
           <DialogTitle className="text-center text-xl">Apertura de Caja</DialogTitle>
           <DialogDescription className="text-center">
-            Para iniciar tu turno, por favor ingresa el monto de efectivo (Fondo de Caja) con el que inicias.
+            Ingresa el fondo inicial de efectivo para comenzar a vender.
           </DialogDescription>
         </DialogHeader>
 
@@ -110,10 +103,19 @@ export function OpenRegisterDialog() {
             </div>
           </div>
 
-          <DialogFooter className="sm:justify-center">
-            <Button 
-              type="submit" 
-              className="w-full sm:w-auto min-w-[200px]" 
+          <DialogFooter className="sm:justify-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onCancel}
+              disabled={isSubmitting}
+              className="text-muted-foreground"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              className="min-w-[160px]"
               disabled={isSubmitting || !amountStr}
             >
               {isSubmitting ? "Registrando..." : "Abrir Turno"}

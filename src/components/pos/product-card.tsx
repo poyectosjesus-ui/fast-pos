@@ -100,13 +100,7 @@ export function ProductCard({ product, currentStock, allowNegativeStock, unitInf
       allowFractions: true,
     }, allowNegativeStock, qty);
 
-    if (result.success) {
-      toast.success("Añadido", {
-        description: `${qty} ${unitSymbol} de ${product.name}`,
-        duration: 1200,
-        icon: "✅"
-      });
-    } else if (result.message) {
+    if (!result.success && result.message) {
       toast.warning("Atención en Caja", { description: result.message });
     }
   };

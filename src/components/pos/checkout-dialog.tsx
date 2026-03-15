@@ -18,8 +18,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import {
   Check, Banknote, CreditCard, Printer, RotateCcw,
-  ArrowLeftRight, MessageCircle, Globe, HelpCircle,
-  Store, Wifi
+  ArrowLeftRight, HelpCircle,
 } from "lucide-react";
 
 import { OrderService } from "@/lib/services/orders";
@@ -48,8 +47,7 @@ interface CheckoutDialogProps {
   onClose: () => void;
 }
 
-type PaymentMethod = "CASH" | "CARD" | "TRANSFER" | "WHATSAPP" | "ONLINE" | "OTHER";
-type SaleSource = "LOCAL" | "ONLINE";
+type PaymentMethod = "CASH" | "CARD" | "TRANSFER" | "OTHER";
 type Step = "payment" | "ticket";
 
 const PAYMENT_METHODS: { id: PaymentMethod; label: string; icon: React.ReactNode; requiresAmount: boolean; color: string }[] = [
@@ -75,20 +73,6 @@ const PAYMENT_METHODS: { id: PaymentMethod; label: string; icon: React.ReactNode
     color: "violet",
   },
   {
-    id: "WHATSAPP",
-    label: "WhatsApp",
-    icon: <MessageCircle className="h-5 w-5" />,
-    requiresAmount: false,
-    color: "green",
-  },
-  {
-    id: "ONLINE",
-    label: "En Línea",
-    icon: <Globe className="h-5 w-5" />,
-    requiresAmount: false,
-    color: "sky",
-  },
-  {
     id: "OTHER",
     label: "Otro",
     icon: <HelpCircle className="h-5 w-5" />,
@@ -101,8 +85,6 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   CASH: "Efectivo",
   CARD: "Tarjeta",
   TRANSFER: "Transferencia Bancaria",
-  WHATSAPP: "Pago WhatsApp",
-  ONLINE: "Pago en Línea",
   OTHER: "Otro método",
 };
 
@@ -113,7 +95,6 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
 
   const [step, setStep] = useState<Step>("payment");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
-  const [saleSource, setSaleSource] = useState<SaleSource>("LOCAL");
   const [amountPaidStr, setAmountPaidStr] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
@@ -139,7 +120,7 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
       const result = await OrderService.checkout({ 
         items, 
         paymentMethod, 
-        source: saleSource,
+        source: "LOCAL",
         userId: user?.id 
       });
 
@@ -153,7 +134,7 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
       setStep("ticket");
 
       // Auto-imprimir ticket (solo ventas locales, no en línea)
-      if (saleSource === "LOCAL") {
+      if (true) { // Siempre LOCAL
         const api = typeof window !== "undefined" ? (window as unknown as { electronAPI?: any }).electronAPI : null;
         if (api) {
           try {
@@ -174,7 +155,6 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
   const handleNewSale = () => {
     setStep("payment");
     setPaymentMethod("CASH");
-    setSaleSource("LOCAL");
     setAmountPaidStr("");
     setCompletedOrder(null);
     onClose();
@@ -197,33 +177,6 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
               </DialogDescription>
             </DialogHeader>
 
-            {/* Origen de la Venta — LOCAL o ONLINE */}
-            <div className="flex items-center gap-2 p-1 rounded-lg border bg-muted/30">
-              <button
-                onClick={() => setSaleSource("LOCAL")}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-semibold transition-all",
-                  saleSource === "LOCAL"
-                    ? "bg-background shadow-sm text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Store className="h-4 w-4" />
-                Mostrador
-              </button>
-              <button
-                onClick={() => setSaleSource("ONLINE")}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-semibold transition-all",
-                  saleSource === "ONLINE"
-                    ? "bg-background shadow-sm text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Wifi className="h-4 w-4" />
-                En Línea
-              </button>
-            </div>
 
             {/* Selector de Método de Pago (CA-3.3.3) */}
             <div className="grid grid-cols-3 gap-2">
@@ -329,9 +282,7 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
                 <div>
                   <p className="text-sm font-semibold">{PAYMENT_METHOD_LABELS[paymentMethod]}</p>
                   <p className="text-xs text-muted-foreground">
-                    {saleSource === "ONLINE"
-                      ? "Venta registrada como pedido en línea."
-                      : "El pago se realizará directamente, sin necesidad de calcular cambio."}
+                    El pago se realizará directamente, sin necesidad de calcular cambio.
                   </p>
                 </div>
               </div>
@@ -417,11 +368,6 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
             <div className="flex items-center gap-2 text-xs text-muted-foreground border rounded-lg px-3 py-2">
               {PAYMENT_METHODS.find(m => m.id === paymentMethod)?.icon}
               <span>{PAYMENT_METHOD_LABELS[paymentMethod]}</span>
-              {saleSource === "ONLINE" && (
-                <span className="ml-auto flex items-center gap-1 text-primary font-semibold">
-                  <Wifi className="h-3 w-3" /> En Línea
-                </span>
-              )}
             </div>
 
             <div className="flex flex-col gap-3 pt-2">

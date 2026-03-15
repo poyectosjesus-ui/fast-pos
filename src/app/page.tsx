@@ -10,10 +10,11 @@
  * [ Grid de Productos (solo visibles) ] | [ Sidebar: Carrito Activo ]
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { ShoppingCart, Scan, PackageOpen, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
+import { CashService } from "@/lib/services/cash";
 
 import { Sidebar } from "@/components/layout/sidebar";
 import { ProductCard } from "@/components/pos/product-card";
@@ -41,6 +42,8 @@ export default function POSPage() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isQuickSaleOpen, setIsQuickSaleOpen] = useState(false);
   const [isCashMovementOpen, setIsCashMovementOpen] = useState(false);
+  const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
   const [isProcessing, setIsProcessing] = useState(false);
@@ -153,13 +156,7 @@ export default function POSPage() {
       }
 
       const result = addItem({ ...found, allowFractions: false }, allowNegativeStock);
-      if (result.success) {
-        toast.success("¡Lectura Correcta!", {
-          description: `${found.name} añadido.`,
-          duration: 1200,
-          icon: "✅"
-        });
-      } else {
+      if (!result.success) {
         toast.warning("Atención en Caja", { description: result.message });
       }
     } else {
@@ -170,6 +167,32 @@ export default function POSPage() {
     }
     setLastScanTime(Date.now());
   };
+
+  // Abrir Checkout: verificar si caja está abierta primero
+  const handleCheckout = useCallback(async () => {
+    try {
+      const isOpen = await CashService.isRegisterOpen();
+      if (!isOpen) {
+        setIsRegisterDialogOpen(true);
+        return;
+      }
+    } catch {
+      // Si falla la verificación, dejamos pasar (no bloquear al cajero)
+    }
+    setIsCheckoutOpen(true);
+  }, []);
+
+  // Atajo F2 → Cobrar
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "F2" && !isCheckoutOpen && !isQuickSaleOpen) {
+        e.preventDefault();
+        handleCheckout();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isCheckoutOpen, isQuickSaleOpen, handleCheckout]);
 
   return (
     <ProtectedRoute allowedRoles={["ADMIN", "CASHIER"]}>
@@ -202,6 +225,7 @@ export default function POSPage() {
               onBarcodeScanned={handleBarcodeScanned}
               placeholder="Buscar o escanear..."
               className="flex-1 max-w-[200px] xl:max-w-xs"
+              autoFocus
             />
 
             {/* Identidad Usuario & Reloj (Premium UX) */}
@@ -366,7 +390,7 @@ export default function POSPage() {
         </div>
         <div className="flex-1 overflow-hidden">
           <CartSidebar
-            onCheckout={() => setIsCheckoutOpen(true)}
+            onCheckout={handleCheckout}
             isProcessing={isProcessing}
             allowNegativeStock={allowNegativeStock}
           />
@@ -389,7 +413,11 @@ export default function POSPage() {
           onOpenChange={setIsCashMovementOpen}
         />
 
-        <OpenRegisterDialog />
+        <OpenRegisterDialog
+          open={isRegisterDialogOpen}
+          onSuccess={() => { setIsRegisterDialogOpen(false); setIsCheckoutOpen(true); }}
+          onCancel={() => setIsRegisterDialogOpen(false)}
+        />
       </div>
     </ProtectedRoute>
   );

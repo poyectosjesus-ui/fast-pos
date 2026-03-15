@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { ImageService } from "@/lib/services/image";
 
-import { Edit2, PackagePlus, Trash2, SearchX, PlusCircle, MinusCircle, EyeOff, Eye, ImageIcon } from "lucide-react";
+import { Edit2, PackagePlus, Trash2, SearchX, PlusCircle, MinusCircle, EyeOff, Eye, ImageIcon, Barcode } from "lucide-react";
+import { BarcodeLabelDialog } from "@/components/pos/barcode-label-dialog";
 
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
 
@@ -78,6 +79,8 @@ export function ProductsManager() {
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [labelProduct, setLabelProduct] = useState<Product | null>(null);
+  const [businessName, setBusinessName] = useState<string>("Fast-POS");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<string>("ALL");
 
@@ -810,6 +813,9 @@ export function ProductsManager() {
                          />
                       </div>
                       <div className="flex gap-1 justify-end ml-auto border-l pl-2">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" title="Generar etiqueta" onClick={() => setLabelProduct(product)}>
+                          <Barcode className="h-3.5 w-3.5" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => handleOpenAlert(product)}>
                           <Edit2 className="h-3.5 w-3.5" />
                         </Button>
@@ -880,6 +886,12 @@ export function ProductsManager() {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+    <BarcodeLabelDialog
+      open={!!labelProduct}
+      product={labelProduct}
+      businessName={businessName}
+      onClose={() => setLabelProduct(null)}
+    />
     </>
   );
 }

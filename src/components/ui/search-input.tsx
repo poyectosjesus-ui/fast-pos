@@ -17,6 +17,8 @@ interface SearchInputProps {
   className?: string;
   /** Si true, el campo mantiene el foco al perderlo (útil para modo caja activa) */
   keepFocus?: boolean;
+  /** Si true, el input recibe foco al montar */
+  autoFocus?: boolean;
 }
 
 /**
@@ -29,6 +31,7 @@ export function SearchInput({
   placeholder = "Buscar...",
   className,
   keepFocus = false,
+  autoFocus = false,
 }: SearchInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isScannerMode, setIsScannerMode] = useState(false);
@@ -67,6 +70,7 @@ export function SearchInput({
         onChange={(e) => onChange(e.target.value)}
         onBlur={handleBlur}
         placeholder={isScannerMode ? "¡Código detectado!" : placeholder}
+        autoFocus={autoFocus}
         className={cn(
           "pl-9 h-10 bg-muted/30 focus-visible:bg-background transition-colors",
           isScannerMode && "border-primary ring-1 ring-primary"
