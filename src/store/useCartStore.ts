@@ -36,6 +36,8 @@ export interface CartItem {
 
 interface CartState {
   items: CartItem[];
+  /** Descuento global aplicado sobre el total del carrito (centavos). Sprint-1 E1. */
+  cartDiscountAmount: number;
 
   /**
    * Agrega un ítem o incrementa su cantidad si ya existe.
@@ -63,6 +65,9 @@ interface CartState {
   /** Cambia el descuento de un ítem */
   setItemDiscount: (productId: string, discount: number) => void;
 
+  /** Aplica un descuento global sobre el total del carrito. Sprint-1 E1. */
+  setCartDiscount: (discount: number) => void;
+
   /** Elimina completamente un ítem del carrito */
   removeItem: (productId: string) => void;
 
@@ -77,6 +82,7 @@ export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
+      cartDiscountAmount: 0,
 
       addItem: (product, allowNegativeStock = false, quantityOverride = 0) => {
         const { items } = get();
@@ -156,11 +162,15 @@ export const useCartStore = create<CartState>()(
         });
       },
 
+      setCartDiscount: (discount) => {
+        set({ cartDiscountAmount: Math.max(0, discount) });
+      },
+
       removeItem: (productId) => {
         set({ items: get().items.filter(i => i.productId !== productId) });
       },
 
-      clearCart: () => set({ items: [] }),
+      clearCart: () => set({ items: [], cartDiscountAmount: 0 }),
 
       /**
        * Calcula el desglose de IVA del carrito completo.
@@ -175,7 +185,14 @@ export const useCartStore = create<CartState>()(
           taxIncluded: i.taxIncluded,
           discountAmount: i.discountAmount,
         }));
-        return calculateCartTax(taxItems);
+        const base = calculateCartTax(taxItems);
+        // Aplicar descuento global DESPUÉS de impuestos (descuento sobre el total)
+        const cartDiscount = get().cartDiscountAmount ?? 0;
+        return {
+          subtotal: base.subtotal,
+          tax: base.tax,
+          total: Math.max(0, base.total - cartDiscount),
+        };
       },
     }),
     {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   ShieldCheck,
   Store,
+  ShoppingBag,
   Calculator,
   UserCircle2,
   ArrowRight,
@@ -44,8 +45,9 @@ const STEPS = [
   { id: 1, label: "Activación", sublabel: "Licencia del producto", icon: ShieldCheck, img: "/wizard-license.png", badge: "Requerido" },
   { id: 2, label: "Negocio", sublabel: "Datos de la empresa", icon: Store, img: "/wizard-business.png", badge: "Requerido" },
   { id: 3, label: "Configuración", sublabel: "Moneda e impuestos", icon: Calculator, img: "/wizard-fiscal.png", badge: "Requerido" },
-  { id: 4, label: "Presencia", sublabel: "Redes y contacto", icon: Globe, img: "/wizard-social.png", badge: "Opcional" },
-  { id: 5, label: "Administrador", sublabel: "Cuenta maestra", icon: UserCircle2, img: "/wizard-admin.png", badge: "Requerido" },
+  { id: 4, label: "Canales de venta", sublabel: "¿Cómo vendes?", icon: ShoppingBag, img: "/wizard-social.png", badge: "Configura" },
+  { id: 5, label: "Presencia", sublabel: "Redes y contacto", icon: Globe, img: "/wizard-social.png", badge: "Opcional" },
+  { id: 6, label: "Administrador", sublabel: "Cuenta maestra", icon: UserCircle2, img: "/wizard-admin.png", badge: "Requerido" },
 ];
 
 // ─── Componente ─────────────────────────────────────────────────────────────
@@ -60,7 +62,8 @@ export default function SetupWizardPage() {
     license: { key: "" },
     business: { name: "", address: "", phone: "", taxId: "", businessType: "", businessTypeCustom: "" },
     fiscal: { currency: "MXN", taxName: "IVA", taxRate: "1600" },
-    social: { whatsapp: "", instagram: "", facebook: "", website: "" },
+    social: { whatsapp: "", instagram: "", facebook: "", tiktok: "", website: "" },
+    channels: { enabled: ["COUNTER"], defaultChannel: "COUNTER" },
     admin: { name: "", pin: "", pinConfirm: "" },
   });
   const [loadedFileName, setLoadedFileName] = useState<string | null>(null);
@@ -132,8 +135,11 @@ export default function SetupWizardPage() {
     // Paso 3 – Fiscal (siempre válido, valores predeterminados seguros)
     if (step === 3) return true;
 
-    // Paso 4 – Redes (opcional, pero validar formato si hay contenido)
-    if (step === 4) {
+    // Paso 4 — Canales de venta (siempre válido, valores por defecto garantizados)
+    if (step === 4) return true;
+
+    // Paso 5 — Presencia en redes (opcional, solo valida formato de URL si hay contenido)
+    if (step === 5) {
       let ok = true;
       if (!isEmpty(setupData.social.website) && !validUrl(setupData.social.website)) {
         setErr("website", "Ingrese una dirección web válida (ej. www.minegocio.com)."); ok = false;
@@ -141,8 +147,8 @@ export default function SetupWizardPage() {
       return ok;
     }
 
-    // Paso 5 – Administrador
-    if (step === 5) {
+    // Paso 6 — Administrador (obligatorio: nombre, PIN de 4 dígitos y aceptar privacidad)
+    if (step === 6) {
       let ok = true;
       if (isEmpty(setupData.admin.name)) { setErr("aName", "El nombre del administrador es obligatorio."); ok = false; }
       if (setupData.admin.pin.length !== 4) { setErr("pin", "El PIN debe ser exactamente 4 dígitos numéricos."); ok = false; }
@@ -157,7 +163,7 @@ export default function SetupWizardPage() {
   const handleNext = async () => {
     const valid = await validateStep();
     if (!valid) return;
-    if (step < 5) setStep(s => s + 1);
+    if (step < 6) setStep(s => s + 1);
   };
 
   const handleBack = () => {
@@ -187,7 +193,7 @@ export default function SetupWizardPage() {
   };
 
   const currentStep = STEPS[step - 1];
-  const isLastStep = step === 5;
+  const isLastStep = step === 6;
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -511,8 +517,86 @@ export default function SetupWizardPage() {
               </div>
             )}
 
-            {/* ── PASO 4: Redes sociales ── */}
+            {/* ── PASO 4: Canales de Venta ── */}
             {step === 4 && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-400">
+                <p className="text-sm text-neutral-500">
+                  Configura los canales por los que tus clientes compran. Solo se mostrarán en el motor de ventas los canales que actives aquí.
+                </p>
+
+                {/* ¿Tengo local / mostrador? */}
+                <div className="space-y-3">
+                  <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Canales habilitados</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {([
+                      { id: "COUNTER",   label: "Mostrador",  sub: "Ventas presenciales en tu local" },
+                      { id: "WHATSAPP",  label: "WhatsApp",   sub: "Pedidos por mensaje directo" },
+                      { id: "INSTAGRAM", label: "Instagram",  sub: "Pedidos vía DM o story" },
+                      { id: "OTHER",     label: "Otro canal", sub: "Correo, teléfono, etc." },
+                    ] as const).map(ch => {
+                      const enabled = setupData.channels.enabled.includes(ch.id);
+                      return (
+                        <button key={ch.id} type="button"
+                          onClick={() => setSetupData(p => {
+                            const was = p.channels.enabled.includes(ch.id);
+                            const nextEnabled = was
+                              ? p.channels.enabled.filter(e => e !== ch.id)
+                              : [...p.channels.enabled, ch.id];
+                            // Garantizar al menos un canal
+                            if (nextEnabled.length === 0) return p;
+                            // Si el default se elimina, usar el primer disponible
+                            const nextDefault = nextEnabled.includes(p.channels.defaultChannel)
+                              ? p.channels.defaultChannel
+                              : nextEnabled[0];
+                            return { ...p, channels: { enabled: nextEnabled, defaultChannel: nextDefault } };
+                          })}
+                          className={cn(
+                            "flex items-start gap-3 p-4 rounded-xl border text-left transition-all duration-200",
+                            enabled
+                              ? "bg-primary/10 border-primary/50 text-primary"
+                              : "bg-white/[0.02] border-white/[0.06] text-neutral-400 hover:border-white/15"
+                          )}>
+                          <div className={cn("w-4 h-4 mt-0.5 rounded border shrink-0", enabled ? "bg-primary border-primary" : "border-neutral-600")} />
+                          <div>
+                            <p className="text-sm font-bold leading-tight">{ch.label}</p>
+                            <p className="text-[10px] opacity-60 mt-0.5">{ch.sub}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Canal por defecto */}
+                {setupData.channels.enabled.length > 1 && (
+                  <div className="space-y-3">
+                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Canal por defecto en cobro</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {setupData.channels.enabled.map(id => {
+                        const labels: Record<string, string> = { COUNTER: "Mostrador", WHATSAPP: "WhatsApp", INSTAGRAM: "Instagram", OTHER: "Otro canal" };
+                        return (
+                          <button key={id} type="button"
+                            onClick={() => setSetupData(p => ({ ...p, channels: { ...p.channels, defaultChannel: id } }))}
+                            className={cn(
+                              "py-2 px-4 rounded-lg border text-sm font-bold transition-all",
+                              setupData.channels.defaultChannel === id
+                                ? "bg-primary/10 border-primary/50 text-primary"
+                                : "bg-white/[0.02] border-white/[0.06] text-neutral-400 hover:border-white/15"
+                            )}>
+                            {labels[id] ?? id}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-neutral-600">El canal por defecto se preselecciona al cobrar. El cajero puede cambiarlo.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+
+            {/* ── PASO 5: Redes sociales ── */}
+            {step === 5 && (
               <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-400">
                 <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] text-sm text-neutral-400">
                   Esta información es <span className="text-white font-semibold">opcional</span> y se imprimirá al pie de sus tickets y reportes para facilitar el contacto con sus clientes.
@@ -543,6 +627,14 @@ export default function SetupWizardPage() {
                         className={cn(inputCls(false), "pl-9")} />
                     </div>
                   </FieldWrapper>
+                  <FieldWrapper label="TikTok">
+                    <div className="relative">
+                      <Smartphone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-black dark:text-white" />
+                      <Input placeholder="@tu_negocio" value={setupData.social.tiktok}
+                        onChange={e => updateSocial("tiktok", e.target.value)}
+                        className={cn(inputCls(false), "pl-9")} />
+                    </div>
+                  </FieldWrapper>
                   <FieldWrapper label="Sitio Web" error={fieldErrors["website"]}>
                     <div className="relative">
                       <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
@@ -555,8 +647,8 @@ export default function SetupWizardPage() {
               </div>
             )}
 
-            {/* ── PASO 5: Administrador ── */}
-            {step === 5 && (
+            {/* ── PASO 6: Administrador ── */}
+            {step === 6 && (
               <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-400">
                 <div className="p-4 rounded-xl bg-amber-500/[0.05] border border-amber-500/10 text-sm text-neutral-400">
                   <span className="font-bold text-amber-400">Importante:</span> El PIN de administrador otorga acceso completo al sistema. Guárdelo en un lugar seguro. No es recuperable sin intervención técnica.

@@ -273,12 +273,18 @@ function setupIpcHandlers() {
         upsertSetting.run("store_whatsapp", setupData.social?.whatsapp || "");
         upsertSetting.run("store_instagram", setupData.social?.instagram || "");
         upsertSetting.run("store_facebook", setupData.social?.facebook || "");
+        upsertSetting.run("store_tiktok", setupData.social?.tiktok || "");
         upsertSetting.run("store_website", setupData.social?.website || "");
         
         // Extraemos detalles del payload criptográfico pre-aprobado para guardar como metadata referencial
         upsertSetting.run("license_plan", licenseCheck.payload.plan || "BASIC");
         upsertSetting.run("license_expires", String(licenseCheck.payload.exp || "LIFETIME"));
         
+        // Sprint-1 E2: Canales de venta configurables
+        const enabledChannels = (setupData.channels?.enabled || ["COUNTER"]).join(",");
+        upsertSetting.run("enabled_channels", enabledChannels);
+        upsertSetting.run("default_channel", setupData.channels?.defaultChannel || "COUNTER");
+
         upsertSetting.run("setup_completed", "true");
 
         // 2. Limpiar la tabla de usuarios por si había un usuario default o info basura
@@ -603,7 +609,7 @@ function setupIpcHandlers() {
         orderData.status,
         orderData.paymentMethod,
         orderData.userId || null,
-        orderData.source ?? 'LOCAL',
+        orderData.source ?? 'COUNTER',
         orderData.createdAt
       );
 
@@ -781,6 +787,41 @@ function setupIpcHandlers() {
       };
     } catch (err) {
       console.error("[IPC:analytics:getSummary]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  /**
+   * analytics:getSalesByChannel — Sprint-1 E2
+   * Retorna ventas agrupadas por canal (source) para un período dado.
+   * @param {number} startMs — timestamp inicio del período
+   * @param {number} endMs — timestamp fin del período
+   */
+  ipcMain.handle("analytics:getSalesByChannel", async (event, { startMs, endMs } = {}) => {
+    try {
+      const db = getDb();
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const from = startMs ?? now.getTime();
+      const to   = endMs ?? Date.now();
+
+      const rows = db.prepare(`
+        SELECT
+          source,
+          COUNT(id)       AS orderCount,
+          SUM(total)      AS totalRevenue,
+          ROUND(AVG(total)) AS avgTicket
+        FROM orders
+        WHERE status = 'COMPLETED'
+          AND createdAt >= ?
+          AND createdAt <= ?
+        GROUP BY source
+        ORDER BY totalRevenue DESC
+      `).all(from, to);
+
+      return { success: true, data: rows };
+    } catch (err) {
+      console.error("[IPC:analytics:getSalesByChannel]", err.message);
       return { success: false, error: err.message };
     }
   });
@@ -1058,7 +1099,9 @@ function setupIpcHandlers() {
       addLine(`ESTADO: ${statusStr}`);
       const methodMap = { CASH: "EFECTIVO", CARD: "TARJETA", TRANSFER: "TRANSFERENCIA", WHATSAPP: "WHATSAPP", ONLINE: "PAGO EN LÍNEA", OTHER: "OTRO" };
       addLine(`PAGO: ${methodMap[order.paymentMethod] || order.paymentMethod}`);
-      if (order.source === "ONLINE") addLine(`ORIGEN: VENTA EN LÍNEA`);
+      const sourceLabels = { COUNTER: 'Mostrador', WHATSAPP: 'WhatsApp', INSTAGRAM: 'Instagram', OTHER: 'Otro canal' };
+      const sourceLabel = sourceLabels[order.source] || order.source;
+      if (order.source && order.source !== 'COUNTER') addLine(`CANAL: ${sourceLabel}`);
       addLine("");
 
       // Items Header

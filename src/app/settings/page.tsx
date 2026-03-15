@@ -64,6 +64,7 @@ import {
   Calendar,
   Clock,
   CircleAlert,
+  ShoppingBag,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
@@ -201,6 +202,126 @@ function LicensePanel() {
             }
           </div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+
+// ─────────────────────────────────────────────
+// Sub-componente: Panel de Canales de Venta
+// Sprint-1 E2: Permite editar canales post-wizard
+// ─────────────────────────────────────────────
+
+const ALL_CH = [
+  { id: "COUNTER",   label: "Mostrador",  sub: "Ventas presenciales en tu local" },
+  { id: "WHATSAPP",  label: "WhatsApp",   sub: "Pedidos por mensaje directo" },
+  { id: "INSTAGRAM", label: "Instagram",  sub: "Pedidos vía DM o story" },
+  { id: "OTHER",     label: "Otro canal", sub: "Correo, teléfono, etc." },
+] as const;
+
+function SalesChannelsPanel() {
+  const [enabled, setEnabled] = useState<string[]>(["COUNTER"]);
+  const [defaultCh, setDefaultCh] = useState<string>("COUNTER");
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const api = (window as any).electronAPI;
+    if (!api) return;
+    api.getAllSettings().then((res: any) => {
+      const cfg = res?.config ?? {};
+      const raw = cfg["enabled_channels"] || "COUNTER";
+      setEnabled(raw.split(",").map((s: string) => s.trim()));
+      setDefaultCh(cfg["default_channel"] || "COUNTER");
+      setLoaded(true);
+    });
+  }, []);
+
+  const toggleChannel = (id: string) => {
+    setEnabled(prev => {
+      const was = prev.includes(id);
+      const next = was ? prev.filter(e => e !== id) : [...prev, id];
+      if (next.length === 0) return prev; // al menos uno
+      if (!next.includes(defaultCh)) setDefaultCh(next[0]);
+      return next;
+    });
+  };
+
+  const handleSave = async () => {
+    const api = (window as any).electronAPI;
+    if (!api) return;
+    setSaving(true);
+    try {
+      await api.setBulkSettings({
+        enabled_channels: enabled.join(","),
+        default_channel: defaultCh,
+      });
+      toast.success("Canales de venta actualizados", { description: "Los cambios se aplicarán al reabrir el POS." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!loaded) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ShoppingBag className="h-4 w-4 text-primary" />
+          Canales de Venta
+        </CardTitle>
+        <CardDescription>
+          ¿Por cuáles canales recibe pedidos tu negocio? Solo los activos aparecerán en el cobro.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="grid grid-cols-2 gap-3">
+          {ALL_CH.map(ch => {
+            const active = enabled.includes(ch.id);
+            return (
+              <button key={ch.id} type="button"
+                onClick={() => toggleChannel(ch.id)}
+                className={cn(
+                  "flex items-start gap-3 p-4 rounded-xl border text-left transition-all",
+                  active ? "bg-primary/5 border-primary/40" : "bg-muted/20 border-border hover:border-muted-foreground/30"
+                )}>
+                <div className={cn("w-4 h-4 mt-0.5 rounded border shrink-0", active ? "bg-primary border-primary" : "border-muted-foreground")} />
+                <div>
+                  <p className={cn("text-sm font-bold", active ? "text-foreground" : "text-muted-foreground")}>{ch.label}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{ch.sub}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {enabled.length > 1 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Canal por defecto en cobro</p>
+            <div className="flex gap-2 flex-wrap">
+              {enabled.map(id => {
+                const ch = ALL_CH.find(c => c.id === id);
+                return (
+                  <button key={id} type="button"
+                    onClick={() => setDefaultCh(id)}
+                    className={cn(
+                      "px-4 py-1.5 rounded-lg border text-sm font-semibold transition-all",
+                      defaultCh === id ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:bg-muted/30"
+                    )}>
+                    {ch?.label ?? id}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-muted-foreground">El cajero siempre puede cambiarlo al momento de cobrar.</p>
+          </div>
+        )}
+
+        <Button onClick={handleSave} disabled={saving} size="sm">
+          {saving ? "Guardando..." : "Guardar canales"}
+        </Button>
       </CardContent>
     </Card>
   );
@@ -620,89 +741,6 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-card/40 border-primary/10 shadow-lg p-6 flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold uppercase tracking-tight text-sm">
-                    Versión del Sistema
-                  </h3>
-                  <p className="text-xs text-muted-foreground uppercase tracking-widest mt-1">
-                    Commercial Build 🚀
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-black text-primary/80">2.0.0</p>
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold">
-                    Schema v3
-                  </p>
-                </div>
-              </Card>
-
-              {/* TEMA DEL SISTEMA */}
-              <Card className="bg-card/40 border-primary/10 shadow-lg p-6">
-                <div className="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
-                  <div>
-                    <h3 className="font-bold uppercase tracking-tight text-sm flex items-center gap-2">
-                      <Palette className="h-4 w-4 text-primary" /> Apariencia y Tema
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Elige el modo (claro/oscuro) y el color de acento principal.
-                    </p>
-                  </div>
-                  
-                  {/* Selector Modo Claro / Oscuro */}
-                  <div className="flex gap-2 bg-muted/50 p-1 rounded-xl border border-primary/5">
-                    <button
-                      onClick={() => setThemeMode('light')}
-                      className={cn(
-                        "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-tighter transition-all",
-                        themeMode === 'light' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      <Sun className="h-4 w-4" /> Claro
-                    </button>
-                    <button
-                      onClick={() => setThemeMode('dark')}
-                      className={cn(
-                        "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-tighter transition-all",
-                        themeMode === 'dark' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      <Moon className="h-4 w-4" /> Oscuro
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-4 mt-8 pt-6 border-t border-border/50">
-                  {([
-                    { id: "zinc", color: "bg-zinc-500", label: "Monocromo" },
-                    { id: "emerald", color: "bg-emerald-500", label: "Emerald" },
-                    { id: "blue", color: "bg-blue-500", label: "Blue" },
-                    { id: "rose", color: "bg-rose-500", label: "Rose" },
-                    { id: "orange", color: "bg-orange-500", label: "Orange" },
-                  ] as const).map((theme) => (
-                    <button
-                      key={theme.id}
-                      onClick={() => setThemeColor(theme.id)}
-                      className={cn(
-                        "group flex flex-col items-center gap-2 transition-all p-2 rounded-xl border border-transparent hover:bg-muted/50",
-                        themeColor === theme.id ? "scale-105 bg-muted/30" : "opacity-70 hover:opacity-100"
-                      )}
-                    >
-                      <div className={cn(
-                        "h-10 w-10 rounded-full border-2 shadow-sm transition-all duration-300",
-                        theme.color,
-                        themeColor === theme.id ? "border-primary ring-4 ring-primary/20 ring-offset-2 ring-offset-background scale-110" : "border-transparent"
-                      )} />
-                      <span className={cn(
-                        "text-[10px] uppercase font-bold tracking-tighter mt-1 transition-colors",
-                        themeColor === theme.id ? "text-primary" : "text-muted-foreground"
-                      )}>
-                        {theme.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </Card>
             </TabsContent>
 
             {/* ── PESTAÑA: NEGOCIO ── */}
@@ -803,16 +841,86 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
 
-              {/* El branding visual que estaba en Ticket, ahora convive abajo de Negocio */}
+              {/* Sprint-1 E2: Canales de venta configurables */}
+              <SalesChannelsPanel />
+
+              {/* Branding visual del ticket */}
               <div className="pt-2 border-t border-border/50">
                 <TicketBrandingTab api={api} />
               </div>
+
+              {/* Licencia activa al pie del negocio */}
+              <LicensePanel />
             </TabsContent>
 
             {/* ── PESTAÑA: SISTEMA, HARDWARE Y SEGURIDAD ── */}
             <TabsContent value="system" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
-              {/* Panel de Licencia */}
-              <LicensePanel />
+              {/* TEMA DEL SISTEMA */}
+              <Card className="bg-card/40 border-primary/10 shadow-lg p-6">
+                <div className="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
+                  <div>
+                    <h3 className="font-bold uppercase tracking-tight text-sm flex items-center gap-2">
+                      <Palette className="h-4 w-4 text-primary" /> Apariencia y Tema
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Elige el modo (claro/oscuro) y el color de acento principal.
+                    </p>
+                  </div>
+                  
+                  {/* Selector Modo Claro / Oscuro */}
+                  <div className="flex gap-2 bg-muted/50 p-1 rounded-xl border border-primary/5">
+                    <button
+                      onClick={() => setThemeMode('light')}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-tighter transition-all",
+                        themeMode === 'light' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <Sun className="h-4 w-4" /> Claro
+                    </button>
+                    <button
+                      onClick={() => setThemeMode('dark')}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-tighter transition-all",
+                        themeMode === 'dark' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <Moon className="h-4 w-4" /> Oscuro
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-4 mt-8 pt-6 border-t border-border/50">
+                  {([
+                    { id: "zinc", color: "bg-zinc-500", label: "Monocromo" },
+                    { id: "emerald", color: "bg-emerald-500", label: "Emerald" },
+                    { id: "blue", color: "bg-blue-500", label: "Blue" },
+                    { id: "rose", color: "bg-rose-500", label: "Rose" },
+                    { id: "orange", color: "bg-orange-500", label: "Orange" },
+                  ] as const).map((theme) => (
+                    <button
+                      key={theme.id}
+                      onClick={() => setThemeColor(theme.id)}
+                      className={cn(
+                        "group flex flex-col items-center gap-2 transition-all p-2 rounded-xl border border-transparent hover:bg-muted/50",
+                        themeColor === theme.id ? "scale-105 bg-muted/30" : "opacity-70 hover:opacity-100"
+                      )}
+                    >
+                      <div className={cn(
+                        "h-10 w-10 rounded-full border-2 shadow-sm transition-all duration-300",
+                        theme.color,
+                        themeColor === theme.id ? "border-primary ring-4 ring-primary/20 ring-offset-2 ring-offset-background scale-110" : "border-transparent"
+                      )} />
+                      <span className={cn(
+                        "text-[10px] uppercase font-bold tracking-tighter mt-1 transition-colors",
+                        themeColor === theme.id ? "text-primary" : "text-muted-foreground"
+                      )}>
+                        {theme.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center gap-4">

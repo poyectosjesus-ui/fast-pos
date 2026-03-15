@@ -335,6 +335,33 @@ function runMigrations(db) {
     db.pragma("user_version = 9");
     console.log("[DB] Migración v9 aplicada: allowNegativeStock configurada.");
   }
+  if (currentVersion < 10) {
+    // Sprint-1 E2: Ampliar canales de venta.
+    // source: LOCAL|ONLINE  ->  COUNTER|WHATSAPP|INSTAGRAM|OTHER
+    db.exec(`
+      CREATE TABLE orders_v10 (
+        id          TEXT PRIMARY KEY,
+        subtotal    INTEGER NOT NULL DEFAULT 0,
+        tax         INTEGER NOT NULL DEFAULT 0,
+        total       INTEGER NOT NULL DEFAULT 0,
+        status      TEXT CHECK(status IN ('PENDING','COMPLETED','CANCELLED')) NOT NULL DEFAULT 'PENDING',
+        paymentMethod TEXT CHECK(paymentMethod IN ('CASH','CARD','TRANSFER','OTHER')) NOT NULL DEFAULT 'CASH',
+        source      TEXT CHECK(source IN ('COUNTER','WHATSAPP','INSTAGRAM','OTHER')) NOT NULL DEFAULT 'COUNTER',
+        userId      TEXT,
+        createdAt   INTEGER NOT NULL,
+        FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL
+      );
+      INSERT INTO orders_v10 (id, subtotal, tax, total, status, paymentMethod, source, userId, createdAt)
+        SELECT id, subtotal, tax, total, status, paymentMethod,
+               CASE source WHEN 'LOCAL' THEN 'COUNTER' ELSE 'OTHER' END,
+               userId, createdAt
+        FROM orders;
+      DROP TABLE orders;
+      ALTER TABLE orders_v10 RENAME TO orders;
+    `);
+    db.pragma("user_version = 10");
+    console.log("[DB] Migración v10 aplicada: source ampliado a COUNTER|WHATSAPP|INSTAGRAM|OTHER.");
+  }
 
   const newVersion = db.pragma("user_version", { simple: true });
   console.log(`[DB] Esquema actualizado a v${newVersion}. Listo.`);

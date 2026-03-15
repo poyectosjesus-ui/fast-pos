@@ -2,19 +2,21 @@
  * CHECKOUT DIALOG — Fast-POS 2.0
  *
  * Responsabilidad: Modal de cobro con desglose de IVA, campo de efectivo,
- *   selector de método de pago multicanal y ticket de venta.
- * Fuente de Verdad: ARCHITECTURE.md §2.1, EPIC-002 (IVA), EPIC-008 (Flexibilidad)
+ *   selector de método de pago y selector de canal de venta.
+ * Fuente de Verdad: ARCHITECTURE.md §2.1, EPIC-002 (IVA)
+ *
+ * Sprint-1 E1: Descuentos por ítem y global se calculan en CartStore/getCartTotals
+ * Sprint-1 E2: Selector de canal — COUNTER|WHATSAPP|INSTAGRAM|OTHER
  *
  * CA-3.3.1: Deshabilitar al procesar (evitar doble envío)
- * CA-3.3.3: Selector de método de pago (Efectivo / Tarjeta / Transferencia / WhatsApp / Otro)
+ * CA-3.3.3: Selector de método de pago (Efectivo / Tarjeta / Transferencia / Otro)
  * CA-3.3.4: Cálculo de cambio en efectivo
- * CA-3.3.5: Campo de origen de venta (LOCAL / ONLINE)
  * CA-3.4.1–3.4.3: Ticket digital con opción de impresión y nueva venta
  */
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
   Check, Banknote, CreditCard, Printer, RotateCcw,
@@ -28,6 +30,7 @@ import { useSessionStore } from "@/store/useSessionStore";
 import { formatCents } from "@/lib/services/tax";
 import { BUSINESS_NAME } from "@/lib/constants";
 import { PrintTicketButton } from "@/components/pos/PrintTicketButton";
+import { useSaleChannels, type SaleSource } from "@/hooks/useSaleChannels";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -92,12 +95,20 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
   const { items, clearCart, getCartTotals } = useCartStore();
   const { user } = useSessionStore();
   const { subtotal, tax, total } = getCartTotals();
+  // Sprint-1 E2: Canales configurables desde Settings
+  const { channels: saleChannels, defaultChannel } = useSaleChannels();
 
   const [step, setStep] = useState<Step>("payment");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
+  const [saleSource, setSaleSource] = useState<SaleSource>("COUNTER");
   const [amountPaidStr, setAmountPaidStr] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
+
+  // Sincronizar canal por defecto cuando se cargan las settings
+  useEffect(() => {
+    setSaleSource(defaultChannel);
+  }, [defaultChannel]);
 
   const currentMethodDef = PAYMENT_METHODS.find(m => m.id === paymentMethod)!;
   const requiresAmount = currentMethodDef.requiresAmount;
@@ -120,7 +131,7 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
       const result = await OrderService.checkout({ 
         items, 
         paymentMethod, 
-        source: "LOCAL",
+        source: saleSource,
         userId: user?.id 
       });
 
@@ -199,6 +210,30 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
                 </button>
               ))}
             </div>
+
+            {/* Sprint-1 E2: Selector de Canal de Venta — solo visible si hay >1 canal habilitado */}
+            {saleChannels.length > 1 && (
+              <div className="space-y-2">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">¿Desde dónde viene la venta?</p>
+                <div className={`grid grid-cols-${Math.min(saleChannels.length, 4)} gap-1.5`}>
+                  {saleChannels.map((ch) => (
+                    <button
+                      key={ch.id}
+                      onClick={() => setSaleSource(ch.id)}
+                      className={cn(
+                        "flex flex-col items-center gap-1 py-2 px-1 rounded-lg border transition-all text-center",
+                        saleSource === ch.id
+                          ? "border-primary bg-primary/8 text-primary font-semibold"
+                          : "border-border text-muted-foreground hover:bg-muted/20"
+                      )}
+                    >
+                      {ch.icon}
+                      <span className="text-[10px] leading-tight">{ch.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Campo de monto pagado (solo en efectivo) — CA-3.3.4 */}
             {requiresAmount && (
