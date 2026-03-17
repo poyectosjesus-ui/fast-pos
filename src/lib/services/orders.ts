@@ -109,33 +109,21 @@ export const OrderService = {
   },
 
   /**
-   * Búsqueda de órdenes con filtros y paginación (en memoria, sobre el historial completo).
-   * Para volúmenes grandes (>10k órdenes), migrar a handler SQL con LIMIT/OFFSET en EPIC-003.
+   * Búsqueda de órdenes con filtros y paginación 
+   * (Migrado a push-down SQL nativo en EPIC-003 para soportar >10k órdenes sin lags)
    */
   async searchOrders(params: {
     status?: 'COMPLETED' | 'CANCELLED' | 'ALL';
     paymentMethod?: 'CASH' | 'CARD' | 'TRANSFER' | 'WHATSAPP' | 'ONLINE' | 'OTHER' | 'ALL';
     source?: 'COUNTER' | 'WHATSAPP' | 'INSTAGRAM' | 'FACEBOOK' | 'OTHER' | 'ALL';
+    startDate?: number;
+    endDate?: number;
     limit: number;
     offset: number;
   }): Promise<{ items: Order[]; total: number }> {
-    const all = await this.getAll();
-
-    let filtered = [...all].sort((a, b) => b.createdAt - a.createdAt);
-
-    if (params.status && params.status !== 'ALL') {
-      filtered = filtered.filter(o => o.status === params.status);
-    }
-    if (params.paymentMethod && params.paymentMethod !== 'ALL') {
-      filtered = filtered.filter(o => o.paymentMethod === params.paymentMethod);
-    }
-    if (params.source && params.source !== 'ALL') {
-      filtered = filtered.filter(o => o.source === params.source);
-    }
-
-    const total = filtered.length;
-    const items = filtered.slice(params.offset, params.offset + params.limit);
-    return { items, total };
+    const api = getAPI();
+    if (!api) return { items: [], total: 0 };
+    return (await api.searchOrdersPaginated(params)) as { items: Order[]; total: number };
   },
 
   async getOverallStats(): Promise<{
@@ -143,12 +131,9 @@ export const OrderService = {
     totalOrders: number;
     avgTicket: number;
   }> {
-    const all = await this.getAll();
-    const completed = all.filter(o => o.status === 'COMPLETED');
-    const totalRevenue = completed.reduce((acc, o) => acc + o.total, 0);
-    const totalOrders = completed.length;
-    const avgTicket = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
-    return { totalRevenue, totalOrders, avgTicket };
+    const api = getAPI();
+    if (!api) return { totalRevenue: 0, totalOrders: 0, avgTicket: 0 };
+    return await api.getOverallStats();
   },
 
   async getStatsForDay(date: Date = new Date()): Promise<{
@@ -165,12 +150,12 @@ export const OrderService = {
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
-    const all = await this.getAll();
-    const todayOrders = all.filter(o =>
-      o.createdAt >= startOfDay.getTime() &&
-      o.createdAt <= endOfDay.getTime() &&
-      o.status === 'COMPLETED'
-    );
+    const api = getAPI();
+    if (!api) {
+      return { totalNet: 0, totalWithTax: 0, cashTotal: 0, cardTotal: 0, orderCount: 0, avgTicket: 0, todayOrders: [] };
+    }
+
+    const todayOrders = (await api.getOrdersByDateRange(startOfDay.getTime(), endOfDay.getTime())) as Order[];
 
     if (todayOrders.length === 0) {
       return { totalNet: 0, totalWithTax: 0, cashTotal: 0, cardTotal: 0, orderCount: 0, avgTicket: 0, todayOrders: [] };
@@ -187,43 +172,21 @@ export const OrderService = {
   },
 
   /**
-   * CA-4.2.1: Top-N de productos más vendidos en el día (por monto generado).
-   * CA-4.2.3: Incluye stock actual para detectar artículos en riesgo.
+   * CA-4.2.1: Top-N de productos más vendidos (Nuevos Filtros de Dueño)
    */
   async getTopProducts(
-    orders: Order[],
+    startDate: number,
+    endDate: number,
     limit: number = 5
   ): Promise<Array<{ productId: string; name: string; unitsSold: number; revenue: number; currentStock: number }>> {
     const api = getAPI();
-    const aggregation = new Map<string, { name: string; unitsSold: number; revenue: number }>();
-
-    for (const order of orders) {
-      for (const item of order.items) {
-        const existing = aggregation.get(item.productId);
-        if (existing) {
-          existing.unitsSold += item.quantity;
-          existing.revenue += item.subtotal;
-        } else {
-          aggregation.set(item.productId, { name: item.name, unitsSold: item.quantity, revenue: item.subtotal });
-        }
-      }
+    if (!api) return [];
+    
+    const result = await (api as any).getTopProducts({ startDate, endDate, limit });
+    if (result && result.success && result.data) {
+       return result.data;
     }
-
-    const sorted = Array.from(aggregation.entries())
-      .map(([productId, data]) => ({ productId, ...data, currentStock: 0 }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, limit);
-
-    // Enriquecer con stock actual
-    if (api) {
-      const allProducts = (await api.getAllProducts()) as Array<{ id: string; stock: number }>;
-      for (const item of sorted) {
-        const found = allProducts.find(p => p.id === item.productId);
-        item.currentStock = found?.stock ?? 0;
-      }
-    }
-
-    return sorted;
+    return [];
   },
 
   /**
@@ -267,4 +230,10 @@ export const OrderService = {
     if (!api) throw new Error('Fuera de Electron');
     return await api.getSummary();
   },
+
+  async getAdvancedAnalytics(params?: { startDate?: number; endDate?: number }) {
+    const api = getAPI();
+    if (!api) return { success: false, error: "Native API not found" };
+    return await api.getAdvancedAnalytics(params || {});
+  }
 };

@@ -45,6 +45,112 @@ function setupIpcHandlers() {
     }
   };
 
+  // Sprint 6: Analytics Dashboard Premium endpoints
+  ipcMain.handle("analytics:getAdvancedFilters", async (event, params) => {
+    try {
+      const db = getDb();
+      const { startDate, endDate } = params || {};
+      
+      let dateCondition = "";
+      const queryParams = [];
+      
+      if (startDate) {
+        dateCondition += " AND createdAt >= ?";
+        queryParams.push(startDate);
+      }
+      if (endDate) {
+        dateCondition += " AND createdAt <= ?";
+        queryParams.push(endDate);
+      }
+
+      // Ventas por Cajero
+      const byCashierStmt = db.prepare(`
+        SELECT u.name as cashierName, SUM(o.total) as totalAmount, COUNT(o.id) as tickets
+        FROM orders o
+        LEFT JOIN users u ON o.userId = u.id
+        WHERE o.status = 'COMPLETED' ${dateCondition.replace(/createdAt/g, 'o.createdAt')}
+        GROUP BY u.id
+        ORDER BY totalAmount DESC
+      `);
+      const byCashier = byCashierStmt.all(...queryParams);
+
+      // Ventas por Canal
+      const bySourceStmt = db.prepare(`
+        SELECT source as channel, SUM(total) as totalAmount, COUNT(id) as tickets
+        FROM orders
+        WHERE status = 'COMPLETED' ${dateCondition}
+        GROUP BY source
+        ORDER BY totalAmount DESC
+      `);
+      const bySource = bySourceStmt.all(...queryParams);
+
+      // Ventas por Método de Pago
+      const byPaymentStmt = db.prepare(`
+        SELECT paymentMethod as method, SUM(total) as totalAmount, COUNT(id) as tickets
+        FROM orders
+        WHERE status = 'COMPLETED' ${dateCondition}
+        GROUP BY paymentMethod
+        ORDER BY totalAmount DESC
+      `);
+      const byPayment = byPaymentStmt.all(...queryParams);
+
+      return {
+        success: true,
+        byCashier,
+        bySource,
+        byPayment
+      };
+    } catch (error) {
+      console.error("Error analytics:getAdvancedFilters:", error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Sprint 8: Top Productos
+  ipcMain.handle("analytics:getTopProducts", async (event, params) => {
+    try {
+      const db = getDb();
+      const { startDate, endDate, limit = 5 } = params || {};
+      
+      let dateCondition = "AND o.status = 'COMPLETED'";
+      const queryParams = [];
+      
+      if (startDate) {
+        dateCondition += " AND o.createdAt >= ?";
+        queryParams.push(startDate);
+      }
+      if (endDate) {
+        dateCondition += " AND o.createdAt <= ?";
+        queryParams.push(endDate);
+      }
+      
+      // Sumatoria agrupada de Ventas y cálculo usando products (Para stock actual)
+      const topProductsStmt = db.prepare(`
+        SELECT 
+          oi.productId,
+          oi.name,
+          SUM(oi.quantity) as unitsSold,
+          SUM(oi.subtotal) as revenue,
+          p.stock as currentStock
+        FROM order_items oi
+        JOIN orders o ON o.id = oi.orderId
+        LEFT JOIN products p ON p.id = oi.productId
+        WHERE 1=1 ${dateCondition}
+        GROUP BY oi.productId
+        ORDER BY revenue DESC
+        LIMIT ?
+      `);
+      
+      queryParams.push(limit);
+      
+      const topProducts = topProductsStmt.all(...queryParams);
+      return { success: true, data: topProducts };
+    } catch (error) {
+      console.error("Error analytics:getTopProducts:", error);
+      return { success: false, error: error.message };
+    }
+  });
+
   // ──────────────────────────────────────────
   // DOMINIO: db (Base de Datos)
   // ──────────────────────────────────────────
@@ -701,6 +807,142 @@ function setupIpcHandlers() {
    * orders:getProfitStats — Analítica de rentabilidad real (Premium)
    * Compara el precio de venta (subtotal) vs el precio de costo histórico (COGS).
    */
+  // ──────────────────────────────────────────
+  // DOMINIO: Órdenes (Push-Down Analítico)
+  // ──────────────────────────────────────────
+
+  /**
+   * orders:searchPaginated
+   * Endpoint de búsqueda optimizada con SQL LIMIT/OFFSET 
+   */
+  ipcMain.handle("orders:searchPaginated", async (event, params) => {
+    try {
+      const db = getDb();
+      console.log("[orders:searchPaginated] params received:", params);
+      const { status, paymentMethod, source, startDate, endDate, limit = 15, offset = 0 } = params || {};
+      
+      let baseQuery = `
+        FROM orders o 
+        LEFT JOIN users u ON o.userId = u.id 
+        WHERE 1=1
+      `;
+      const queryParams = [];
+
+      if (status && status !== 'ALL') {
+        baseQuery += ` AND o.status = ?`;
+        queryParams.push(status);
+      }
+      if (paymentMethod && paymentMethod !== 'ALL') {
+        baseQuery += ` AND o.paymentMethod = ?`;
+        queryParams.push(paymentMethod);
+      }
+      if (source && source !== 'ALL') {
+        baseQuery += ` AND o.source = ?`;
+        queryParams.push(source);
+      }
+      if (startDate) {
+        baseQuery += ` AND o.createdAt >= ?`;
+        queryParams.push(startDate);
+      }
+      if (endDate) {
+        baseQuery += ` AND o.createdAt <= ?`;
+        queryParams.push(endDate);
+      }
+
+      const countStmt = db.prepare(`SELECT COUNT(*) as total ${baseQuery}`);
+      const totalRow = countStmt.get(...queryParams);
+      const total = totalRow.total;
+
+      const dataQuery = `
+        SELECT o.*, u.name AS userName 
+        ${baseQuery}
+        ORDER BY o.createdAt DESC 
+        LIMIT ? OFFSET ?
+      `;
+      const stmt = db.prepare(dataQuery);
+      const rows = stmt.all(...queryParams, limit, offset);
+
+      // Hidratar ítems solo para la página actual
+      const getItemsStmt = db.prepare(`SELECT * FROM order_items WHERE orderId = ?`);
+      const items = rows.map((order) => {
+        const orderItems = getItemsStmt.all(order.id).map(item => ({
+          ...item,
+          taxRate: item.taxRate ? item.taxRate / 10000 : 0.16
+        }));
+        
+        return {
+          ...order,
+          items: orderItems,
+          createdAt: typeof order.createdAt === "number" ? order.createdAt : parseInt(order.createdAt, 10),
+          updatedAt: typeof order.updatedAt === "number" ? order.updatedAt : parseInt(order.updatedAt, 10),
+        };
+      });
+
+      return { items, total };
+    } catch (err) {
+      console.error("[IPC:orders:searchPaginated]", err.message);
+      throw err;
+    }
+  });
+
+  ipcMain.handle("orders:getOverallStats", async () => {
+    try {
+      const db = getDb();
+      // Fast sum using native SQLite aggregations
+      const stmt = db.prepare(`
+        SELECT 
+          SUM(total) as totalRevenue, 
+          COUNT(id) as totalOrders 
+        FROM orders 
+        WHERE status = 'COMPLETED'
+      `);
+      const stats = stmt.get() || { totalRevenue: 0, totalOrders: 0 };
+      
+      const totalRevenue = stats.totalRevenue || 0;
+      const totalOrders = stats.totalOrders || 0;
+      const avgTicket = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+      
+      return { totalRevenue, totalOrders, avgTicket };
+    } catch (err) {
+      console.error("[IPC:orders:getOverallStats]", err.message);
+      throw err;
+    }
+  });
+
+  ipcMain.handle("orders:getByDateRange", async (event, { startMs, endMs }) => {
+    try {
+      const db = getDb();
+      const stmt = db.prepare(`
+        SELECT o.*, u.name AS userName 
+        FROM orders o 
+        LEFT JOIN users u ON o.userId = u.id 
+        WHERE o.status = 'COMPLETED' 
+          AND o.createdAt >= ? 
+          AND o.createdAt <= ?
+        ORDER BY o.createdAt DESC
+      `);
+      const rows = stmt.all(startMs, endMs);
+
+      const getItemsStmt = db.prepare(`SELECT * FROM order_items WHERE orderId = ?`);
+      const items = rows.map((order) => {
+         const orderItems = getItemsStmt.all(order.id).map(item => ({
+          ...item,
+          taxRate: item.taxRate ? item.taxRate / 10000 : 0.16
+        }));
+        return {
+          ...order,
+          items: orderItems,
+          createdAt: typeof order.createdAt === "number" ? order.createdAt : parseInt(order.createdAt, 10),
+          updatedAt: typeof order.updatedAt === "number" ? order.updatedAt : parseInt(order.updatedAt, 10),
+        };
+      });
+      return items;
+    } catch (err) {
+      console.error("[IPC:orders:getByDateRange]", err.message);
+      throw err;
+    }
+  });
+
   ipcMain.handle("orders:getProfitStats", async (event, { startDate, endDate }) => {
     try {
       const db = getDb();
@@ -718,11 +960,19 @@ function setupIpcHandlers() {
       `;
       
       const stats = db.prepare(query).get(startDate, endDate);
-      
-      // Detalle por día para la gráfica
-      const dailyQuery = `
+      // Determinar la agrupación ideal según longitud del periodo
+      const daysDiff = (endDate - startDate) / (1000 * 60 * 60 * 24);
+      let dateFormat = "'%Y-%m-%d'"; // Diario
+      if (daysDiff > 100) {
+        dateFormat = "'%Y-%m'"; // Mensual
+      } else if (daysDiff > 35) {
+        dateFormat = "'%Y-W%W'"; // Semanal
+      }
+
+      // Detalle dinámico para la gráfica de progreso
+      const timeQuery = `
         SELECT 
-          strftime('%Y-%m-%d', datetime(o.createdAt/1000, 'unixepoch', 'localtime')) as date,
+          strftime(${dateFormat}, datetime(o.createdAt/1000, 'unixepoch', 'localtime')) as date,
           SUM(oi.subtotal) as revenue,
           SUM(oi.costPrice * oi.quantity) as cost
         FROM orders o
@@ -733,7 +983,7 @@ function setupIpcHandlers() {
         GROUP BY date
         ORDER BY date ASC
       `;
-      const dailyData = db.prepare(dailyQuery).all(startDate, endDate);
+      const dailyData = db.prepare(timeQuery).all(startDate, endDate);
 
       return {
         success: true,
@@ -1564,6 +1814,137 @@ function setupIpcHandlers() {
       return { success: true };
     } catch (err) {
       console.error("[IPC:app:quit]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ──────────────────────────────────────────
+  // DOMINIO: QA (Testing de Estrés Avanzado)
+  // ──────────────────────────────────────────
+  ipcMain.handle("qa:seed-massive", async () => {
+    try {
+      const db = getDb();
+      const uuidv4 = require('uuid').v4;
+      
+      const numProducts = 1500;
+      const numOrders = 2500;
+      const daysHistory = 30; // Spread over last 30 days
+      
+      const categoryId1 = uuidv4();
+      const categoryId2 = uuidv4();
+      const categoryId3 = uuidv4();
+      const now = Date.now();
+      const oneDayMs = 24 * 60 * 60 * 1000;
+
+      const adminUser = db.prepare("SELECT id FROM users WHERE role = 'ADMIN' LIMIT 1").get();
+      const userId = adminUser ? adminUser.id : null;
+
+      db.prepare(`
+        INSERT INTO categories (id, name, createdAt, updatedAt) 
+        VALUES (?, ?, ?, ?)
+      `).run(categoryId1, 'Ropa Dama (QA)', now, now);
+      db.prepare(`
+        INSERT INTO categories (id, name, createdAt, updatedAt) 
+        VALUES (?, ?, ?, ?)
+      `).run(categoryId2, 'Accesorios (QA)', now, now);
+      db.prepare(`
+        INSERT INTO categories (id, name, createdAt, updatedAt) 
+        VALUES (?, ?, ?, ?)
+      `).run(categoryId3, 'Calzado (QA)', now, now);
+
+      const categories = [categoryId1, categoryId2, categoryId3];
+
+      const insertProdStmt = db.prepare(`
+        INSERT INTO products (
+          id, categoryId, name, price, costPrice, stock, sku, unitType, isVisible, taxRate, taxIncluded, createdAt, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1600, 1, ?, ?)
+      `);
+
+      const insertOrder = db.prepare(`
+        INSERT INTO orders (id, userId, subtotal, discount, tax, total, status, paymentMethod, source, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?)
+      `);
+
+      const insertItem = db.prepare(`
+        INSERT INTO order_items (orderId, productId, name, price, costPrice, quantity, subtotal, taxRate, taxIncluded)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const insertCashMovement = db.prepare(`
+        INSERT INTO cash_movements (id, userId, type, amount, description, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+
+      const paymentMethods = ['CASH', 'CASH', 'CARD', 'TRANSFER']; // Weight towards cash
+      const sources = ['COUNTER', 'COUNTER', 'WHATSAPP', 'INSTAGRAM', 'FACEBOOK']; // Weight towards counter
+
+      const transaction = db.transaction(() => {
+        const productIds = [];
+        const productsInfo = [];
+        // 1. Insert Products
+        for (let i = 0; i < numProducts; i++) {
+          const id = uuidv4();
+          const cat = categories[i % categories.length];
+          const cost = Math.floor(Math.random() * 5000) + 1000; // $10 to $50
+          const price = cost + Math.floor(Math.random() * 8000) + 2000; // Markup
+          
+          productIds.push(id);
+          productsInfo.push({ id, name: `Producto Masivo #${i}`, price, cost });
+
+          insertProdStmt.run(
+            id, cat, `QA Masivo #${i}`, price, cost, 999, `QAM-${i}`, 'PIECE', now, now
+          );
+        }
+
+        // 2. Insert Daily Cash Movements (Opening / Closing approx)
+        for(let d = 0; d <= daysHistory; d++) {
+            const dayStart = now - (d * oneDayMs);
+            const morning = dayStart - (10 * 60 * 60 * 1000); // approx 10am
+            const evening = dayStart + (2 * 60 * 60 * 1000); // approx 8pm
+            insertCashMovement.run(uuidv4(), userId, 'OPENING', 100000, 'Fondo inicial QA', morning);
+        }
+
+        // 3. Insert Orders
+        for (let i = 0; i < numOrders; i++) {
+          const orderId = uuidv4();
+          
+          // Random date within the last 30 days
+          const diffMs = Math.floor(Math.random() * daysHistory * oneDayMs);
+          const orderDate = now - diffMs;
+          
+          const numItems = Math.floor(Math.random() * 8) + 1; // 1 to 8 items
+          let subtotal = 0;
+          
+          for (let j = 0; j < numItems; j++) {
+            const p = productsInfo[Math.floor(Math.random() * productsInfo.length)];
+            const qty = Math.floor(Math.random() * 3) + 1; // 1 to 3
+            const itemSubtotal = p.price * qty;
+            subtotal += itemSubtotal;
+            
+            insertItem.run(
+              orderId, p.id, p.name, p.price, p.cost, qty, itemSubtotal, 1600, 1
+            );
+          }
+          
+          // Apply some random global discount to 10% of orders
+          const hasDiscount = Math.random() > 0.9;
+          const discount = hasDiscount ? Math.floor(subtotal * 0.1) : 0;
+          const finalSubtotal = subtotal - discount;
+          const tax = Math.floor(finalSubtotal * 0.16); // Estimado IVA desglosado si es incluido
+          // Asumiendo taxIncluded=1 en order_items, el subtotal ya contiene IVA.
+          // Para no romper la analítica sencilla, lo guardamos así:
+          
+          const pm = paymentMethods[Math.floor(Math.random() * paymentMethods.length)];
+          const src = sources[Math.floor(Math.random() * sources.length)];
+          
+          insertOrder.run(orderId, userId, finalSubtotal, discount, tax, finalSubtotal, pm, src, orderDate, orderDate);
+        }
+      });
+
+      transaction();
+      return { success: true };
+    } catch (err) {
+      console.error("[IPC:qa:seed-massive]", err.message);
       return { success: false, error: err.message };
     }
   });

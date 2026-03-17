@@ -29,7 +29,7 @@ import { toast } from "sonner";
 import { 
   AlertCircle, FileText, Ban, Printer, CircleCheck, CircleX, 
   TrendingUp, Calendar, Wallet, CreditCard, Filter, ChevronRight, ChevronLeft,
-  ArrowUpRight, ShoppingBag, Banknote
+  ArrowUpRight, ShoppingBag, Banknote, CalendarDays
 } from "lucide-react";
 import {
   AlertDialog,
@@ -61,6 +61,8 @@ export default function HistoryPage() {
   const itemsPerPage = 15;
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'COMPLETED' | 'CANCELLED'>('ALL');
   const [filterPayment, setFilterPayment] = useState<'ALL' | 'CASH' | 'CARD'>('ALL');
+  const [filterDate, setFilterDate] = useState<'ALL' | 'TODAY' | 'WEEK' | 'MONTH' | 'CUSTOM'>('ALL');
+  const [customDate, setCustomDate] = useState<Date | null>(null);
 
   // Estado SQLite (antes era useLiveQuery)
   const [allOrders, setAllOrders] = useState<Order[] | undefined>(undefined);
@@ -78,15 +80,42 @@ export default function HistoryPage() {
   }, [allOrders, currentPage]);
 
   const loadOrders = useCallback(async () => {
+    let startDate: number | undefined;
+    let endDate: number | undefined;
+
+    const now = new Date();
+    
+    if (filterDate === 'TODAY') {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      startDate = start.getTime();
+      endDate = end.getTime();
+    } else if (filterDate === 'WEEK') {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7, 0, 0, 0);
+      startDate = start.getTime();
+      endDate = now.getTime();
+    } else if (filterDate === 'MONTH') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+      startDate = start.getTime();
+      endDate = now.getTime();
+    } else if (filterDate === 'CUSTOM' && customDate) {
+      const start = new Date(customDate.getFullYear(), customDate.getMonth(), customDate.getDate(), 0, 0, 0);
+      const end = new Date(customDate.getFullYear(), customDate.getMonth(), customDate.getDate(), 23, 59, 59, 999);
+      startDate = start.getTime();
+      endDate = end.getTime();
+    }
+
     const result = await OrderService.searchOrders({
       status: filterStatus,
       paymentMethod: filterPayment,
+      startDate,
+      endDate,
       limit: itemsPerPage,
       offset: (currentPage - 1) * itemsPerPage,
     });
     setAllOrders(result.items);
     setTotalOrders(result.total);
-  }, [currentPage, filterStatus, filterPayment]);
+  }, [currentPage, filterStatus, filterPayment, filterDate, customDate]);
 
   const loadStats = useCallback(async () => {
     const [today, overall] = await Promise.all([
@@ -179,52 +208,119 @@ export default function HistoryPage() {
         </header>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto w-full">
-          {/* Filters Bar (Fase 12.2) */}
-          <div className="flex flex-wrap items-center gap-3 bg-card border px-4 py-3 rounded-2xl shadow-sm">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase text-muted-foreground mr-2">
-              <Filter className="h-3.5 w-3.5" /> Filtrar por:
+          {/* Premium Filters Ribbon */}
+          <div className="flex flex-col gap-4 bg-background/50 backdrop-blur-md border px-4 py-4 rounded-3xl shadow-sm">
+            
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 w-full">
+              {/* Izquierda: Estatus y Pago */}
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <div className="flex items-center justify-center bg-primary/10 text-primary px-3 py-1.5 rounded-xl border border-primary/20 shadow-sm mr-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest">{totalOrders} Resultados</span>
+                </div>
+                
+                <div className="flex bg-card border p-1 rounded-2xl shadow-sm">
+                  <Button 
+                    variant={filterStatus === 'ALL' ? 'secondary' : 'ghost'} 
+                    size="sm" className="h-8 text-[11px] uppercase font-bold rounded-xl px-4 transition-all"
+                    onClick={() => { setFilterStatus('ALL'); setCurrentPage(1); }}
+                  >Todos</Button>
+                  <Button 
+                    variant={filterStatus === 'COMPLETED' ? 'secondary' : 'ghost'} 
+                    size="sm" className={cn("h-8 text-[11px] uppercase font-bold rounded-xl px-4 transition-all", filterStatus === 'COMPLETED' && "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400")}
+                    onClick={() => { setFilterStatus('COMPLETED'); setCurrentPage(1); }}
+                  >Exitosos</Button>
+                  <Button 
+                    variant={filterStatus === 'CANCELLED' ? 'secondary' : 'ghost'} 
+                    size="sm" className={cn("h-8 text-[11px] uppercase font-bold rounded-xl px-4 transition-all", filterStatus === 'CANCELLED' && "bg-rose-500/15 text-rose-600 dark:text-rose-400")}
+                    onClick={() => { setFilterStatus('CANCELLED'); setCurrentPage(1); }}
+                  >Anulados</Button>
+                </div>
+
+                <div className="flex bg-card border p-1 rounded-2xl shadow-sm hidden sm:flex">
+                  <Button 
+                    variant={filterPayment === 'ALL' ? 'secondary' : 'ghost'} 
+                    size="sm" className="h-8 text-[11px] uppercase font-bold rounded-xl px-4 transition-all"
+                    onClick={() => { setFilterPayment('ALL'); setCurrentPage(1); }}
+                  >Contado</Button>
+                  <Button 
+                    variant={filterPayment === 'CASH' ? 'secondary' : 'ghost'} 
+                    size="sm" className="h-8 text-[11px] uppercase font-bold rounded-xl px-4 gap-1.5 transition-all"
+                    onClick={() => { setFilterPayment('CASH'); setCurrentPage(1); }}
+                  ><Banknote className="h-3.5 w-3.5" /> Efectivo</Button>
+                  <Button 
+                    variant={filterPayment === 'CARD' ? 'secondary' : 'ghost'} 
+                    size="sm" className="h-8 text-[11px] uppercase font-bold rounded-xl px-4 gap-1.5 transition-all"
+                    onClick={() => { setFilterPayment('CARD'); setCurrentPage(1); }}
+                  ><CreditCard className="h-3.5 w-3.5" /> Tarjeta</Button>
+                </div>
+              </div>
+
+              {/* Derecha: Rango de Fechas */}
+              <div className="flex flex-wrap items-center justify-between md:justify-end gap-3 w-full md:w-auto border-t md:border-t-0 pt-3 md:pt-0">
+                <div className="flex bg-card border p-1 rounded-2xl shadow-sm overflow-x-auto mx-auto md:mx-0">
+                  <Button 
+                    variant={filterDate === 'ALL' ? 'secondary' : 'ghost'} 
+                    size="sm" className="h-8 text-[11px] uppercase font-bold rounded-xl px-4 transition-all"
+                    onClick={() => { setFilterDate('ALL'); setCustomDate(null); setCurrentPage(1); }}
+                  >Siempre</Button>
+                  <Button 
+                    variant={filterDate === 'TODAY' ? 'secondary' : 'ghost'} 
+                    size="sm" className={cn("h-8 text-[11px] uppercase font-bold rounded-xl px-4 transition-all", filterDate === 'TODAY' && "bg-primary/20 text-primary")}
+                    onClick={() => { setFilterDate('TODAY'); setCustomDate(null); setCurrentPage(1); }}
+                  >Hoy</Button>
+                  <Button 
+                    variant={filterDate === 'WEEK' ? 'secondary' : 'ghost'} 
+                    size="sm" className="h-8 text-[11px] uppercase font-bold rounded-xl px-4 transition-all"
+                    onClick={() => { setFilterDate('WEEK'); setCustomDate(null); setCurrentPage(1); }}
+                  >7 Días</Button>
+                  <Button 
+                    variant={filterDate === 'MONTH' ? 'secondary' : 'ghost'} 
+                    size="sm" className="h-8 text-[11px] uppercase font-bold rounded-xl px-4 transition-all"
+                    onClick={() => { setFilterDate('MONTH'); setCustomDate(null); setCurrentPage(1); }}
+                  >Mes</Button>
+                </div>
+
+                {filterDate === 'CUSTOM' ? (
+                  <div className="relative flex items-center bg-primary/10 border border-primary/20 rounded-2xl px-3 py-1 animate-in fade-in zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95 duration-200 mx-auto md:mx-0">
+                    <CalendarDays className="h-4 w-4 text-primary mr-2" />
+                    <input 
+                      type="date"
+                      className="h-8 text-[11px] bg-transparent text-primary border-none rounded-md font-black uppercase outline-none focus:ring-0 w-32"
+                      value={customDate ? customDate.toISOString().substring(0, 10) : ""}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const dateObj = new Date(e.target.value);
+                          const dt = new Date(dateObj.getTime() + dateObj.getTimezoneOffset() * 60000);
+                          setCustomDate(dt);
+                          setFilterDate('CUSTOM');
+                          setCurrentPage(1);
+                        } else {
+                          setFilterDate('ALL');
+                          setCustomDate(null);
+                        }
+                      }}
+                    />
+                    <Button variant="ghost" size="icon" className="h-6 w-6 ml-2 rounded-full hover:bg-primary/20" onClick={() => {setFilterDate('ALL'); setCustomDate(null);}}>
+                       <CircleX className="h-3 w-3 text-primary"/>
+                    </Button>
+                  </div>
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    className="h-10 rounded-2xl px-4 text-[11px] font-bold uppercase shadow-sm mx-auto md:mx-0"
+                    onClick={() => {setFilterDate('CUSTOM'); setCustomDate(new Date());}}
+                  >
+                    <CalendarDays className="h-4 w-4 mr-2 text-muted-foreground" /> Específico
+                  </Button>
+                )}
+              </div>
             </div>
             
-            <div className="flex bg-muted p-1 rounded-lg">
-              <Button 
-                variant={filterStatus === 'ALL' ? 'secondary' : 'ghost'} 
-                size="sm" className="h-7 text-[10px] uppercase font-bold"
-                onClick={() => { setFilterStatus('ALL'); setCurrentPage(1); }}
-              >Todos</Button>
-              <Button 
-                variant={filterStatus === 'COMPLETED' ? 'secondary' : 'ghost'} 
-                size="sm" className="h-7 text-[10px] uppercase font-bold"
-                onClick={() => { setFilterStatus('COMPLETED'); setCurrentPage(1); }}
-              >Exitosos</Button>
-              <Button 
-                variant={filterStatus === 'CANCELLED' ? 'secondary' : 'ghost'} 
-                size="sm" className="h-7 text-[10px] uppercase font-bold"
-                onClick={() => { setFilterStatus('CANCELLED'); setCurrentPage(1); }}
-              >Anulados</Button>
-            </div>
-
-            <Separator orientation="vertical" className="h-6 hidden sm:block" />
-
-            <div className="flex bg-muted p-1 rounded-lg">
-              <Button 
-                variant={filterPayment === 'ALL' ? 'secondary' : 'ghost'} 
-                size="sm" className="h-7 text-[10px] uppercase font-bold px-3"
-                onClick={() => { setFilterPayment('ALL'); setCurrentPage(1); }}
-              >Cualquier Pago</Button>
-              <Button 
-                variant={filterPayment === 'CASH' ? 'secondary' : 'ghost'} 
-                size="sm" className="h-7 text-[10px] uppercase font-bold px-3 gap-1.5"
-                onClick={() => { setFilterPayment('CASH'); setCurrentPage(1); }}
-              ><Banknote className="h-3 w-3" /> Efectivo</Button>
-              <Button 
-                variant={filterPayment === 'CARD' ? 'secondary' : 'ghost'} 
-                size="sm" className="h-7 text-[10px] uppercase font-bold px-3 gap-1.5"
-                onClick={() => { setFilterPayment('CARD'); setCurrentPage(1); }}
-              ><CreditCard className="h-3 w-3" /> Tarjeta</Button>
-            </div>
-            
-            <div className="ml-auto text-[10px] font-black uppercase text-muted-foreground/50 tracking-widest hidden lg:block">
-              {totalOrders} Registros Encontrados
+            {/* Si está en móvil, mostramos el filtro de pago separado que ocultamos arriba */}
+            <div className="flex bg-card border p-1 rounded-2xl shadow-sm sm:hidden overflow-x-auto">
+              <Button variant={filterPayment === 'ALL' ? 'secondary' : 'ghost'} size="sm" className="h-8 text-[11px] uppercase font-bold rounded-xl px-4" onClick={() => { setFilterPayment('ALL'); setCurrentPage(1); }}>Contado</Button>
+              <Button variant={filterPayment === 'CASH' ? 'secondary' : 'ghost'} size="sm" className="h-8 text-[11px] uppercase font-bold rounded-xl px-4 gap-1.5" onClick={() => { setFilterPayment('CASH'); setCurrentPage(1); }}><Banknote className="h-3.5 w-3.5" /> Efectivo</Button>
+              <Button variant={filterPayment === 'CARD' ? 'secondary' : 'ghost'} size="sm" className="h-8 text-[11px] uppercase font-bold rounded-xl px-4 gap-1.5" onClick={() => { setFilterPayment('CARD'); setCurrentPage(1); }}><CreditCard className="h-3.5 w-3.5" /> Tarjeta</Button>
             </div>
           </div>
 

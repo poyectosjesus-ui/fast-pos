@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Coffee, Package2, PieChart, Settings, ShoppingBag, ReceiptText, LogOut, Users, Power, Lock } from "lucide-react";
+import { Coffee, Package2, PieChart, Settings, ShoppingBag, ReceiptText, LogOut, Users, Power, Lock, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -24,6 +24,7 @@ export function Sidebar() {
   const navItems = [
     { href: "/", label: "POS", icon: ShoppingBag, roles: ["ADMIN", "CASHIER"] },
     { href: "/history", label: "Historial", icon: ReceiptText, roles: ["ADMIN", "CASHIER"] },
+    { href: "/cash-registers", label: "Cajas", icon: Wallet, roles: ["ADMIN", "CASHIER"] },
     { href: "/products", label: "Catálogo", icon: Package2, roles: ["ADMIN"] },
     { href: "/analytics", label: "Analítica", icon: PieChart, roles: ["ADMIN"] },
     { href: "/users", label: "Equipo", icon: Users, roles: ["ADMIN"] },

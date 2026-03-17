@@ -17,7 +17,7 @@ import { formatCurrency } from "@/lib/constants";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MetricCard } from "./_components/metric-card";
 import { TopProducts } from "./_components/top-products";
-import { ProfitChart } from "./_components/profit-chart";
+import { CashierChart, SourceList, PaymentList, ProgressChart } from "./_components/advanced-charts";
 import { Button } from "@/components/ui/button";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { cn } from "@/lib/utils";
@@ -26,7 +26,8 @@ import { useSessionStore } from "@/store/useSessionStore";
 
 export default function AnalyticsPage() {
   const { user } = useSessionStore();
-  const [range, setRange] = useState<'today' | '7d' | '30d'>('today');
+  const [filterDate, setFilterDate] = useState<'WEEK' | 'MONTH' | 'YEAR'>('MONTH');
+  
   const [stats, setStats] = useState({
     totalNet: 0,
     totalWithTax: 0,
@@ -42,6 +43,12 @@ export default function AnalyticsPage() {
     dailyData: { date: string; revenue: number; cost: number }[];
   } | null>(null);
 
+  const [advancedStats, setAdvancedStats] = useState<{
+    byCashier: any[];
+    bySource: any[];
+    byPayment: any[];
+  } | null>(null);
+
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -52,53 +59,51 @@ export default function AnalyticsPage() {
       const currentStats = await OrderService.getStatsForDay();
       setStats(currentStats);
       
-      // 2. Resumen rápido de KPIs del día (KPIs Real-Time Épica 2.2)
-      if (range === 'today') {
-        const summaryRes = await OrderService.getDaySummary();
-        if (summaryRes.success && summaryRes.data) {
-          setProfitStats({
-            summary: {
-              revenue: summaryRes.data.totalRevenue,
-              cost: summaryRes.data.totalRevenue - summaryRes.data.netProfit,
-              profit: summaryRes.data.netProfit,
-              orderCount: summaryRes.data.ticketCount
-            },
-            dailyData: [] // Se cargará con getProfitStats abajo para la gráfica
-          });
-        }
-      }
-
-      // 3. Stats de rentabilidad según rango (Gráfica y períodos largos)
+      // 2. Stats de rentabilidad según rango (Gráfica y periodos largos)
       let start = 0;
-      const end = Date.now();
+      let end = Date.now();
       const now = new Date();
       
-      if (range === 'today') {
-        const d = new Date(now); d.setHours(0,0,0,0); start = d.getTime();
-      } else if (range === '7d') {
-        const d = new Date(now); d.setDate(d.getDate() - 7); start = d.getTime();
-      } else if (range === '30d') {
-        const d = new Date(now); d.setDate(d.getDate() - 30); start = d.getTime();
+      if (filterDate === 'WEEK') {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7, 0, 0, 0);
+        start = d.getTime();
+      } else if (filterDate === 'MONTH') {
+        const d = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+        start = d.getTime();
+      } else if (filterDate === 'YEAR') {
+        const d = new Date(now.getFullYear(), 0, 1, 0, 0, 0);
+        start = d.getTime();
+        end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999).getTime(); // Fuerza 365 días completos
       }
 
-      const [profitRes, top] = await Promise.all([
+      const [profitRes, top, advancedRes] = await Promise.all([
         OrderService.getProfitStats(start, end),
-        OrderService.getTopProducts(currentStats.todayOrders, 5)
+        OrderService.getTopProducts(start, end, 5),
+        OrderService.getAdvancedAnalytics({ startDate: start, endDate: end })
       ]);
 
       if (profitRes.success) {
-        setProfitStats(prev => ({
-          summary: range === 'today' ? (prev?.summary || profitRes.summary) : profitRes.summary,
+        setProfitStats({
+          summary: profitRes.summary,
           dailyData: profitRes.dailyData
-        }));
+        });
       }
+      
+      if (advancedRes.success) {
+        setAdvancedStats({
+          byCashier: advancedRes.byCashier || [],
+          bySource: advancedRes.bySource || [],
+          byPayment: advancedRes.byPayment || []
+        });
+      }
+
       setTopProducts(top);
     } catch (error) {
       console.error("Error cargando analíticas:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [range]);
+  }, [filterDate]);
 
   useEffect(() => {
     loadStats();
@@ -118,66 +123,28 @@ export default function AnalyticsPage() {
       <main className="flex-1 flex flex-col sm:pl-20 overflow-hidden relative">
         <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex flex-col">
-            <h1 className="text-2xl font-black tracking-tight uppercase">Dashboard Premium</h1>
-            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-[0.2em] opacity-70">Inteligencia de Negocio y Rentabilidad</p>
+            <h1 className="text-2xl font-black tracking-tight uppercase">Inteligencia de Negocio</h1>
+            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-[0.2em] opacity-70">Métricas, márgenes y reportes</p>
           </div>
           
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Sector de Rango */}
-            <div className="flex items-center gap-1 bg-muted p-1 rounded-xl border">
-              {(['today', '7d', '30d'] as const).map((r) => (
-                <Button
-                  key={r}
-                  variant={range === r ? "secondary" : "ghost"}
-                  size="sm"
-                  className={cn(
-                    "h-7 text-[9px] font-black uppercase tracking-tighter px-3 rounded-lg transition-all",
-                    range === r && "bg-background shadow-xs text-primary"
-                  )}
-                  onClick={() => setRange(r)}
-                >
-                  {r === 'today' ? 'Hoy' : r === '7d' ? '7 Días' : '30 Días'}
-                </Button>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 rounded-xl border-dashed hover:border-primary hover:text-primary font-bold text-[10px] uppercase tracking-wider"
-                onClick={async () => {
-                   const today = new Date().toISOString().split("T")[0];
-                   const res = await window.electronAPI?.generateZReportPdf({ 
-                     dateString: today, 
-                     title: "CORTE X - ARQUEO PARCIAL",
-                     userId: user?.id 
-                   });
-                   if (res?.success && !res.canceled) {
-                     toast.success("Arqueo Generado", { description: res.filePath });
-                   }
-                }}
-              >
-                Corte X
-              </Button>
-
-              <Button
-                size="sm"
-                className="h-9 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-black text-[10px] uppercase tracking-wider shadow-lg shadow-primary/10"
-                onClick={async () => {
-                   const today = new Date().toISOString().split("T")[0];
-                   const res = await window.electronAPI?.generateZReportPdf({ 
-                     dateString: today, 
-                     title: "CORTE Z - CIERRE DE CAJA",
-                     userId: user?.id 
-                   });
-                   if (res?.success && !res.canceled) {
-                     toast.success("Cierre Generado", { description: res.filePath });
-                   }
-                }}
-              >
-                <Printer className="w-3.5 h-3.5 mr-1.5" /> Corte Z
-              </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            
+            <div className="flex bg-muted p-1 rounded-xl border items-center overflow-x-auto">
+              <Button 
+                variant={filterDate === 'WEEK' ? 'secondary' : 'ghost'} 
+                size="sm" className={cn("h-8 text-[11px] uppercase font-bold rounded-lg px-4 transition-all", filterDate === 'WEEK' && "bg-background text-primary shadow-sm")}
+                onClick={() => { setFilterDate('WEEK'); }}
+              >7 Días</Button>
+              <Button 
+                variant={filterDate === 'MONTH' ? 'secondary' : 'ghost'} 
+                size="sm" className={cn("h-8 text-[11px] uppercase font-bold rounded-lg px-4 transition-all", filterDate === 'MONTH' && "bg-background text-primary shadow-sm")}
+                onClick={() => { setFilterDate('MONTH'); }}
+              >Mes</Button>
+              <Button 
+                variant={filterDate === 'YEAR' ? 'secondary' : 'ghost'} 
+                size="sm" className={cn("h-8 text-[11px] uppercase font-bold rounded-lg px-4 transition-all", filterDate === 'YEAR' && "bg-background text-primary shadow-sm")}
+                onClick={() => { setFilterDate('YEAR'); }}
+              >Año</Button>
             </div>
           </div>
         </header>
@@ -196,10 +163,10 @@ export default function AnalyticsPage() {
             <MetricCard
               title="Rentabilidad"
               value={`${marginPct}%`}
-              description="El porcentaje de cada venta que es pura ganancia."
+              description="Tu desempeño para el periodo seleccionado."
               icon={TrendingUp}
               variant="violet"
-              trend={range !== 'today' ? "Analítica de período" : "Basado en ventas de hoy"}
+              trend="Dinámico"
               trendPositive={true}
             />
             <MetricCard
@@ -220,7 +187,7 @@ export default function AnalyticsPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Gráfica de Rentabilidad (Principal) */}
-            <div className="lg:col-span-2 flex flex-col gap-4 border rounded-2xl bg-card p-6 shadow-sm">
+            <div className="lg:col-span-3 flex flex-col gap-4 border rounded-2xl bg-card p-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-black uppercase tracking-tight">Ventas vs Costos</h3>
@@ -239,7 +206,7 @@ export default function AnalyticsPage() {
               </div>
               
               {profitStats && profitStats.dailyData.length > 0 ? (
-                <ProfitChart data={profitStats.dailyData} />
+                <ProgressChart data={profitStats.dailyData} />
               ) : (
                 <div className="h-[300px] flex items-center justify-center text-muted-foreground bg-muted/20 rounded-xl border border-dashed italic text-sm">
                   No hay datos suficientes para graficar este período
@@ -247,61 +214,33 @@ export default function AnalyticsPage() {
               )}
             </div>
 
-            <div className="flex flex-col gap-6">
-                {/* Resumen de Caja Hoy (Solo si range es hoy) */}
-                <Card className="border-none shadow-none bg-transparent space-y-4">
-                  <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground/80">Flujo de Caja (Cierre)</h2>
-                  
-                  <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold uppercase text-primary/70">Efectivo en Caja</span>
-                      <HandCoins className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-3xl font-black text-primary tracking-tighter">{formatCurrency(stats.cashTotal)}</p>
-                      <p className="text-[10px] font-bold text-muted-foreground/60 uppercase mt-1">Suma total de billetes y monedas</p>
-                    </div>
-                  </div>
-
-                  <div className="bg-card border rounded-2xl p-5 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold uppercase text-muted-foreground">Vouchers Tarjeta</span>
-                      <CreditCard className="h-4 w-4 text-blue-500" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-black tracking-tighter">{formatCurrency(stats.cardTotal)}</p>
-                      <p className="text-[10px] font-bold text-muted-foreground/60 uppercase mt-1">Dinero en cuenta bancaria</p>
-                    </div>
-                  </div>
-                </Card>
-
-                {/* Arqueo de Tickets (Fase 12.2) */}
-                <div className="border rounded-2xl bg-card p-5 shadow-sm">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Eficiencia Operativa</p>
-                  <div className="flex items-end gap-2 mb-4">
-                    <span className="text-4xl font-black tracking-tighter">{stats.orderCount}</span>
-                    <span className="text-[10px] pb-1.5 font-black uppercase text-muted-foreground/70">ventas hoy</span>
-                  </div>
-                  
-                  {stats.orderCount > 0 ? (
-                    <div className="space-y-4">
-                      <div className="space-y-1.5">
-                        <div className="flex justify-between text-[10px] font-black uppercase tracking-tighter">
-                          <span>Mix de Cobro</span>
-                          <span>{Math.round((stats.cashTotal / (stats.totalWithTax || 1)) * 100)}% Efectivo</span>
-                        </div>
-                        <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden flex">
-                          <div 
-                            className="h-full bg-primary" 
-                            style={{ width: `${Math.round((stats.cashTotal / (stats.totalWithTax || 1)) * 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="h-1.5 w-full bg-muted rounded-full" />
-                  )}
+            {/* Fila 3: Gráficas de Desglose Avanzado */}
+            <div className="lg:col-span-3 grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              <div className="border rounded-2xl bg-card p-6 shadow-sm flex flex-col gap-4">
+                <div>
+                  <h3 className="text-lg font-black uppercase tracking-tight">Rendimiento Cajeros</h3>
+                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest opacity-60">Volumen procesado por usuario</p>
                 </div>
+                {advancedStats ? <CashierChart data={advancedStats.byCashier} /> : <div className="h-[250px] animate-pulse bg-muted/20 rounded-xl" />}
+              </div>
+
+              <div className="border rounded-2xl bg-card p-6 shadow-sm flex flex-col gap-4">
+                <div>
+                  <h3 className="text-lg font-black uppercase tracking-tight">Canal de Venta</h3>
+                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest opacity-60">Origen de los pedidos</p>
+                </div>
+                {advancedStats ? <SourceList data={advancedStats.bySource} /> : <div className="h-[250px] animate-pulse bg-muted/20 rounded-xl" />}
+              </div>
+
+              <div className="border rounded-2xl bg-card p-6 shadow-sm flex flex-col gap-4">
+                <div>
+                  <h3 className="text-lg font-black uppercase tracking-tight">Métodos de Cobro</h3>
+                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest opacity-60">Preferencia de pago</p>
+                </div>
+                {advancedStats ? <PaymentList data={advancedStats.byPayment} /> : <div className="h-[250px] animate-pulse bg-muted/20 rounded-xl" />}
+              </div>
+
             </div>
           </div>
 

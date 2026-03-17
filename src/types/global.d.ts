@@ -33,9 +33,18 @@ declare global {
       // ── Órdenes / Ventas
       checkout: (order: any) => Promise<{ success: boolean; error?: string }>;
       getOrderHistory: () => Promise<any[]>;
-      getOrderById: (id: string) => Promise<any | null>;
-      voidOrder: (id: string, userId?: string) => Promise<{ success: boolean; error?: string }>;
-      getProfitStats: (params: { startDate: number; endDate: number }) => Promise<{ success: boolean; summary: any; dailyData: any[]; error?: string }>;
+      getOrderById: (id: string) => Promise<any>;
+      searchOrdersPaginated: (params: any) => Promise<{ items: any[]; total: number }>;
+      getOverallStats: () => Promise<{totalRevenue: number, totalOrders: number, avgTicket: number}>;
+      getOrdersByDateRange: (start: number, end: number) => Promise<any[]>;
+      getAdvancedAnalytics: (params: { startDate?: number; endDate?: number }) => Promise<{
+        success: boolean;
+        byCashier?: Array<{ cashierName: string; totalAmount: number; tickets: number }>;
+        bySource?: Array<{ channel: string; totalAmount: number; tickets: number }>;
+        byPayment?: Array<{ method: string; totalAmount: number; tickets: number }>;
+        error?: string;
+      }>;
+      getProfitStats: (range: { startDate: number, endDate: number }) => Promise<any>;
       getSummary: () => Promise<{ success: boolean; data?: { totalRevenue: number; netProfit: number; ticketCount: number }; error?: string }>;
 
       // ── Imágenes

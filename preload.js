@@ -37,12 +37,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
   updateProduct:  (product) => ipcRenderer.invoke("products:update", product),
   deleteProduct:  (id)      => ipcRenderer.invoke("products:delete", id),
 
-  // ── Ventas / Órdenes ────────────────────────────────────────────────────────
-  checkout:       (order)   => ipcRenderer.invoke("orders:checkout", order),
+  // ── Órdenes ──────────────────────────────────────────────────────────────
+  checkout: (order)         => ipcRenderer.invoke("orders:checkout", order),
   getOrderHistory:()        => ipcRenderer.invoke("orders:getHistory"),
-  getOrderById:   (id)      => ipcRenderer.invoke("orders:getById", id),
-  voidOrder:      (id)      => ipcRenderer.invoke("orders:void", id),
-  getProfitStats: (params)  => ipcRenderer.invoke("orders:getProfitStats", params),
+  getOrderById: (id)        => ipcRenderer.invoke("orders:getById", id),
+  searchOrdersPaginated: (params) => ipcRenderer.invoke("orders:searchPaginated", params),
+  getOverallStats: () => ipcRenderer.invoke("orders:getOverallStats"),
+  getOrdersByDateRange: (start, end) => ipcRenderer.invoke("orders:getByDateRange", start, end),
+  getAdvancedAnalytics: (params) => ipcRenderer.invoke("analytics:getAdvancedFilters", params),
+  getTopProducts: (params)  => ipcRenderer.invoke("analytics:getTopProducts", params),
+  getProfitStats: (range)   => ipcRenderer.invoke("orders:getProfitStats", range),
+
+  // ==================== Z-REPORT & AUDIT (Sprints 3 y 4) ====================
+  voidOrder: (params)       => ipcRenderer.invoke("orders:void", params),
   getSummary:     ()        => ipcRenderer.invoke("analytics:getSummary"),
 
   // ── Imágenes (Bucket Local — EPIC-003) ─────────────────────────────────────
