@@ -362,6 +362,30 @@ function runMigrations(db) {
     db.pragma("user_version = 10");
     console.log("[DB] Migración v10 aplicada: source ampliado a COUNTER|WHATSAPP|INSTAGRAM|OTHER.");
   }
+  if (currentVersion < 11) {
+    // Agregar canal FACEBOOK
+    db.exec(`
+      CREATE TABLE orders_v11 (
+        id          TEXT PRIMARY KEY,
+        subtotal    INTEGER NOT NULL DEFAULT 0,
+        tax         INTEGER NOT NULL DEFAULT 0,
+        total       INTEGER NOT NULL DEFAULT 0,
+        status      TEXT CHECK(status IN ('PENDING','COMPLETED','CANCELLED')) NOT NULL DEFAULT 'PENDING',
+        paymentMethod TEXT CHECK(paymentMethod IN ('CASH','CARD','TRANSFER','OTHER')) NOT NULL DEFAULT 'CASH',
+        source      TEXT CHECK(source IN ('COUNTER','WHATSAPP','INSTAGRAM','FACEBOOK','OTHER')) NOT NULL DEFAULT 'COUNTER',
+        userId      TEXT,
+        createdAt   INTEGER NOT NULL,
+        FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL
+      );
+      INSERT INTO orders_v11 (id, subtotal, tax, total, status, paymentMethod, source, userId, createdAt)
+        SELECT id, subtotal, tax, total, status, paymentMethod, source, userId, createdAt
+        FROM orders;
+      DROP TABLE orders;
+      ALTER TABLE orders_v11 RENAME TO orders;
+    `);
+    db.pragma("user_version = 11");
+    console.log("[DB] Migración v11 aplicada: source ampliado con FACEBOOK.");
+  }
 
   const newVersion = db.pragma("user_version", { simple: true });
   console.log(`[DB] Esquema actualizado a v${newVersion}. Listo.`);

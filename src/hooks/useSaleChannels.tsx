@@ -20,7 +20,7 @@
 import { useEffect, useState } from "react";
 import { Store, MessageCircle, Camera, MoreHorizontal } from "lucide-react";
 
-export type SaleSource = "COUNTER" | "WHATSAPP" | "INSTAGRAM" | "OTHER";
+export type SaleSource = "COUNTER" | "WHATSAPP" | "INSTAGRAM" | "FACEBOOK" | "OTHER";
 
 export interface SaleChannel {
   id: SaleSource;
@@ -34,6 +34,7 @@ export const ALL_SALE_CHANNELS: SaleChannel[] = [
   { id: "COUNTER",   label: "Mostrador",  icon: <Store          className="h-4 w-4" />, color: "slate"   },
   { id: "WHATSAPP",  label: "WhatsApp",   icon: <MessageCircle  className="h-4 w-4" />, color: "emerald" },
   { id: "INSTAGRAM", label: "Instagram",  icon: <Camera         className="h-4 w-4" />, color: "pink"    },
+  { id: "FACEBOOK",  label: "Facebook",   icon: <MessageCircle  className="h-4 w-4" />, color: "blue"    },
   { id: "OTHER",     label: "Otro canal", icon: <MoreHorizontal className="h-4 w-4" />, color: "orange"  },
 ];
 

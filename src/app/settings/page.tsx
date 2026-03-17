@@ -217,6 +217,7 @@ const ALL_CH = [
   { id: "COUNTER",   label: "Mostrador",  sub: "Ventas presenciales en tu local" },
   { id: "WHATSAPP",  label: "WhatsApp",   sub: "Pedidos por mensaje directo" },
   { id: "INSTAGRAM", label: "Instagram",  sub: "Pedidos vía DM o story" },
+  { id: "FACEBOOK",  label: "Facebook",   sub: "Pedidos vía Messenger o página" },
   { id: "OTHER",     label: "Otro canal", sub: "Correo, teléfono, etc." },
 ] as const;
 
