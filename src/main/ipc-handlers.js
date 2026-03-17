@@ -909,7 +909,7 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle("orders:getByDateRange", async (event, { startMs, endMs }) => {
+  ipcMain.handle("orders:getByDateRange", async (event, startMs, endMs) => {
     try {
       const db = getDb();
       const stmt = db.prepare(`

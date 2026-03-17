@@ -48,6 +48,7 @@ import { cn } from "@/lib/utils";
 interface CheckoutDialogProps {
   open: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
 type PaymentMethod = "CASH" | "CARD" | "TRANSFER" | "OTHER";
@@ -91,7 +92,7 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   OTHER: "Otro método",
 };
 
-export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
+export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps) {
   const { items, clearCart, getCartTotals } = useCartStore();
   const { user } = useSessionStore();
   const { subtotal, tax, total } = getCartTotals();
@@ -169,6 +170,7 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
     setAmountPaidStr("");
     setCompletedOrder(null);
     onClose();
+    if (onSuccess) onSuccess();
   };
 
   const billDenominations = [50, 100, 200, 500, 1000];
@@ -176,9 +178,14 @@ export function CheckoutDialog({ open, onClose }: CheckoutDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => {
+      // Evitar el cierre accidental si procesa o está en el ticket
+      if (step === "ticket" || isProcessing) return;
       if (!o && step === "payment") onClose();
     }}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent 
+        className="sm:max-w-md max-h-[90vh] overflow-y-auto"
+        showCloseButton={step !== "ticket"}
+      >
         {step === "payment" ? (
           <>
             <DialogHeader>

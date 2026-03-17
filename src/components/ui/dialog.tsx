@@ -45,7 +45,7 @@ function DialogContent({
   showCloseButton = true,
   ...props
 }: DialogPrimitive.Popup.Props & {
-  showCloseButton?: boolean
+  showCloseButton?: boolean;
 }) {
   return (
     <DialogPortal>

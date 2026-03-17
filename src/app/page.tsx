@@ -246,36 +246,7 @@ export default function POSPage() {
               <DigitalClock />
             </div>
 
-            {categories && categories.length > 0 && (
-              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar flex-1">
-                <Button
-                  size="sm"
-                  variant={activeCategory === "ALL" ? "default" : "secondary"}
-                  className="rounded-full shrink-0 h-8 text-xs"
-                  onClick={() => handleFilterChange("ALL")}
-                >
-                  Todos
-                </Button>
-                {categories.map(cat => (
-                  <Button
-                    key={cat.id}
-                    size="sm"
-                    variant={activeCategory === cat.id ? "default" : "secondary"}
-                    className="rounded-full shrink-0 h-8 text-xs"
-                    onClick={() => handleFilterChange(cat.id)}
-                  >
-                    {cat.name}
-                  </Button>
-                ))}
-              </div>
-            )}
-
-            {/* Selector de densidad del grid */}
-            <GridDensitySelector
-              value={gridDensity}
-              onChange={handleGridDensityChange}
-              className="shrink-0"
-            />
+            {/* Categorías y GridSelector movidos al inferior */}
 
             <Button
               variant="outline"
@@ -341,40 +312,78 @@ export default function POSPage() {
                 ))}
               </div>
 
-              {/* PAGINACIÓN ESTRICTA (CA-10.2) */}
-              <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-background/50 rounded-2xl border border-border/50 backdrop-blur-sm mb-4">
-                <div className="text-xs text-muted-foreground font-medium order-2 sm:order-1">
-                  Mostrando <span className="text-foreground">{Math.min(totalCount, (currentPage - 1) * itemsPerPage + 1)}</span> - <span className="text-foreground">{Math.min(totalCount, currentPage * itemsPerPage)}</span> de <span className="text-foreground font-bold">{totalCount}</span> productos
-                </div>
+              {/* FILTROS, PAGINACIÓN Y CONTROLES INFERIORES */}
+              <div className="mt-auto pt-4 flex flex-col gap-4 sticky bottom-0 bg-gradient-to-t from-muted/60 to-transparent pb-4">
                 
-                <div className="flex items-center gap-2 order-1 sm:order-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-8 p-0 rounded-lg"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    &lt;
-                  </Button>
-                  
-                  <div className="flex items-center gap-1.5 px-3 h-8 bg-muted/50 rounded-lg text-xs font-bold">
-                    Página {currentPage} de {totalPages || 1}
+                {/* Selector de Categorías Inferior */}
+                {categories && categories.length > 0 && (
+                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 px-2">
+                    <Button
+                      size="sm"
+                      variant={activeCategory === "ALL" ? "default" : "secondary"}
+                      className="rounded-full shrink-0 h-9 font-bold tracking-widest uppercase text-[10px]"
+                      onClick={() => handleFilterChange("ALL")}
+                    >
+                      Todas las Categorías
+                    </Button>
+                    {categories.map(cat => (
+                      <Button
+                        key={cat.id}
+                        size="sm"
+                        variant={activeCategory === cat.id ? "default" : "secondary"}
+                        className="rounded-full shrink-0 h-9 font-bold tracking-widest uppercase text-[10px]"
+                        onClick={() => handleFilterChange(cat.id)}
+                      >
+                        {cat.name}
+                      </Button>
+                    ))}
                   </div>
+                )}
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-8 p-0 rounded-lg"
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage >= totalPages}
-                  >
-                    &gt;
-                  </Button>
+                {/* Paginación y Contador */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-background/80 rounded-2xl border shadow-sm backdrop-blur-md relative z-40">
+                  <div className="flex items-center gap-4 order-2 sm:order-1">
+                    <div className="hidden xl:block">
+                      <GridDensitySelector
+                        value={gridDensity}
+                        onChange={handleGridDensityChange}
+                      />
+                    </div>
+                    <div className="text-[11px] uppercase tracking-widest text-muted-foreground font-bold">
+                      Mostrando <span className="text-foreground">{Math.min(totalCount, (currentPage - 1) * itemsPerPage + 1)}</span> - <span className="text-foreground">{Math.min(totalCount, currentPage * itemsPerPage)}</span> de <span className="text-foreground font-black">{totalCount}</span> productos
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 order-1 sm:order-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 w-9 p-0 rounded-xl"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      &lt;
+                    </Button>
+                    
+                    <div className="flex items-center gap-1.5 px-4 h-9 bg-muted/50 rounded-xl text-[11px] tracking-widest font-black uppercase">
+                      Página {currentPage} de {totalPages || 1}
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 w-9 p-0 rounded-xl"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage >= totalPages}
+                    >
+                      &gt;
+                    </Button>
+                  </div>
                 </div>
               </div>
             </>
           )}
+
         </main>
       </div>
 
@@ -401,6 +410,7 @@ export default function POSPage() {
         <CheckoutDialog 
           open={isCheckoutOpen}
           onClose={() => setIsCheckoutOpen(false)}
+          onSuccess={() => loadData()}
         />
 
         <QuickSaleDialog
@@ -415,7 +425,10 @@ export default function POSPage() {
 
         <OpenRegisterDialog
           open={isRegisterDialogOpen}
-          onSuccess={() => { setIsRegisterDialogOpen(false); setIsCheckoutOpen(true); }}
+          onSuccess={() => { 
+            setIsRegisterDialogOpen(false); 
+            setTimeout(() => setIsCheckoutOpen(true), 150); 
+          }}
           onCancel={() => setIsRegisterDialogOpen(false)}
         />
       </div>
