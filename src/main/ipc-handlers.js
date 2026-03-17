@@ -1552,6 +1552,22 @@ function setupIpcHandlers() {
     }
   });
 
+  ipcMain.handle("app:quit", async () => {
+    try {
+      console.log("[SYSTEM] Iniciando apagado seguro. Cerrando WAL...");
+      const db = getDb();
+      if (db) {
+        // Cerrar la base de datos dispara el WAL checkpoint automáticamente
+        db.close();
+      }
+      app.quit();
+      return { success: true };
+    } catch (err) {
+      console.error("[IPC:app:quit]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
   console.log("[IPC] Todos los handlers registrados correctamente.");
 
 }

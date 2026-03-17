@@ -141,10 +141,10 @@ function TicketContent() {
              <span className="uppercase">{(order as any).userName}</span>
           </div>
         )}
-        {order.source === "ONLINE" && (
+        {order.source !== "COUNTER" && order.source !== "OTHER" && (
           <div className="flex justify-between text-[10px] mt-0.5">
             <span>ORIGEN:</span>
-            <span>VENTA EN LÍNEA</span>
+            <span className="uppercase">{order.source}</span>
           </div>
         )}
       </div>

@@ -22,7 +22,7 @@ interface CheckoutInput {
   items: CartItem[];
   paymentMethod: 'CASH' | 'CARD' | 'TRANSFER' | 'OTHER';
   /** Sprint-1 E2: Canal de venta. Por defecto COUNTER (mostrador). */
-  source?: 'COUNTER' | 'WHATSAPP' | 'INSTAGRAM' | 'OTHER';
+  source?: 'COUNTER' | 'WHATSAPP' | 'INSTAGRAM' | 'FACEBOOK' | 'OTHER';
   userId?: string | null;
 }
 
@@ -115,7 +115,7 @@ export const OrderService = {
   async searchOrders(params: {
     status?: 'COMPLETED' | 'CANCELLED' | 'ALL';
     paymentMethod?: 'CASH' | 'CARD' | 'TRANSFER' | 'WHATSAPP' | 'ONLINE' | 'OTHER' | 'ALL';
-    source?: 'LOCAL' | 'ONLINE' | 'ALL';
+    source?: 'COUNTER' | 'WHATSAPP' | 'INSTAGRAM' | 'FACEBOOK' | 'OTHER' | 'ALL';
     limit: number;
     offset: number;
   }): Promise<{ items: Order[]; total: number }> {

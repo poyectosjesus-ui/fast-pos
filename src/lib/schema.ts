@@ -72,8 +72,8 @@ export const OrderSchema = z.object({
   status: z.enum(["COMPLETED", "CANCELLED"]),
   /** Método de cobro del negocio */
   paymentMethod: z.enum(["CASH", "CARD", "TRANSFER", "OTHER"]),
-  /** Sprint-1 E2: Canal de venta — COUNTER (mostrador) | WHATSAPP | INSTAGRAM | OTHER */
-  source: z.enum(["COUNTER", "WHATSAPP", "INSTAGRAM", "OTHER"]).default("COUNTER"),
+  /** Sprint-1 E2: Canal de venta — COUNTER (mostrador) | WHATSAPP | INSTAGRAM | FACEBOOK | OTHER */
+  source: z.enum(["COUNTER", "WHATSAPP", "INSTAGRAM", "FACEBOOK", "OTHER"]).default("COUNTER"),
 
   /** ID del usuario que realizó la venta */
   userId: z.string().uuid().nullable().optional(),

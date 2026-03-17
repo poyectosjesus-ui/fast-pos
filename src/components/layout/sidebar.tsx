@@ -1,7 +1,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Coffee, Package2, PieChart, Settings, ShoppingBag, ReceiptText, LogOut, Users } from "lucide-react";
+import { Coffee, Package2, PieChart, Settings, ShoppingBag, ReceiptText, LogOut, Users, Power, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useSessionStore } from "@/store/useSessionStore";
 
@@ -58,17 +69,48 @@ export function Sidebar() {
       
       <div className="flex-1" />
       
-      {/* Botón Salir */}
-      <div className="flex items-center justify-center pb-6">
+      {/* Botones de control de sesión y app */}
+      <div className="flex flex-col items-center justify-end pb-6 gap-2">
         <Button 
           variant="ghost" 
           size="icon" 
           onClick={logout}
-          className="w-12 h-12 rounded-xl text-neutral-500 hover:text-red-500 hover:bg-red-500/10 transition-colors"
-          title="Cerrar Sesión"
+          className="w-12 h-12 rounded-xl text-neutral-500 hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
+          title="Bloquear Sesión"
         >
-          <LogOut className="w-6 h-6" />
+          <Lock className="w-5 h-5" />
         </Button>
+
+        <AlertDialog>
+          <AlertDialogTrigger 
+            className="w-12 h-12 flex items-center justify-center rounded-xl text-neutral-500 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+            title="Cerrar Sistema Seguramente"
+          >
+            <Power className="w-5 h-5" />
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Cerrar el sistema?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Se sincronizará y guardará la base de datos de manera segura antes de salir.
+                ¿Deseas cerrar la aplicación por completo?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={() => {
+                  if (typeof window !== "undefined" && (window as any).electronAPI) {
+                    (window as any).electronAPI.quitApp();
+                  }
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                Cerrar Sistema
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </aside>
   );
