@@ -187,32 +187,32 @@ export default function AnalyticsPage() {
           {/* Fila 1: Rentabilidad (Premium) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <MetricCard
-              title="Utilidad Neta"
+              title="Ganancia Libre"
               value={formatCurrency(profitStats?.summary.profit ?? 0)}
-              description="Tu ganancia real libre después de descontar el costo de productos."
+              description="Lo que te queda en la bolsa después de pagar la mercancía."
               icon={Wallet}
               variant="emerald"
             />
             <MetricCard
-              title="Margen de Ganancia"
+              title="Rentabilidad"
               value={`${marginPct}%`}
-              description="Eficiencia de tu negocio. Por cada peso vendido, esto es utilidad."
+              description="El porcentaje de cada venta que es pura ganancia."
               icon={TrendingUp}
               variant="violet"
               trend={range !== 'today' ? "Analítica de período" : "Basado en ventas de hoy"}
               trendPositive={true}
             />
             <MetricCard
-              title="Costo de Venta (COGS)"
+              title="Costo de Mercancía"
               value={formatCurrency(profitStats?.summary.cost ?? 0)}
-              description="Lo que te costó a ti la mercancía que acabas de vender."
+              description="El dinero que invertiste en los productos que ya vendiste."
               icon={ShoppingBag}
               variant="amber"
             />
             <MetricCard
-              title="Ventas Totales"
+              title="Total Cobrado"
               value={formatCurrency(profitStats?.summary.revenue ?? 0)}
-              description="Monto total cobrado sin IVA en el período seleccionado."
+              description="Todo el dinero que entró por las ventas."
               icon={ReceiptText}
               variant="blue"
             />

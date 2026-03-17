@@ -161,7 +161,7 @@ function LicensePanel() {
 
           {/* Vigencia */}
           <div className="flex flex-col gap-1.5">
-            <p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Vigencia</p>
+            <p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Válida hasta</p>
             <div className="flex items-center gap-1.5 text-sm font-bold">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               {isLifetime
@@ -391,13 +391,13 @@ function DbHealthPanel() {
       </div>
       <div className="p-6 space-y-2 bg-primary/5">
         <p className="text-[10px] uppercase font-black text-muted-foreground tracking-tighter">
-          Integridad Atómica
+          Protección Anti-Apagones
         </p>
         <div className="flex items-center gap-2 text-primary font-bold">
           <ShieldCheck className="h-4 w-4" /> WAL ENABLED
         </div>
         <p className="text-[10px] text-muted-foreground">
-          Tus transacciones están protegidas ante cierres inesperados.
+          Tus ventas están protegidas aunque se vaya la luz.
         </p>
       </div>
     </div>

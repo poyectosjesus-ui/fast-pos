@@ -179,9 +179,9 @@ export function CartSidebar({ onCheckout, isProcessing, allowNegativeStock = fal
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
         <ShoppingBag className="h-12 w-12 text-muted-foreground/20" />
-        <p className="text-sm font-medium text-muted-foreground">La cuenta está vacía</p>
+        <p className="text-sm font-medium text-muted-foreground">Aún no hay artículos</p>
         <p className="text-xs text-muted-foreground/70">
-          Selecciona artículos del catálogo para agregarlos aquí.
+          Busca un producto y agrégalo para cobrar.
         </p>
       </div>
     );
