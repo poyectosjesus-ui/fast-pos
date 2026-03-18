@@ -456,6 +456,17 @@ function runMigrations(db) {
     console.log("[DB] Migración v13 aplicada: Módulo de Clientes, Fiados y pagos diferidos establecido.");
   }
 
+  if (currentVersion < 14) {
+    // Hotfix: El Sprint 14 intentó meter userName a audit_logs con un CREATE TABLE IF NOT EXISTS,
+    // pero la tabla ya existía (creada en la v8), por ende omitió la columna de nombre.
+    try {
+      db.exec(`ALTER TABLE audit_logs ADD COLUMN userName TEXT DEFAULT 'Desconocido';`);
+    } catch(e) { /* Si la columna ya estuviese ahí por X razón, prevenir crash */ }
+    
+    db.pragma("user_version = 14");
+    console.log("[DB] Migración v14 aplicada: Columna userName restaurada en audit_logs.");
+  }
+
   const newVersion = db.pragma("user_version", { simple: true });
   console.log(`[DB] Esquema actualizado a v${newVersion}. Listo.`);
 }

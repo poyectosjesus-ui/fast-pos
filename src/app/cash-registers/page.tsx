@@ -29,6 +29,7 @@ export default function CashRegistersPage() {
     cashIn: 0,
     cashOut: 0,
     cashSales: 0,
+    abonos: 0,
     expectedBalance: 0
   });
 
@@ -239,7 +240,7 @@ export default function CashRegistersPage() {
                       {formatCurrency(balance.expectedBalance)}
                     </p>
                     <p className="text-[10px] font-bold text-emerald-600/70 uppercase mt-4 tracking-widest break-words leading-relaxed max-w-[80%]">
-                      Fondo ({formatCurrency(balance.opening)}) + Ingresos ({formatCurrency(balance.cashSales + balance.cashIn)}) - Egresos ({formatCurrency(balance.cashOut)}) = Lo que debes tener en billetes.
+                      Fondo ({formatCurrency(balance.opening || 0)}) + Ingresos ({formatCurrency((balance.cashSales || 0) + (balance.cashIn || 0) + (balance.abonos || 0))}) - Egresos ({formatCurrency(balance.cashOut || 0)}) = Monto físico esperado.
                     </p>
                   </div>
                 </div>
@@ -286,21 +287,25 @@ export default function CashRegistersPage() {
 
                 <div className="col-span-2 border rounded-3xl bg-card p-6 shadow-sm">
                    <p className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-4">Resumen de Operaciones</p>
-                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                      <div className="space-y-1">
                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Fondo</p>
                        <p className="text-lg font-black">{formatCurrency(balance.opening)}</p>
                      </div>
                      <div className="space-y-1">
-                       <p className="text-[10px] uppercase font-bold text-muted-foreground text-emerald-500 flex items-center gap-1"><ArrowUpCircle className="w-3 h-3"/> Cobrado (Efec)</p>
+                       <p className="text-[10px] uppercase font-bold text-muted-foreground text-emerald-500 flex items-center gap-1"><ArrowUpCircle className="w-3 h-3"/> Cobrado</p>
                        <p className="text-lg font-black">{formatCurrency(balance.cashSales)}</p>
                      </div>
                      <div className="space-y-1">
-                       <p className="text-[10px] uppercase font-bold text-muted-foreground text-emerald-500 flex items-center gap-1"><ArrowUpCircle className="w-3 h-3"/> Entradas</p>
+                       <p className="text-[10px] uppercase font-bold text-amber-500 flex items-center gap-1"><ArrowUpCircle className="w-3 h-3"/> Abonos</p>
+                       <p className="text-lg font-black">{formatCurrency(balance.abonos || 0)}</p>
+                     </div>
+                     <div className="space-y-1">
+                       <p className="text-[10px] uppercase font-bold text-emerald-500 flex items-center gap-1"><ArrowUpCircle className="w-3 h-3"/> Entradas</p>
                        <p className="text-lg font-black">{formatCurrency(balance.cashIn)}</p>
                      </div>
                      <div className="space-y-1">
-                       <p className="text-[10px] uppercase font-bold text-muted-foreground text-destructive flex items-center gap-1"><ArrowDownCircle className="w-3 h-3"/> Salidas</p>
+                       <p className="text-[10px] uppercase font-bold text-destructive flex items-center gap-1"><ArrowDownCircle className="w-3 h-3"/> Salidas</p>
                        <p className="text-lg font-black">{formatCurrency(balance.cashOut)}</p>
                      </div>
                    </div>

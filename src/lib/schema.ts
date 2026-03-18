@@ -76,8 +76,8 @@ export const OrderSchema = z.object({
   source: z.enum(["COUNTER", "WHATSAPP", "INSTAGRAM", "FACEBOOK", "OTHER"]).default("COUNTER"),
 
   /** ID del usuario que realizó la venta */
-  userId: z.string().uuid().nullable().optional(),
-  customerId: z.string().uuid().nullable().optional(),
+  userId: z.string().min(1, "El ID del cajero es obligatorio"),
+  customerId: z.string().nullable().optional(),
   paymentStatus: z.enum(["PAID", "PENDING"]).default("PAID"),
   createdAt: z.number(),
 });

@@ -1838,22 +1838,28 @@ function setupIpcHandlers() {
       todayStart.setHours(0,0,0,0);
       const startMs = todayStart.getTime();
 
-      let opening = 0, cashIn = 0, cashOut = 0;
-      const movs = db.prepare("SELECT type, amount FROM cash_movements WHERE createdAt >= ?").all(startMs);
+      let opening = 0, cashIn = 0, cashOut = 0, abonos = 0;
+      const movs = db.prepare("SELECT type, amount, concept FROM cash_movements WHERE createdAt >= ?").all(startMs);
       for (const m of movs) {
         if (m.type === 'OPENING') opening += m.amount;
-        else if (m.type === 'IN') cashIn += m.amount;
         else if (m.type === 'OUT') cashOut += m.amount;
+        else if (m.type === 'IN') {
+          if (m.concept && m.concept.includes('Abono de deuda')) {
+            abonos += m.amount;
+          } else {
+            cashIn += m.amount;
+          }
+        }
       }
 
       const cashSalesRow = db.prepare("SELECT SUM(total) as t FROM orders WHERE status = 'COMPLETED' AND paymentMethod = 'CASH' AND createdAt >= ?").get(startMs);
       const salesAmount = cashSalesRow && cashSalesRow.t ? cashSalesRow.t : 0;
 
-      const expectedBalance = opening + cashIn + salesAmount - cashOut;
+      const expectedBalance = opening + cashIn + abonos + salesAmount - cashOut;
 
       return { 
         success: true, 
-        balance: { opening, cashIn, cashOut, cashSales: salesAmount, expectedBalance } 
+        balance: { opening, cashIn, cashOut, cashSales: salesAmount, abonos, expectedBalance } 
       };
     } catch (err) {
       console.error("[IPC:cash:getTodayBalance]", err.message);
@@ -2123,9 +2129,9 @@ function setupIpcHandlers() {
 
       const transaction = db.transaction(() => {
         db.prepare(`
-          INSERT INTO cash_movements (id, userId, type, amount, description, createdAt)
+          INSERT INTO cash_movements (id, userId, type, amount, concept, createdAt)
           VALUES (?, ?, 'IN', ?, ?, ?)
-        `).run(cashMoveId, userId, amount, "Abono de deuda - Fiado", now);
+        `).run(cashMoveId, userId, amount, "Abono de deuda - Crédito", now);
 
         db.prepare(`
           INSERT INTO customer_payments (id, customerId, amount, paymentMethod, cashMovementId, createdAt)

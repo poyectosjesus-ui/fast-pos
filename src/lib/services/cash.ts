@@ -77,20 +77,24 @@ export const CashService = {
     cashIn: number;
     cashOut: number;
     cashSales: number;
+    abonos: number;
     expectedBalance: number;
   }> {
     const api = getAPI();
     if (!api) {
-      return { opening: 0, cashIn: 0, cashOut: 0, cashSales: 0, expectedBalance: 0 };
+      return { opening: 0, cashIn: 0, cashOut: 0, cashSales: 0, abonos: 0, expectedBalance: 0 };
     }
 
     const result = await api.getTodayBalance();
     if (!result.success || !result.balance) {
       console.error("[CashService] Error al obtener el balance del día:", result.error);
-      return { opening: 0, cashIn: 0, cashOut: 0, cashSales: 0, expectedBalance: 0 };
+      return { opening: 0, cashIn: 0, cashOut: 0, cashSales: 0, abonos: 0, expectedBalance: 0 };
     }
 
-    return result.balance;
+    return {
+      ...result.balance,
+      abonos: result.balance.abonos ?? 0
+    };
   },
 
   /**

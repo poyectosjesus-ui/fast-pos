@@ -53,6 +53,10 @@ export const OrderService = {
       return { success: false, error: 'El carrito está vacío. Agrega artículos antes de cobrar.' };
     }
 
+    if (!input.userId) {
+      return { success: false, error: 'Sesión expirada o cajero no identificado. Actualiza la página.' };
+    }
+
     // EPIC-002: Cálculo de IVA correcto por producto con calculateCartTax()
     const { subtotal, tax, total } = calculateCartTax(
       items.map(i => ({
@@ -79,9 +83,9 @@ export const OrderService = {
       total,
       status: 'COMPLETED',
       paymentMethod,
-      source: input.source ?? 'COUNTER',
-      userId: input.userId ?? null,
-      customerId: input.customerId ?? null,
+      source: input.source || 'COUNTER',
+      userId: input.userId,
+      customerId: input.customerId || null,
       createdAt: Date.now(),
     });
 

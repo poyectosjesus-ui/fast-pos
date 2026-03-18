@@ -80,7 +80,7 @@ const PAYMENT_METHODS: { id: PaymentMethod; label: string; icon: React.ReactNode
   },
   {
     id: "CREDIT",
-    label: "Fiado",
+    label: "A Crédito",
     icon: <UserRoundCheck className="h-5 w-5" />,
     requiresAmount: false,
     color: "amber",
@@ -98,7 +98,7 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   CASH: "Efectivo",
   CARD: "Tarjeta",
   TRANSFER: "Transferencia Bancaria",
-  CREDIT: "Fiado a Cliente",
+  CREDIT: "Crédito a Cliente",
   OTHER: "Otro método",
 };
 
@@ -113,6 +113,7 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [saleSource, setSaleSource] = useState<SaleSource>("COUNTER");
   const [amountPaidStr, setAmountPaidStr] = useState("");
+  const [anticipoStr, setAnticipoStr] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
 
@@ -151,12 +152,13 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
 
   // CA-3.3.4: Calcular cambio solo aplica en efectivo
   const amountPaidCents = Math.round(parseFloat(amountPaidStr || "0") * 100);
+  const anticipoCents = Math.round(parseFloat(anticipoStr || "0") * 100);
   const changeCents = amountPaidCents - total;
   
   // Validaciones
   const isCashValid = !requiresAmount || amountPaidCents >= total;
   const isCreditValid = paymentMethod !== "CREDIT" || selectedCustomerId !== "";
-  const canConfirm = isCashValid && isCreditValid;
+  const canConfirm = isCashValid && isCreditValid && (anticipoStr === "" || anticipoCents <= total);
 
   const handleConfirmPayment = async () => {
     if (!isCashValid) {
@@ -187,6 +189,21 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
         return;
       }
 
+      // EPIC-004: Inyección Automática de Anticipo (Híbrido)
+      if (paymentMethod === "CREDIT" && anticipoCents > 0 && user) {
+        try {
+          await CustomerService.registerPayment({
+            customerId: selectedCustomerId,
+            amount: anticipoCents,
+            paymentMethod: "CASH", // Asumimos efectivo por defecto en anticipos rápidos de caja
+            userId: user.id
+          });
+          toast.success(`Anticipo de ${formatCents(anticipoCents)} acreditado.`);
+        } catch (e: any) {
+          toast.error("Ticket generado, pero falló el anticipo automático", { description: e.message });
+        }
+      }
+
       clearCart();
       setCompletedOrder(result.order);
       setStep("ticket");
@@ -214,6 +231,7 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
     setStep("payment");
     setPaymentMethod("CASH");
     setAmountPaidStr("");
+    setAnticipoStr("");
     setCompletedOrder(null);
     onClose();
     if (onSuccess) onSuccess();
@@ -251,6 +269,7 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
                     if (!method.requiresAmount) setAmountPaidStr("");
                     setIsCreatingCustomer(false);
                     setNewCustomerName("");
+                    setAnticipoStr("");
                   }}
                   className={cn(
                     "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all text-center",
@@ -415,6 +434,29 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
                       </Button>
                     </div>
                   )}
+
+                  {/* EPIC-004 Enganche Opcional */}
+                  <div className="pt-2 border-t border-amber-500/20">
+                    <Label className="font-bold text-amber-600/80 uppercase text-xs tracking-wider mb-2 block">
+                      ¿Dejó algún Enganche / Anticipo? (Opcional)
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-3.5 text-amber-600/50 font-bold text-xl">$</span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max={total / 100}
+                        placeholder="0.00"
+                        className="pl-9 h-14 text-2xl font-black bg-background border-amber-500/30 focus:border-amber-500 rounded-xl"
+                        value={anticipoStr}
+                        onChange={(e) => setAnticipoStr(e.target.value)}
+                      />
+                    </div>
+                    {anticipoCents > total && (
+                      <p className="text-xs text-destructive font-bold mt-1">El anticipo no puede ser mayor al total.</p>
+                    )}
+                  </div>
                 </div>
               )}
 
