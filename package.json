@@ -14,7 +14,10 @@
     "reset": "rm -f fast-pos-dev.db && echo 'Base de datos eliminada. Reinicia la app para comenzar de cero.'",
     "build:ui": "next build --webpack",
     "build:electron": "echo 'No compilation needed for main.js yet'",
-    "dist:mac": "npm run build:ui && npm run build:electron && electron-builder -m"
+    "dist:mac": "npm run build:ui && npm run build:electron && electron-builder -m",
+    "dist:win": "npm run build:ui && npm run build:electron && electron-builder -w",
+    "dist:linux": "npm run build:ui && npm run build:electron && electron-builder -l",
+    "dist:all": "npm run build:ui && npm run build:electron && electron-builder -mwl"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
@@ -27,6 +30,7 @@
     "dexie": "^4.3.0",
     "dexie-export-import": "^4.1.4",
     "dexie-react-hooks": "^4.2.0",
+    "electron-serve": "^1.1.0",
     "jsbarcode": "^3.12.3",
     "lucide-react": "^0.577.0",
     "next": "16.1.6",
@@ -54,7 +58,6 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",
-    "better-sqlite3": "^12.6.2",
     "concurrently": "^9.2.1",
     "electron": "^33.4.11",
     "electron-builder": "^26.8.1",
@@ -63,5 +66,55 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "wait-on": "^9.0.4"
+  },
+  "build": {
+    "appId": "com.yetzapos.fastpos2",
+    "productName": "FastPOS 2.0",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "electron-main.js",
+      "preload.js",
+      "src/main/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.business",
+      "target": [
+        "dmg"
+      ],
+      "icon": "public/icon-512x512.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "public/icon-512x512.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "FastPOS 2.0",
+      "uninstallDisplayName": "FastPOS 2.0"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Office",
+      "icon": "public/icon-512x512.png"
+    }
   }
 }

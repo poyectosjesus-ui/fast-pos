@@ -39,3 +39,19 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# SQLite / FastPOS Local DB
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Electron Builder Output
+dist/
+dist-*
+out/
+!dist/.gitkeep
+
+# Cache
+.eslintcache
+.vscode/

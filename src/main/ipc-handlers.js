@@ -1232,7 +1232,7 @@ function setupIpcHandlers() {
 
     const ticketUrl = isDev 
       ? `http://localhost:3000/ticket?orderId=${orderId}`
-      : `file://${path.join(__dirname, "../../out/ticket.html")}?orderId=${orderId}`;
+      : `app://-/ticket.html?orderId=${orderId}`;
 
     await win.loadURL(ticketUrl);
     
@@ -1255,7 +1255,7 @@ function setupIpcHandlers() {
 
     const reportUrl = isDev 
       ? `http://localhost:3000/z-report?date=${dateString}&title=${encodeURIComponent(title)}`
-      : `file://${path.join(__dirname, "../../out/z-report.html")}?date=${dateString}&title=${encodeURIComponent(title)}`;
+      : `app://-/z-report.html?date=${dateString}&title=${encodeURIComponent(title)}`;
 
     await win.loadURL(reportUrl);
     // Esperar a que Next.js hidrate y renderice el reporte dinámico

@@ -16,6 +16,9 @@ const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
 const isDev = process.env.NODE_ENV === "development";
 
+const serve = require("electron-serve");
+const loadURL = serve({ directory: "out" });
+
 // ============================================================================
 // VARIABLES GLOBALES
 // ============================================================================
@@ -104,12 +107,14 @@ function createWindow() {
   });
 
   // URL según desarrollo o producción
-  const startUrl = isDev
-    ? "http://localhost:3000"
-    : `file://${path.join(__dirname, "../out/index.html")}`;
-
-  Logger.info(`📄 Cargando URL: ${startUrl}`);
-  mainWindow.loadURL(startUrl);
+  if (isDev) {
+    const startUrl = "http://localhost:3000";
+    Logger.info(`📄 Cargando URL: ${startUrl}`);
+    mainWindow.loadURL(startUrl);
+  } else {
+    Logger.info(`📄 Cargando URL estática con electron-serve (app://-)`);
+    loadURL(mainWindow);
+  }
 
   // DevTools solo en desarrollo (DESHABILITADO POR EL USUARIO)
   if (isDev) {
