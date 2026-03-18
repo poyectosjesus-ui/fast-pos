@@ -375,7 +375,7 @@ export function ProductsManager() {
 
   return (
     <>
-    <Card className="overflow-hidden border shadow-sm">
+    <Card id="tour-products-table" className="overflow-hidden border shadow-sm">
       <BarcodeHandler onScan={handleBarcodeScanned} profile="catalog" />
       <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b">
         <div className="flex flex-col gap-1 flex-1">
@@ -394,6 +394,7 @@ export function ProductsManager() {
           />
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger 
+              id="tour-products-add"
               className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 gap-2"
               onClick={() => handleOpenAlert()}
             >

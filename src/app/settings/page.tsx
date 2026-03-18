@@ -65,6 +65,7 @@ import {
   Clock,
   CircleAlert,
   ShoppingBag,
+  HelpCircle
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
@@ -73,6 +74,7 @@ import { useThemeStore } from "@/store/useThemeStore";
 import { useSessionStore } from "@/store/useSessionStore";
 import { cn } from "@/lib/utils";
 import { UsersPanel } from "@/components/settings/users-panel";
+import { driver } from "driver.js";
 
 // ─────────────────────────────────────────────
 // Sub-componente: Panel de Licencia Activa
@@ -778,6 +780,22 @@ export default function SettingsPage() {
     toast.success("Código detectado", { description: code });
   };
 
+  const startTour = useCallback(() => {
+    const driverObj = driver({
+      showProgress: true,
+      nextBtnText: "Siguiente ➔",
+      prevBtnText: "🡨 Anterior",
+      doneBtnText: "¡Entendido!",
+      popoverClass: 'driver-theme',
+      steps: [
+        { element: '#tour-settings-tabs', popover: { title: '⚙️ Control del Sistema', description: 'Navega entre Atajos Rápidos, Hardware y Configuraciones Visuales.', side: "bottom", align: 'start' }},
+        { element: '#tour-settings-users', popover: { title: '👥 Administrar Equipo', description: 'Aquí gestionas a los cajeros y administradores. Crea pines de acceso blindados.', side: "bottom", align: 'start' }},
+        { element: '#tour-settings-advanced', popover: { title: '💾 Motor Local', description: 'Monitorea la salud y el peso de tu Base de Datos Offline (SQLite). Rápida y segura.', side: "top", align: 'start' }}
+      ]
+    });
+    driverObj.drive();
+  }, []);
+
   // ─────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────
@@ -792,8 +810,17 @@ export default function SettingsPage() {
         <header className="sticky top-0 z-20 bg-background/50 backdrop-blur-xl border-b px-6 py-4">
           <div className="flex items-center justify-between max-w-4xl mx-auto w-full">
             <div>
-              <h1 className="text-2xl font-black tracking-tight uppercase">
+              <h1 className="text-2xl font-black tracking-tight uppercase flex items-center">
                 Configuración
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="ml-3 h-8 w-8 text-primary/80 hover:bg-primary/10 rounded-full" 
+                  onClick={startTour}
+                  title="Tour Guiado de Ajustes"
+                >
+                  <HelpCircle className="h-4 w-4" />
+                </Button>
               </h1>
               <p className="text-sm text-muted-foreground italic">
                 Fast-POS Desktop v2.0
@@ -811,7 +838,7 @@ export default function SettingsPage() {
         {/* Contenido scrollable */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-4xl mx-auto w-full space-y-6 pb-24">
           <Tabs defaultValue={user?.role === "ADMIN" ? "general" : "system"} className="w-full space-y-6">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 bg-muted/50 p-1 rounded-xl border border-primary/5 backdrop-blur-sm h-auto flex-wrap gap-1">
+            <TabsList id="tour-settings-tabs" className="grid w-full grid-cols-2 md:grid-cols-5 bg-muted/50 p-1 rounded-xl border border-primary/5 backdrop-blur-sm h-auto flex-wrap gap-1">
               {user?.role === "ADMIN" && (
                 <TabsTrigger value="general" className="uppercase text-[10px] font-black tracking-widest gap-1.5 focus:bg-primary/20 bg-primary/5 text-primary">
                   <Activity className="w-3 h-3" /> General
@@ -829,7 +856,7 @@ export default function SettingsPage() {
                 <Keyboard className="w-3 h-3" /> Atajos
               </TabsTrigger>
               {user?.role === "ADMIN" && (
-                <TabsTrigger value="users" className="uppercase text-[10px] font-black tracking-widest gap-1.5 focus:bg-primary/20 bg-primary/5 text-primary">
+                <TabsTrigger id="tour-settings-users" value="users" className="uppercase text-[10px] font-black tracking-widest gap-1.5 focus:bg-primary/20 bg-primary/5 text-primary">
                   <Users className="w-3 h-3" /> Equipo
                 </TabsTrigger>
               )}
@@ -850,7 +877,7 @@ export default function SettingsPage() {
             {/* ── PESTAÑA: GENERAL ── */}
             {user?.role === "ADMIN" && (
               <TabsContent value="general" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <Card className="border-primary/20 bg-primary/5 shadow-xl overflow-hidden">
+                <Card id="tour-settings-advanced" className="border-primary/20 bg-primary/5 shadow-xl overflow-hidden">
                   <CardHeader className="flex flex-row items-center gap-4 bg-primary/10 border-b border-primary/10 py-4">
                     <Activity className="h-6 w-6 text-primary" />
                     <div>

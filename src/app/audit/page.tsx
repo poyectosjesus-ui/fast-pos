@@ -14,12 +14,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Loader2, ShieldAlert, Tag, PackageX, Trash2, ArrowRightLeft, Database, CircleX, CalendarDays, Wallet } from "lucide-react";
+import { Search, Loader2, ShieldAlert, Tag, PackageX, Trash2, ArrowRightLeft, Database, CircleX, CalendarDays, Wallet, HelpCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Sidebar } from "@/components/layout/sidebar";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { parseAuditDetails } from "@/lib/utils/audit-formatter";
 import { cn } from "@/lib/utils";
+import { driver } from "driver.js";
 
 export default function AuditPage() {
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
@@ -86,6 +87,22 @@ export default function AuditPage() {
     loadLogs();
   }
 
+  const startTour = useCallback(() => {
+    const driverObj = driver({
+      showProgress: true,
+      nextBtnText: "Siguiente ➔",
+      prevBtnText: "🡨 Anterior",
+      doneBtnText: "¡Entendido!",
+      popoverClass: 'driver-theme',
+      steps: [
+        { element: '#tour-audit-protection', popover: { title: '🛡️ Seguridad Inquebrantable', description: 'Todo lo que pasa en el sistema se registra aquí y nadie puede borrarlo. Ni siquiera tú.', side: "bottom", align: 'start' }},
+        { element: '#tour-audit-filters', popover: { title: '🕵️ Filtros Forenses', description: 'Rastrea operaciones sospechosas o errores buscando por empleado y fecha exacta.', side: "left", align: 'start' }},
+        { element: '#tour-audit-table', popover: { title: '📜 Bitácora de Acciones', description: 'Aquí aparecerán anulaciones de ventas, cortes de caja y modificaciones al catálogo hechas por todos.', side: "top", align: 'start' }}
+      ]
+    });
+    driverObj.drive();
+  }, []);
+
   // Traducción y formateo visual de las acciones clave
   function getActionBadge(action: string) {
     if (action.includes("VOID_ORDER")) return <Badge variant="outline" className="gap-1 bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/20 shadow-sm"><Trash2 className="w-3 h-3" /> Anulación Venta</Badge>;
@@ -104,7 +121,18 @@ export default function AuditPage() {
         <div className="flex flex-col sm:gap-4 sm:py-4 sm:pl-20 flex-1 overflow-hidden">
           <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
             <div className="flex flex-col gap-1">
-              <h1 className="text-2xl font-bold tracking-tight">Auditoría Forense</h1>
+              <h1 className="text-2xl font-bold tracking-tight flex items-center">
+                Auditoría Forense
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="ml-3 h-8 w-8 text-primary/80 hover:bg-primary/10 rounded-full" 
+                  onClick={startTour}
+                  title="Tour Guiado de Auditoría"
+                >
+                  <HelpCircle className="h-4 w-4" />
+                </Button>
+              </h1>
               <p className="text-xs text-muted-foreground hidden sm:block">Rastro inmutable de actividades financieras y administrativas del sistema.</p>
             </div>
           </header>
@@ -114,7 +142,7 @@ export default function AuditPage() {
 
       <div className="flex flex-col gap-4 bg-background/50 backdrop-blur-md border px-4 py-4 rounded-3xl shadow-sm">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 w-full">
-          <div className="flex items-center gap-3 shrink-0">
+          <div id="tour-audit-protection" className="flex items-center gap-3 shrink-0">
             <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-full">
               <ShieldAlert className="w-6 h-6 text-red-600 dark:text-red-400" />
             </div>
@@ -124,7 +152,7 @@ export default function AuditPage() {
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row items-center justify-end gap-3 w-full lg:w-auto border-t lg:border-t-0 pt-3 lg:pt-0">
+          <div id="tour-audit-filters" className="flex flex-col md:flex-row items-center justify-end gap-3 w-full lg:w-auto border-t lg:border-t-0 pt-3 lg:pt-0">
             <div className="flex bg-card border p-1 rounded-2xl shadow-sm overflow-x-auto mx-auto md:mx-0 shrink-0 w-full sm:w-auto mt-1 lg:mt-0">
               <Button 
                 variant={filterDate === 'ALL' ? 'secondary' : 'ghost'} 
@@ -201,7 +229,7 @@ export default function AuditPage() {
         </div>
       </div>
 
-      <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
+      <div id="tour-audit-table" className="bg-card rounded-xl border shadow-sm overflow-hidden">
         <Table>
           <TableHeader className="bg-muted/50">
             <TableRow>

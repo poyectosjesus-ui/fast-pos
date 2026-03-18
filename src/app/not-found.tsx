@@ -29,25 +29,14 @@ export default function NotFound() {
         </div>
 
         <div className="w-full flex gap-4 pt-4">
-          <Button 
-            asChild
-            variant="outline" 
-            className="flex-1 h-12 uppercase font-black text-xs tracking-widest rounded-xl hover:bg-muted/50 transition-colors"
-          >
-            <Link href="/history">
-              <Search className="w-4 h-4 mr-2" />
-              Buscar Ticket
-            </Link>
-          </Button>
-          <Button 
-            asChild
-            className="flex-1 h-12 uppercase font-black text-xs tracking-widest rounded-xl shadow-lg"
-          >
-            <Link href="/">
-              <Home className="w-4 h-4 mr-2" />
-              Tpv Caja
-            </Link>
-          </Button>
+          <Link href="/history" className="flex items-center justify-center flex-1 h-12 uppercase font-black text-xs tracking-widest rounded-xl border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors shadow-sm">
+            <Search className="w-4 h-4 mr-2" />
+            Buscar Ticket
+          </Link>
+          <Link href="/" className="flex items-center justify-center flex-1 h-12 uppercase font-black text-xs tracking-widest rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg transition-colors">
+            <Home className="w-4 h-4 mr-2" />
+            Tpv Caja
+          </Link>
         </div>
       </div>
     </div>

@@ -29,8 +29,9 @@ import { toast } from "sonner";
 import { 
   AlertCircle, FileText, Ban, Printer, CircleCheck, CircleX, 
   TrendingUp, Calendar, Wallet, CreditCard, Filter, ChevronRight, ChevronLeft,
-  ArrowUpRight, ShoppingBag, Banknote, CalendarDays
+  ArrowUpRight, ShoppingBag, Banknote, CalendarDays, HelpCircle
 } from "lucide-react";
+import { driver } from "driver.js";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -157,6 +158,21 @@ export default function HistoryPage() {
 
   const handlePrint = () => window.print();
 
+  const startTour = useCallback(() => {
+    const driverObj = driver({
+      showProgress: true,
+      nextBtnText: "Siguiente ➔",
+      prevBtnText: "🡨 Anterior",
+      doneBtnText: "¡Entendido!",
+      popoverClass: 'driver-theme',
+      steps: [
+        { element: '#tour-history-filters', popover: { title: '🔍 Filtros Inteligentes', description: 'Encuentra cualquier venta filtrando por Estado (Exitosos/Anulados), Método de Pago o Rango de Fechas.', side: "bottom", align: 'start' }},
+        { element: '#tour-history-table', popover: { title: '📅 Bitácora Inmutable', description: 'Aquí reside toda la historia de tus ventas. Haz clic sobre cualquier fila para ver el ticket detallado, reimprimirlo o Anular la venta.', side: "top", align: 'start' }},
+      ]
+    });
+    driverObj.drive();
+  }, []);
+
   return (
     <div className="flex h-screen bg-muted/40 font-sans">
       <Sidebar />
@@ -168,6 +184,15 @@ export default function HistoryPage() {
               <h1 className="text-2xl font-black tracking-tight uppercase flex items-center gap-2">
                 <FileText className="h-6 w-6 text-primary" />
                 Diario de Ventas
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="ml-2 h-8 w-8 text-primary/80 hover:bg-primary/10 rounded-full" 
+                  onClick={startTour}
+                  title="Tour Guiado"
+                >
+                  <HelpCircle className="h-4 w-4" />
+                </Button>
               </h1>
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider opacity-70">
                 Historial de operaciones y arqueo rápido
@@ -209,7 +234,7 @@ export default function HistoryPage() {
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto w-full">
           {/* Premium Filters Ribbon */}
-          <div className="flex flex-col gap-4 bg-background/50 backdrop-blur-md border px-4 py-4 rounded-3xl shadow-sm">
+          <div id="tour-history-filters" className="flex flex-col gap-4 bg-background/50 backdrop-blur-md border px-4 py-4 rounded-3xl shadow-sm">
             
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 w-full">
               {/* Izquierda: Estatus y Pago */}
@@ -344,7 +369,7 @@ export default function HistoryPage() {
           ) : (
             <>
               {/* Tabla de Ventas Responsiva */}
-              <div className="rounded-xl border bg-card/50 overflow-hidden shadow-sm">
+              <div id="tour-history-table" className="rounded-xl border bg-card/50 overflow-hidden shadow-sm">
                 <Table>
                   <TableHeader className="bg-muted/50">
                     <TableRow className="hover:bg-transparent">

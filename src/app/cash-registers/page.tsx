@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { HandCoins, CreditCard, Printer, FileText, Wallet, ArrowDownCircle, ArrowUpCircle, LockOpen } from "lucide-react";
+import { HandCoins, CreditCard, Printer, FileText, Wallet, ArrowDownCircle, ArrowUpCircle, LockOpen, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { OrderService } from "@/lib/services/orders";
 import { CashService } from "@/lib/services/cash";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useSessionStore } from "@/store/useSessionStore";
+import { driver } from "driver.js";
 
 export default function CashRegistersPage() {
   const { user } = useSessionStore();
@@ -109,6 +110,22 @@ export default function CashRegistersPage() {
     }
   };
 
+  const startTour = useCallback(() => {
+    const driverObj = driver({
+      showProgress: true,
+      nextBtnText: "Siguiente ➔",
+      prevBtnText: "🡨 Anterior",
+      doneBtnText: "¡Entendido!",
+      popoverClass: 'driver-theme',
+      steps: [
+        { element: '#tour-cash-movements', popover: { title: '💸 Entradas y Salidas', description: 'Usa este botón para registrar cuando sacas dinero (pagar a proveedores, comprar agua) o cuando ingresas morralla extra.', side: "bottom", align: 'start' }},
+        { element: '#tour-cash-summary', popover: { title: '📊 Arqueo en Tiempo Real', description: 'Aquí se desglosa paso a paso qué entra y qué sale de la caja. Te servirá para cuadrar al centavo.', side: "top", align: 'start' }},
+        { element: '#tour-cash-openclose', popover: { title: '🖨️ Cortes y Cierres Z', description: 'Imprime el Corte X para cortes de turno intermedios, o el Corte Z para cerrar definitivamente el día.', side: "top", align: 'start' }}
+      ]
+    });
+    driverObj.drive();
+  }, []);
+
   if (isLoading && isOpen === null) {
     return <div className="flex h-screen items-center justify-center bg-muted/20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
   }
@@ -120,7 +137,18 @@ export default function CashRegistersPage() {
       <main className="flex-1 flex flex-col sm:pl-20 overflow-hidden relative">
         <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex flex-col">
-            <h1 className="text-2xl font-black tracking-tight uppercase">Gestión de Cajas</h1>
+            <h1 className="text-2xl font-black tracking-tight uppercase flex items-center">
+              Gestión de Cajas
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="ml-3 h-8 w-8 text-primary/80 hover:bg-primary/10 rounded-full" 
+                onClick={startTour}
+                title="Tour Guiado de Caja"
+              >
+                <HelpCircle className="h-4 w-4" />
+              </Button>
+            </h1>
             <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-[0.2em] opacity-70">
               Control de Efectivo y Reportes Físicos
             </p>
@@ -165,7 +193,7 @@ export default function CashRegistersPage() {
               {/* Acciones Rápidas (IN/OUT) */}
               <div className="flex justify-end mb-4">
                 <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                  <DialogTrigger render={<Button variant="outline" className="h-10 text-[11px] font-black uppercase tracking-widest rounded-xl border-primary text-primary hover:bg-primary/10" />}>
+                  <DialogTrigger render={<Button id="tour-cash-movements" variant="outline" className="h-10 text-[11px] font-black uppercase tracking-widest rounded-xl border-primary text-primary hover:bg-primary/10" />}>
                     <Wallet className="w-4 h-4 mr-2"/>
                     Registrar Movimiento Extra
                   </DialogTrigger>
@@ -285,7 +313,7 @@ export default function CashRegistersPage() {
                   )}
                 </div>
 
-                <div className="col-span-2 border rounded-3xl bg-card p-6 shadow-sm">
+                <div id="tour-cash-summary" className="col-span-2 border rounded-3xl bg-card p-6 shadow-sm">
                    <p className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-4">Resumen de Operaciones</p>
                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                      <div className="space-y-1">
@@ -317,7 +345,7 @@ export default function CashRegistersPage() {
             <h2 className="text-lg font-black uppercase tracking-tighter mb-6 flex items-center gap-2">
               <Printer className="h-5 w-5" /> Impresión de Reportes
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div id="tour-cash-openclose" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               
               {/* CORTE X -> Reporte de Turno */}
               <div className="bg-card border rounded-2xl p-5 flex flex-col justify-between">

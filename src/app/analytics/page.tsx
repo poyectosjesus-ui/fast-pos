@@ -10,8 +10,9 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Coins, HandCoins, ReceiptText, Users, CreditCard, Printer, TrendingUp, Calendar, Wallet, ShoppingBag } from "lucide-react";
+import { Coins, HandCoins, ReceiptText, Users, CreditCard, Printer, TrendingUp, Calendar, Wallet, ShoppingBag, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
+import { driver } from "driver.js";
 import { OrderService } from "@/lib/services/orders";
 import { formatCurrency } from "@/lib/constants";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -134,6 +135,22 @@ export default function AnalyticsPage() {
     return () => clearInterval(interval);
   }, [loadStats]);
 
+  const startTour = useCallback(() => {
+    const driverObj = driver({
+      showProgress: true,
+      nextBtnText: "Siguiente ➔",
+      prevBtnText: "🡨 Anterior",
+      doneBtnText: "¡Entendido!",
+      popoverClass: 'driver-theme',
+      steps: [
+        { element: '#tour-analytics-date', popover: { title: '📅 Viaje en el Tiempo', description: 'Compara tus ventas con el pasado reciente. Cambia el rango para ver las tendencias completas.', side: "bottom", align: 'start' }},
+        { element: '#tour-analytics-kpi', popover: { title: '📊 Termómetro General', description: 'Métricas frías y directas que muestran el dinero que has inyectado al negocio en este periodo.', side: "bottom", align: 'start' }},
+        { element: '#tour-analytics-charts', popover: { title: '📈 Tendencias de Ingreso', description: 'Una gráfica de radar para analizar el ritmo y la salud de tus ingresos día con día.', side: "top", align: 'start' }}
+      ]
+    });
+    driverObj.drive();
+  }, []);
+
   const marginPct = useMemo(() => {
     if (!profitStats || profitStats.summary.revenue === 0) return 0;
     return Math.round((profitStats.summary.profit / profitStats.summary.revenue) * 100);
@@ -180,13 +197,24 @@ export default function AnalyticsPage() {
       <main className="flex-1 flex flex-col sm:pl-20 overflow-hidden relative">
         <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex flex-col">
-            <h1 className="text-2xl font-black tracking-tight uppercase">Mi Cuaderno de Ventas</h1>
+            <h1 className="text-2xl font-black tracking-tight uppercase flex items-center">
+              Mi Cuaderno de Ventas
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="ml-3 h-8 w-8 text-primary/80 hover:bg-primary/10 rounded-full" 
+                onClick={startTour}
+                title="Tour Guiado"
+              >
+                <HelpCircle className="h-4 w-4" />
+              </Button>
+            </h1>
             <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-[0.2em] opacity-70">Cuentas claras, negocio próspero</p>
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
             
-            <div className="flex bg-muted p-1 rounded-xl border items-center overflow-x-auto">
+            <div id="tour-analytics-date" className="flex bg-muted p-1 rounded-xl border items-center overflow-x-auto">
               <Button 
                 variant={filterDate === 'WEEK' ? 'secondary' : 'ghost'} 
                 size="sm" className={cn("h-8 text-[11px] uppercase font-bold rounded-lg px-4 transition-all", filterDate === 'WEEK' && "bg-background text-primary shadow-sm")}
@@ -209,7 +237,7 @@ export default function AnalyticsPage() {
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 space-y-6 max-w-7xl mx-auto w-full">
           
           {/* Fila 1: Hero Cards del Libro DiarIo */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div id="tour-analytics-kpi" className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <MetricCard
               title="Vendimos a la fecha"
               value={formatCurrency(profitStats?.summary.revenue ?? 0)}
@@ -232,7 +260,7 @@ export default function AnalyticsPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Gráfica de Progreso Semanal/Mensual */}
-            <div className="lg:col-span-3 flex flex-col gap-4 border rounded-2xl bg-card p-6 shadow-sm">
+            <div id="tour-analytics-charts" className="lg:col-span-3 flex flex-col gap-4 border rounded-2xl bg-card p-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-black uppercase tracking-tight">El pulso de tus ingresos</h3>

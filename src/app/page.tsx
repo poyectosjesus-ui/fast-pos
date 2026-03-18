@@ -11,7 +11,9 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Scan, UserCircle, Calculator, CreditCard, Ticket, Clock, Banknote, ShoppingCart, Tag, Zap, Wallet, PackageOpen, Download, AlertCircle, Trash2, Printer, Unlock } from "lucide-react";
+import { Scan, UserCircle, Calculator, CreditCard, Ticket, Clock, Banknote, ShoppingCart, Tag, Zap, Wallet, PackageOpen, Download, AlertCircle, Trash2, Printer, Unlock, HelpCircle } from "lucide-react";
+import { driver } from "driver.js";
+import "driver.js/dist/driver.css";
 import { toast } from "sonner";
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
 import { CashService } from "@/lib/services/cash";
@@ -217,6 +219,24 @@ export default function POSPage() {
     }
   });
 
+  const startTour = useCallback(() => {
+    const driverObj = driver({
+      showProgress: true,
+      nextBtnText: "Siguiente ➔",
+      prevBtnText: "🡨 Anterior",
+      doneBtnText: "¡Entendido!",
+      popoverClass: 'driver-theme',
+      steps: [
+        { element: '#tour-search', popover: { title: '🔍 Buscador Inteligente', description: 'Pistolea el código de barras o escribe el nombre del producto aquí. Además, tu escáner funciona automático sin importar dónde esté el cursor.', side: "bottom", align: 'start' }},
+        { element: '#tour-cash-movement', popover: { title: '💵 Movimientos de Caja', description: 'Ingresa sencillo para dar cambio o retira utilidades (egresos) de la gaveta.', side: "bottom", align: 'start' }},
+        { element: '#tour-quick-sale', popover: { title: '🚀 Pase Libre', description: 'Ideal para cobrar artículos que NO están registrados en el catálogo.', side: "bottom", align: 'start' }},
+        { element: '#tour-product-grid', popover: { title: '🍎 Catálogo Táctil', description: 'Toca o haz clic sobre cualquier producto para sumarlo instantáneamente a la cuenta.', side: "top", align: 'start' }},
+        { element: '#tour-cart', popover: { title: '💳 Terminal de Cobro', description: 'Aquí se formará el ticket de tu cliente. Cuando esté listo, presiona Cobrar Venta.', side: "left", align: 'start' }}
+      ]
+    });
+    driverObj.drive();
+  }, []);
+
   return (
     <ProtectedRoute allowedRoles={["ADMIN", "CASHIER"]}>
     <div className="flex h-screen bg-muted/40">
@@ -242,7 +262,7 @@ export default function POSPage() {
                 <Scan className="h-4 w-4" />
              </div>
 
-            <div className="relative flex-1 max-w-[200px] xl:max-w-xs">
+             <div id="tour-search" className="relative flex-1 max-w-[200px] xl:max-w-xs">
               <SearchInput
                 id="pos-search-input"
                 value={searchTerm}
@@ -273,11 +293,22 @@ export default function POSPage() {
                  <span className="text-[11px] font-bold tabular-nums">{sessionDuration}h</span>
               </div>
               <DigitalClock />
+              
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="ml-2 h-8 w-8 text-primary/80 hover:bg-primary/10 rounded-full" 
+                onClick={startTour}
+                title="Tour Guiado de Ayuda"
+              >
+                <HelpCircle className="h-4 w-4" />
+              </Button>
             </div>
 
             {/* Categorías y GridSelector movidos al inferior */}
 
             <Button
+              id="tour-cash-movement"
               variant="outline"
               className="shrink-0 text-muted-foreground border-border hover:bg-muted"
               onClick={() => setIsCashMovementOpen(true)}
@@ -315,6 +346,7 @@ export default function POSPage() {
             </Button>
 
             <Button
+              id="tour-quick-sale"
               variant="outline"
               className="shrink-0 text-secondary-foreground border-border bg-secondary hover:bg-secondary/80 relative"
               onClick={() => setIsQuickSaleOpen(true)}
@@ -344,7 +376,7 @@ export default function POSPage() {
         </header>
 
         {/* Grid de productos */}
-        <main className="flex-1 overflow-y-auto p-4 flex flex-col">
+        <main id="tour-product-grid" className="flex-1 overflow-y-auto p-4 flex flex-col">
           {filteredProducts === undefined ? (
             <div className={cn("grid gap-3", GRID_COLS_MAP[gridDensity])}>
               {[...Array(8)].map((_, i) => (
@@ -447,7 +479,7 @@ export default function POSPage() {
       </div>
 
       {/* Sidebar del carrito (desktop: siempre visible, mobile: se abre con el modal) */}
-      <aside className={cn(
+      <aside id="tour-cart" className={cn(
         "hidden xl:flex flex-col border-l bg-background w-80 shrink-0"
       )}>
         <div className="p-4 border-b">

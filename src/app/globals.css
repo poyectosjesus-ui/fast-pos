@@ -229,3 +229,85 @@
     animation: shake 0.4s ease-in-out;
   }
 }
+
+/* ── THEME OVERRIDE PARA DRIVER.JS (Tour Guiado) ── */
+.driver-popover.driver-theme {
+  background-color: var(--card) !important;
+  color: var(--card-foreground) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-xl) !important;
+  box-shadow: 0 20px 40px -10px rgba(0,0,0,0.3) !important;
+  padding: 1.5rem !important;
+  font-family: var(--font-sans) !important;
+}
+
+.driver-popover.driver-theme .driver-popover-title {
+  font-weight: 900 !important;
+  font-size: 1.125rem !important;
+  margin-bottom: 0.5rem !important;
+  color: var(--primary) !important;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.driver-popover.driver-theme .driver-popover-description {
+  font-weight: 600 !important;
+  font-size: 0.85rem !important;
+  color: var(--muted-foreground) !important;
+  line-height: 1.6 !important;
+  margin-bottom: 1.5rem !important;
+  letter-spacing: -0.01em !important;
+}
+
+.driver-popover.driver-theme .driver-popover-footer {
+  margin-top: 1rem !important;
+}
+
+.driver-popover.driver-theme .driver-popover-progress-text {
+  font-size: 0.70rem !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.1em !important;
+  color: var(--muted-foreground) !important;
+}
+
+.driver-popover.driver-theme button.driver-popover-next-btn {
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+  border-radius: var(--radius-md) !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  text-shadow: none !important;
+  padding: 0.5rem 1rem !important;
+  font-size: 0.65rem !important;
+  border: none !important;
+  transition: all 0.2s;
+}
+
+.driver-popover.driver-theme button.driver-popover-next-btn:hover {
+  opacity: 0.9 !important;
+  transform: scale(1.02);
+}
+
+.driver-popover.driver-theme button.driver-popover-prev-btn {
+  background-color: transparent !important;
+  color: var(--muted-foreground) !important;
+  border: 1px dotted var(--border) !important;
+  border-radius: var(--radius-md) !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  text-shadow: none !important;
+  padding: 0.5rem 1rem !important;
+  font-size: 0.65rem !important;
+}
+
+.driver-popover.driver-theme .driver-popover-close-btn {
+  color: var(--muted-foreground) !important;
+  top: 1rem !important;
+  right: 1rem !important;
+}
+.driver-popover.driver-theme .driver-popover-close-btn:hover {
+  color: var(--destructive) !important;
+}

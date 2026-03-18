@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, Search, UserRoundCheck, HandCoins, ArrowDownToLine, Phone } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { Plus, Search, UserRoundCheck, HandCoins, ArrowDownToLine, Phone, HelpCircle } from "lucide-react";
 import { CustomerService, type Customer } from "@/lib/services/customers";
 import { useSessionStore } from "@/store/useSessionStore";
 import { formatCents } from "@/lib/services/tax";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { driver } from "driver.js";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +82,22 @@ export default function CustomersPage() {
     }
   };
 
+  const startTour = useCallback(() => {
+    const driverObj = driver({
+      showProgress: true,
+      nextBtnText: "Siguiente ➔",
+      prevBtnText: "🡨 Anterior",
+      doneBtnText: "¡Entendido!",
+      popoverClass: 'driver-theme',
+      steps: [
+        { element: '#tour-customers-search', popover: { title: '🔍 Motor de Búsqueda', description: 'Encuentra a tus clientes deudores rápidamente escribiendo su nombre o teléfono.', side: "bottom", align: 'start' }},
+        { element: '#tour-customers-debt', popover: { title: '💰 Capital Atrapado', description: 'Esta métrica resume todo el dinero en mercancía que tienes fiado en la calle. Un termómetro vital para tu liquidez.', side: "bottom", align: 'start' }},
+        { element: '#tour-customers-abono', popover: { title: '💵 Cobrar Abonos', description: 'Aquí es donde puedes registrar los pagos parciales o totales de tus clientes para ir disminuyendo su deuda.', side: "left", align: 'start' }}
+      ]
+    });
+    driverObj.drive();
+  }, []);
+
   const filteredCustomers = customers.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     (c.phone && c.phone.includes(searchTerm))
@@ -98,13 +115,22 @@ export default function CustomersPage() {
           <h1 className="text-3xl font-black tracking-tight text-foreground flex items-center gap-2">
             <UserRoundCheck className="h-8 w-8 text-primary" />
             Clientes y Fiados
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="ml-2 h-8 w-8 text-primary/80 hover:bg-primary/10 rounded-full" 
+              onClick={startTour}
+              title="Tour Guiado"
+            >
+              <HelpCircle className="h-4 w-4" />
+            </Button>
           </h1>
           <p className="text-muted-foreground mt-1">
             Revisa las cuentas por cobrar y registra abonos a deudores.
           </p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-64">
+          <div id="tour-customers-search" className="relative flex-1 sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
               autoFocus
@@ -119,7 +145,7 @@ export default function CustomersPage() {
 
       {/* Stats Quick View */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-primary/10 border-primary/20 shadow-none">
+        <Card id="tour-customers-debt" className="bg-primary/10 border-primary/20 shadow-none">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold text-primary uppercase tracking-widest flex items-center gap-1.5">
               <HandCoins className="w-4 h-4" /> Capital Atrapado (Por cobrar)
@@ -143,7 +169,7 @@ export default function CustomersPage() {
                 <th className="px-6 py-4 whitespace-nowrap">Contacto</th>
                 <th className="px-6 py-4 text-right whitespace-nowrap">Deuda Activa</th>
                 <th className="px-6 py-4 whitespace-nowrap">Último Fiado</th>
-                <th className="px-6 py-4 rounded-tr-xl text-center">Acción</th>
+                <th id="tour-customers-abono" className="px-6 py-4 rounded-tr-xl text-center">Acción</th>
               </tr>
             </thead>
             <tbody>
