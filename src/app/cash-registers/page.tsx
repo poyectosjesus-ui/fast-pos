@@ -66,7 +66,7 @@ export default function CashRegistersPage() {
   }, [loadStats]);
 
   const handleOpenRegister = async () => {
-    const amount = parseFloat(openingAmount);
+    const amount = parseFloat(openingAmount.replace(/[$,\s]/g, ''));
     if (isNaN(amount) || amount < 0) {
       return toast.error("Monto inválido", { description: "Ingresa un fondo de caja inicial válido." });
     }
@@ -74,7 +74,7 @@ export default function CashRegistersPage() {
     try {
       await CashService.registerMovement({
         type: 'OPENING',
-        amount: amount,
+        amount: Math.round(amount * 100),
         concept: 'Fondo de Cierre / Apertura',
         userId: user?.id || 'admin'
       });
@@ -86,7 +86,7 @@ export default function CashRegistersPage() {
   };
 
   const handleRegisterMovement = async () => {
-    const amount = parseFloat(movAmount);
+    const amount = parseFloat(movAmount.replace(/[$,\s]/g, ''));
     if (isNaN(amount) || amount <= 0 || !movConcept) {
       return toast.error("Datos incompletos", { description: "Revisa monto y concepto." });
     }
@@ -94,7 +94,7 @@ export default function CashRegistersPage() {
     try {
       await CashService.registerMovement({
         type: movType,
-        amount: amount,
+        amount: Math.round(amount * 100),
         concept: movConcept,
         userId: user?.id || 'admin'
       });
@@ -143,7 +143,7 @@ export default function CashRegistersPage() {
               <div className="w-full bg-card border shadow-lg rounded-3xl p-6 lg:p-8 space-y-6">
                 <div className="space-y-4">
                   <Input 
-                    type="number" 
+                    type="text" inputMode="decimal"
                     placeholder="Monto de apertura ($0.00)" 
                     className="h-16 text-3xl font-black text-center"
                     value={openingAmount}
@@ -194,7 +194,7 @@ export default function CashRegistersPage() {
                         <div className="space-y-2">
                           <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Cantidad</label>
                           <Input 
-                            type="number" 
+                            type="text" inputMode="decimal" 
                             className="h-12 text-2xl font-black" 
                             placeholder="0.00" 
                             value={movAmount} 
@@ -239,7 +239,7 @@ export default function CashRegistersPage() {
                       {formatCurrency(balance.expectedBalance)}
                     </p>
                     <p className="text-[10px] font-bold text-emerald-600/70 uppercase mt-4 tracking-widest break-words leading-relaxed max-w-[80%]">
-                      Fondo (${balance.opening}) + Ingresos (${balance.cashSales + balance.cashIn}) - Egresos (${balance.cashOut}) = Lo que debes tener en billetes.
+                      Fondo ({formatCurrency(balance.opening)}) + Ingresos ({formatCurrency(balance.cashSales + balance.cashIn)}) - Egresos ({formatCurrency(balance.cashOut)}) = Lo que debes tener en billetes.
                     </p>
                   </div>
                 </div>

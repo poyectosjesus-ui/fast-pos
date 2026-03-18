@@ -39,11 +39,11 @@ export function formatProductUpdate(data: any): string {
   }
   
   // Fallback legacy
-  return `Producto modificado: ${data.name || data.id}. (Sin cambios monitoreados o edición menor).`;
+  return `Producto editado: ${data.name || data.id}. (Edición rápida guardada sin bitácora detallada).`;
 }
 
 export function formatProductDelete(data: any): string {
-  return `Producto con ID interno ${data.id?.substring(0,8)}... eliminado con éxito.`;
+  return `Producto con ID interno "${data.id?.substring(0,8)}" ha sido borrado definitivamente del sistema.`;
 }
 
 export function formatCashMovement(data: any): string {
@@ -64,7 +64,7 @@ export function formatOrderVoid(data: any): string {
  * Recibe la acción y el JSON devuelto de la DB, decide el método aplicar y retorna un string.
  */
 export function parseAuditDetails(action: string, detailsJson?: string | null): string {
-  if (!detailsJson) return "Sin detalles extra.";
+  if (!detailsJson) return "Sin información adicional registrada.";
   
   try {
     const data = JSON.parse(detailsJson);
@@ -76,13 +76,16 @@ export function parseAuditDetails(action: string, detailsJson?: string | null): 
         return formatProductDelete(data);
       case "CASH_MOVE_IN":
       case "CASH_MOVE_OUT":
+      case "CASH_MOVE_OPENING":
         return formatCashMovement(data);
       case "VOID_ORDER":
         return formatOrderVoid(data);
+      case "FACTORY_RESET":
+        return "El sistema fue restablecido de fábrica. Se borraron todos los datos operativos.";
       default:
-        return "Operación sobreentidades grabada."; // Fallback humano si el json existe pero no mapea
+        return "Actividad registrada en el sistema, pero sin un traductor configurado."; // Fallback humano si el json existe pero no mapea
     }
   } catch {
-    return detailsJson; // Si falla el parseo, escupimos el string original
+    return "Error al interpretar este registro."; // Si falla el parseo
   }
 }

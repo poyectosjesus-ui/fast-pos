@@ -92,7 +92,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ── Menú Nativo macOS y Storage (Fase App Store) ─────────────────────────
   selectStorageFolder: () => ipcRenderer.invoke("system:selectStorageFolder"),
   saveStorageConfig: (path) => ipcRenderer.invoke("system:saveStorageConfig", path),
-  factoryReset: () => ipcRenderer.invoke("system:factoryReset"),
+  factoryReset: (params) => ipcRenderer.invoke("system:factoryReset", params),
   
   // ── Hardware y Periféricos ───────────────────────────────────────────────
   getPrinters: () => ipcRenderer.invoke("hw:getPrinters"),

@@ -11,6 +11,9 @@ export interface AuditHistoryParams {
   page?: number;
   limit?: number;
   searchTerm?: string;
+  startDate?: number;
+  endDate?: number;
+  action?: string;
 }
 
 export interface AuditHistoryResponse {

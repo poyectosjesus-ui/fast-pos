@@ -1633,26 +1633,50 @@ function setupIpcHandlers() {
 
   ipcMain.handle("audit:getHistory", async (event, params) => {
     try {
-      const { page = 1, limit = 50, searchTerm = "" } = params || {};
+      const { page = 1, limit = 50, searchTerm = "", startDate, endDate, action } = params || {};
       const offset = (page - 1) * limit;
       
       let baseQuery = "SELECT id, userId, userName, action, details, createdAt FROM audit_logs";
       let countQuery = "SELECT count(*) as total FROM audit_logs";
       let queryParams = [];
+      let conditions = [];
 
       if (searchTerm) {
-        baseQuery += " WHERE userName LIKE ? OR action LIKE ?";
-        countQuery += " WHERE userName LIKE ? OR action LIKE ?";
+        conditions.push("(userName LIKE ? OR action LIKE ?)");
         const like = `%${searchTerm}%`;
         queryParams.push(like, like);
       }
+
+      if (startDate) {
+        conditions.push("createdAt >= ?");
+        queryParams.push(startDate);
+      }
+
+      if (endDate) {
+        conditions.push("createdAt <= ?");
+        queryParams.push(endDate);
+      }
+
+      if (action && action !== 'ALL') {
+        conditions.push("action = ?");
+        queryParams.push(action);
+      }
+
+      let whereClause = "";
+      if (conditions.length > 0) {
+        whereClause = " WHERE " + conditions.join(" AND ");
+      }
+
+      baseQuery += whereClause;
+      countQuery += whereClause;
+
+      const countParams = [...queryParams];
 
       baseQuery += " ORDER BY createdAt DESC LIMIT ? OFFSET ?";
       queryParams.push(limit, offset);
 
       const items = getDb().prepare(baseQuery).all(...queryParams);
       
-      const countParams = searchTerm ? queryParams.slice(0, 2) : [];
       const totalObj = getDb().prepare(countQuery).get(...countParams);
       const total = totalObj ? totalObj.total : 0;
 
