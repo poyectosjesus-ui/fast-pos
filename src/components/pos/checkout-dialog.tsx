@@ -215,21 +215,20 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
       if (!o && step === "payment") onClose();
     }}>
       <DialogContent 
-        className="sm:max-w-md max-h-[90vh] overflow-y-auto"
+        className="sm:max-w-2xl max-h-[95vh] overflow-y-auto"
         showCloseButton={step !== "ticket"}
       >
         {step === "payment" ? (
           <>
             <DialogHeader>
-              <DialogTitle>Cobrar venta</DialogTitle>
-              <DialogDescription>
-                Elige el método de cobro y confirma la cantidad recibida.
+              <DialogTitle className="text-2xl font-black">Cobrar venta</DialogTitle>
+              <DialogDescription className="text-base">
+                Elige el método de cobro y confirma la operación.
               </DialogDescription>
             </DialogHeader>
 
-
             {/* Selector de Método de Pago (CA-3.3.3) */}
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-2">
               {PAYMENT_METHODS.map((method) => (
                 <button
                   key={method.id}
@@ -240,14 +239,14 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
                     setNewCustomerName("");
                   }}
                   className={cn(
-                    "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center",
+                    "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all text-center",
                     paymentMethod === method.id
-                      ? "border-primary bg-primary/8 text-primary"
-                      : "border-border text-muted-foreground hover:bg-muted/30 hover:border-muted-foreground/30"
+                      ? "border-primary bg-primary/10 text-primary scale-[1.02] shadow-sm font-bold"
+                      : "border-border text-muted-foreground hover:bg-muted/40 hover:border-muted-foreground/40"
                   )}
                 >
                   {method.icon}
-                  <span className="text-[10px] font-bold leading-tight">{method.label}</span>
+                  <span className="text-xs font-bold leading-tight">{method.label}</span>
                 </button>
               ))}
             </div>
@@ -276,145 +275,151 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
               </div>
             )}
 
-            {/* Campo de monto pagado (solo en efectivo) — CA-3.3.4 */}
-            {requiresAmount && (
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="amount" className="font-bold text-muted-foreground uppercase text-xs tracking-wider">
-                    ¿Cuánto te dio el cliente?
-                  </Label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-3 text-muted-foreground font-bold text-lg">$</span>
-                    <Input
-                      id="amount"
-                      type="number"
-                      step="0.01"
-                      min={total / 100}
-                      placeholder={(total / 100).toFixed(2)}
-                      className="pl-8 h-14 text-2xl font-black bg-muted/30 focus:bg-background"
-                      value={amountPaidStr}
-                      onChange={(e) => setAmountPaidStr(e.target.value)}
-                      autoFocus
-                    />
-                  </div>
-                </div>
+            {/* Contenedor Fijo Dinámico (Evita que la UI salte y destruya el diseño) */}
+            <div className="min-h-[160px] flex flex-col justify-center">
 
-                {/* Atajos Rápidos */}
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 bg-muted/40 font-bold"
-                    onClick={() => setAmountPaidStr((total / 100).toString())}
-                  >
-                    Monto Exacto
-                  </Button>
-                  {suggestedBills.map((bill) => (
+              {/* Campo de monto pagado (solo en efectivo) — CA-3.3.4 */}
+              {requiresAmount && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="amount" className="font-bold text-muted-foreground uppercase text-xs tracking-wider">
+                      ¿Cuánto te dio el cliente?
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-3.5 text-muted-foreground font-bold text-xl">$</span>
+                      <Input
+                        id="amount"
+                        type="number"
+                        step="0.01"
+                        min={total / 100}
+                        placeholder={(total / 100).toFixed(2)}
+                        className="pl-9 h-16 text-3xl font-black bg-muted/30 focus:bg-background rounded-2xl"
+                        value={amountPaidStr}
+                        onChange={(e) => setAmountPaidStr(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+
+                  {/* Atajos Rápidos */}
+                  <div className="flex flex-wrap gap-2">
                     <Button
-                      key={bill}
                       variant="outline"
-                      size="sm"
-                      className="flex-1 font-bold bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
-                      onClick={() => setAmountPaidStr(bill.toString())}
+                      size="lg"
+                      className="flex-1 bg-muted/40 font-bold"
+                      onClick={() => setAmountPaidStr((total / 100).toString())}
                     >
-                      ${bill}
+                      Monto Exacto
                     </Button>
-                  ))}
-                </div>
-
-                {/* Banner de Cambio / Faltante */}
-                <div className={cn(
-                  "p-4 rounded-xl border-2 flex items-center justify-between transition-colors",
-                  amountPaidStr === ""
-                    ? "bg-muted/30 border-dashed border-border"
-                    : amountPaidCents >= total
-                    ? "bg-primary/10 border-primary text-primary"
-                    : "bg-destructive/10 border-destructive text-destructive"
-                )}>
-                  <span className="font-black tracking-widest uppercase text-sm">
-                    {amountPaidStr === ""
-                      ? "Esperando pago..."
-                      : amountPaidCents >= total
-                      ? "Su Cambio"
-                      : "Falta dinero"}
-                  </span>
-                  <span className="font-mono text-xl font-black">
-                    {amountPaidStr === ""
-                      ? "$ 0.00"
-                      : amountPaidCents >= total
-                      ? formatCents(changeCents)
-                      : formatCents(total - amountPaidCents)}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Selector de Cliente si es Fiado */}
-            {paymentMethod === "CREDIT" && (
-              <div className="space-y-3 p-4 border rounded-2xl bg-amber-500/5 border-amber-500/20">
-                <Label className="font-bold text-amber-600 dark:text-amber-500 uppercase text-xs tracking-wider">
-                  Selecciona la cuenta por cobrar
-                </Label>
-                {isCreatingCustomer ? (
-                  <div className="flex gap-2">
-                    <Input 
-                      placeholder="Nombre del cliente" 
-                      value={newCustomerName} 
-                      onChange={e => setNewCustomerName(e.target.value)} 
-                      className="bg-background border-amber-500/30"
-                      autoFocus 
-                    />
-                    <Button 
-                      variant="default"
-                      className="bg-amber-500 hover:bg-amber-600 font-bold"
-                      onClick={async () => {
-                        if (!newCustomerName) return;
-                        try {
-                          const id = await CustomerService.create({ name: newCustomerName, userId: user?.id || "" });
-                          setCustomers([{ id, name: newCustomerName } as any, ...customers]);
-                          setSelectedCustomerId(id);
-                          setIsCreatingCustomer(false);
-                          setNewCustomerName("");
-                        } catch(e: any) {
-                          toast.error(e.message);
-                        }
-                      }}
-                    >
-                      Guardar
-                    </Button>
+                    {suggestedBills.map((bill) => (
+                      <Button
+                        key={bill}
+                        variant="outline"
+                        size="lg"
+                        className="flex-1 font-bold bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
+                        onClick={() => setAmountPaidStr(bill.toString())}
+                      >
+                        ${bill}
+                      </Button>
+                    ))}
                   </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <select 
-                      className="flex-1 rounded-xl border bg-background px-3 py-2 text-sm focus:outline-none border-amber-500/30 font-medium text-foreground"
-                      value={selectedCustomerId}
-                      onChange={e => setSelectedCustomerId(e.target.value)}
-                    >
-                      <option value="">-- Buscar o Seleccionar --</option>
-                      {customers.map(c => <option key={c.id} value={c.id}>{c.name} {c.currentDebt ? `(-${formatCents(c.currentDebt)})` : ""}</option>)}
-                    </select>
-                    <Button variant="outline" className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10 font-bold" onClick={() => setIsCreatingCustomer(true)}>
-                      <PlusCircle className="mr-1 h-4 w-4" /> Nuevo
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
 
-            {/* Aviso para otros métodos rápidos */}
-            {!requiresAmount && paymentMethod !== "CREDIT" && (
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-dashed">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  {currentMethodDef.icon}
+                  {/* Banner de Cambio / Faltante */}
+                  <div className={cn(
+                    "p-4 rounded-xl border-2 flex items-center justify-between transition-colors",
+                    amountPaidStr === ""
+                      ? "bg-muted/30 border-dashed border-border"
+                      : amountPaidCents >= total
+                      ? "bg-primary/10 border-primary text-primary"
+                      : "bg-destructive/10 border-destructive text-destructive"
+                  )}>
+                    <span className="font-black tracking-widest uppercase text-sm">
+                      {amountPaidStr === ""
+                        ? "Esperando pago..."
+                        : amountPaidCents >= total
+                        ? "Su Cambio"
+                        : "Falta dinero"}
+                    </span>
+                    <span className="font-mono text-xl font-black">
+                      {amountPaidStr === ""
+                        ? "$ 0.00"
+                        : amountPaidCents >= total
+                        ? formatCents(changeCents)
+                        : formatCents(total - amountPaidCents)}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-semibold">{PAYMENT_METHOD_LABELS[paymentMethod]}</p>
-                  <p className="text-xs text-muted-foreground">
-                    El pago se realizará directamente, sin necesidad de calcular cambio.
-                  </p>
+              )}
+
+              {/* Selector de Cliente si es Fiado */}
+              {paymentMethod === "CREDIT" && (
+                <div className="space-y-4 p-5 border-2 rounded-2xl bg-amber-500/5 border-amber-500/20">
+                  <Label className="font-black text-amber-600 dark:text-amber-500 uppercase text-sm tracking-wider flex items-center gap-2">
+                    <UserRoundCheck className="h-5 w-5" />
+                    Selecciona la cuenta por cobrar
+                  </Label>
+                  {isCreatingCustomer ? (
+                    <div className="flex gap-3">
+                      <Input 
+                        placeholder="Escribe el nombre del cliente..." 
+                        value={newCustomerName} 
+                        onChange={e => setNewCustomerName(e.target.value)} 
+                        className="bg-background border-amber-500/40 h-14 text-lg font-medium"
+                        autoFocus 
+                      />
+                      <Button 
+                        variant="default"
+                        className="bg-amber-500 hover:bg-amber-600 text-white font-bold h-14 px-6 text-lg"
+                        onClick={async () => {
+                          if (!newCustomerName) return;
+                          try {
+                            const id = await CustomerService.create({ name: newCustomerName, userId: user?.id || "" });
+                            setCustomers([{ id, name: newCustomerName } as any, ...customers]);
+                            setSelectedCustomerId(id);
+                            setIsCreatingCustomer(false);
+                            setNewCustomerName("");
+                          } catch(e: any) {
+                            toast.error(e.message);
+                          }
+                        }}
+                      >
+                        Guardar
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-3">
+                      <select 
+                        className="flex-1 rounded-xl border-2 bg-background px-4 py-2 h-14 text-lg focus:outline-none border-amber-500/40 font-semibold text-foreground cursor-pointer appearance-none"
+                        value={selectedCustomerId}
+                        onChange={e => setSelectedCustomerId(e.target.value)}
+                      >
+                        <option value="">-- Buscar o Seleccionar Cliente --</option>
+                        {customers.map(c => <option key={c.id} value={c.id}>{c.name} {c.currentDebt ? `(Adeuda ${formatCents(c.currentDebt)})` : ""}</option>)}
+                      </select>
+                      <Button variant="outline" className="border-2 border-amber-500/40 text-amber-600 hover:bg-amber-500/10 font-bold h-14 px-6 text-lg" onClick={() => setIsCreatingCustomer(true)}>
+                        <PlusCircle className="mr-2 h-5 w-5" /> Nuevo
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* Aviso para otros métodos rápidos */}
+              {!requiresAmount && paymentMethod !== "CREDIT" && (
+                <div className="flex items-center gap-4 p-5 rounded-2xl bg-muted/40 border-2 border-dashed">
+                  <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    {currentMethodDef.icon}
+                  </div>
+                  <div>
+                    <p className="text-xl font-black text-foreground">{PAYMENT_METHOD_LABELS[paymentMethod]}</p>
+                    <p className="text-sm font-medium text-muted-foreground mt-1">
+                      El pago se considerará saldado instantáneamente al confirmar la venta.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+            </div>
 
             <Separator />
 

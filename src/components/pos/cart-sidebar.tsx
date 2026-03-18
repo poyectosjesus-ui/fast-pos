@@ -365,26 +365,29 @@ export function CartSidebar({ onCheckout, isProcessing, allowNegativeStock = fal
 
         {/* Descuento global sobre el carrito */}
         {showCartDiscount ? (
-          <div className="space-y-2 p-2.5 rounded-lg border border-primary/30 bg-primary/5 animate-in fade-in duration-150">
-            <div className="flex gap-1">
+          <div className="space-y-3 p-4 rounded-xl border border-primary/40 bg-primary/10 animate-in fade-in duration-150 shadow-inner">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-black uppercase text-primary/80 tracking-wider">Aplicar Descuento Global</span>
+            </div>
+            <div className="flex gap-2">
               {([
                 { id: "percent" as DiscountMode, label: "%" },
                 { id: "amount"  as DiscountMode, label: "$" },
-                { id: "final"   as DiscountMode, label: "Total final" },
+                { id: "final"   as DiscountMode, label: "Prec." },
               ] as const).map(({ id, label }) => (
                 <button
                   key={id}
                   onClick={() => { setCartDiscountMode(id); setCartDiscountInput(""); }}
                   className={cn(
-                    "flex-1 py-1 rounded text-[10px] font-bold uppercase tracking-wide",
+                    "flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-wide transition-all",
                     cartDiscountMode === id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "bg-background border text-muted-foreground hover:bg-muted"
                   )}
                 >{label}</button>
               ))}
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-2">
               <Input
                 type="number"
                 min="0"
@@ -394,23 +397,23 @@ export function CartSidebar({ onCheckout, isProcessing, allowNegativeStock = fal
                 value={cartDiscountInput}
                 onChange={(e) => setCartDiscountInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") applyCartDiscount(); if (e.key === "Escape") setShowCartDiscount(false); }}
-                className="h-7 text-sm"
+                className="h-10 text-base font-bold bg-background"
               />
-              <button onClick={applyCartDiscount} className="h-7 w-7 flex items-center justify-center rounded bg-primary text-primary-foreground hover:bg-primary/90">
-                <Check className="h-3.5 w-3.5" />
-              </button>
-              <button onClick={() => { setCartDiscount(0); setShowCartDiscount(false); }} className="h-7 w-7 flex items-center justify-center rounded bg-muted text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
-                <X className="h-3.5 w-3.5" />
-              </button>
+              <Button onClick={applyCartDiscount} size="icon" className="h-10 w-10 shrink-0 shadow-sm">
+                <Check className="h-5 w-5" />
+              </Button>
+              <Button variant="destructive" size="icon" onClick={() => { setCartDiscount(0); setShowCartDiscount(false); }} className="h-10 w-10 shrink-0 shadow-sm">
+                <X className="h-5 w-5" />
+              </Button>
             </div>
           </div>
         ) : (
           <button
             onClick={() => setShowCartDiscount(true)}
-            className="w-full flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-primary py-1 rounded-md hover:bg-primary/5 transition-colors"
+            className="w-full flex items-center justify-center gap-2 text-sm font-bold text-muted-foreground py-3 rounded-lg border-2 border-dashed border-border/60 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-colors cursor-pointer"
           >
-            <Tag className="h-3 w-3" />
-            Descuento sobre el total del carrito
+            <Tag className="h-4 w-4" />
+            Otorgar Descuento a Esta Venta
           </button>
         )}
 

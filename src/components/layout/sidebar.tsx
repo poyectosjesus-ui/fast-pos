@@ -21,25 +21,41 @@ export function Sidebar() {
   const router = useRouter();
   const { user, logout } = useSessionStore();
   
-  // Filtrar rutas permitidas. Un ADMIN ve todas, un CASHIER solo algunas.
-  const navItems = [
-    { href: "/", label: "POS", icon: ShoppingBag, roles: ["ADMIN", "CASHIER"] },
-    { href: "/history", label: "Historial", icon: ReceiptText, roles: ["ADMIN", "CASHIER"] },
-    { href: "/cash-registers", label: "Cajas", icon: Wallet, roles: ["ADMIN", "CASHIER"] },
-    { href: "/products", label: "Catálogo", icon: Package2, roles: ["ADMIN"] },
-    { href: "/analytics", label: "Analítica", icon: PieChart, roles: ["ADMIN"] },
-    { href: "/users", label: "Equipo", icon: Users, roles: ["ADMIN"] },
-    { href: "/audit", label: "Auditoría", icon: Eye, roles: ["ADMIN"] },
-    { href: "/customers", label: "Clientes", icon: UserRoundCheck, roles: ["ADMIN", "CASHIER"] },
-    { href: "/settings", label: "Ajustes", icon: Settings, roles: ["ADMIN", "CASHIER"] },
-  ].filter(item => !item.roles || item.roles.includes(user?.role || ""));
+  // Mapear rutas en 3 Islas cognitivas separadas por prioridad de rol
+  const navGroups = [
+    {
+      groupName: "Operación de Mostrador",
+      items: [
+        { href: "/", label: "Terminal POS", icon: ShoppingBag, roles: ["ADMIN", "CASHIER"] },
+        { href: "/history", label: "Historial de Tickets", icon: ReceiptText, roles: ["ADMIN", "CASHIER"] },
+        { href: "/cash-registers", label: "Cortes de Caja", icon: Wallet, roles: ["ADMIN", "CASHIER"] },
+        { href: "/customers", label: "Directorio de Clientes", icon: UserRoundCheck, roles: ["ADMIN", "CASHIER"] },
+      ]
+    },
+    {
+      groupName: "Gerencia",
+      items: [
+        { href: "/products", label: "Ingresar Catálogo", icon: Package2, roles: ["ADMIN"] },
+        { href: "/analytics", label: "Cuaderno de Ventas", icon: PieChart, roles: ["ADMIN"] },
+      ]
+    },
+    {
+      groupName: "Sistema Básico",
+      items: [
+        { href: "/users", label: "Equipo de Cajeros", icon: Users, roles: ["ADMIN"] },
+        { href: "/audit", label: "Registro de Auditoría", icon: Eye, roles: ["ADMIN"] },
+        { href: "/settings", label: "Ajustes Básico", icon: Settings, roles: ["ADMIN", "CASHIER"] },
+      ]
+    }
+  ];
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-10 w-20 flex-col border-r bg-background sm:flex hidden shadow-sm">
-      <div className="flex flex-col items-center gap-4 px-2 sm:py-5">
+    <aside className="fixed inset-y-0 left-0 z-10 w-20 flex-col border-r bg-background sm:flex hidden shadow-sm overflow-y-auto custom-scrollbar">
+      <div className="flex flex-col items-center gap-4 px-2 sm:py-5 min-h-[max-content]">
         <Link
           href="/"
-          className="group flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full overflow-hidden md:h-12 md:w-12 mb-4 ring-2 ring-primary/20 hover:ring-primary transition-all"
+          title="Ir a Caja"
+          className="group flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full overflow-hidden md:h-12 md:w-12 mb-2 ring-2 ring-primary/20 hover:ring-primary transition-all"
         >
           <img 
             src="/pos.svg" 
@@ -48,24 +64,44 @@ export function Sidebar() {
           />
           <span className="sr-only">Fast POS</span>
         </Link>
-        <nav className="flex flex-col gap-4">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            const Icon = item.icon;
+        <nav className="flex flex-col gap-6 w-full">
+          {navGroups.map((group, groupIdx) => {
+            // Un Cajero puede no tener permisos para ningún item del grupo 2, por lo que ocultamos el grupo entero
+            const activeItems = group.items.filter(item => !item.roles || item.roles.includes(user?.role || ""));
+            
+            if (activeItems.length === 0) return null;
+
             return (
-              <Link 
-                key={item.href}
-                href={item.href} 
-                aria-label={item.label} 
-                className={cn(
-                  "flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-200",
-                  isActive 
-                    ? "bg-primary text-primary-foreground shadow-md scale-105" 
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              <div key={groupIdx} className="flex flex-col gap-3 items-center w-full">
+                {/* Separador de Isla solo si no es el primer grupo */}
+                {groupIdx > 0 && (
+                  <div 
+                    title={group.groupName} 
+                    className="w-8 h-[2px] rounded-full bg-border/80 my-1 transition-colors hover:bg-primary/50 cursor-help" 
+                  />
                 )}
-              >
-                <Icon className="h-6 w-6" />
-              </Link>
+                
+                {activeItems.map((item) => {
+                  const isActive = pathname === item.href;
+                  const Icon = item.icon;
+                  return (
+                    <Link 
+                      key={item.href}
+                      href={item.href} 
+                      title={item.label}
+                      aria-label={item.label} 
+                      className={cn(
+                        "flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-200 relative",
+                        isActive 
+                          ? "bg-primary text-primary-foreground shadow-md scale-105" 
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}
+                    >
+                      <Icon className="h-6 w-6" />
+                    </Link>
+                  );
+                })}
+              </div>
             );
           })}
         </nav>
