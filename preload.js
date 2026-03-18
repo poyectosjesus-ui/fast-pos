@@ -90,6 +90,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   saveStorageConfig: (path) => ipcRenderer.invoke("system:saveStorageConfig", path),
   factoryReset: () => ipcRenderer.invoke("system:factoryReset"),
   
+  // ── Hardware y Periféricos ───────────────────────────────────────────────
+  getPrinters: () => ipcRenderer.invoke("hw:getPrinters"),
+  openCashDrawer: (printerName) => ipcRenderer.invoke("hw:openCashDrawer", printerName),
+  
   // ── Aplicación ───────────────────────────────────────────────────────────
   quitApp: () => ipcRenderer.invoke("app:quit"),
 

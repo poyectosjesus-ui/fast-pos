@@ -1267,6 +1267,39 @@ function setupIpcHandlers() {
     return await event.sender.getPrintersAsync();
   });
 
+  ipcMain.handle("hw:getPrinters", async (event) => {
+    return await event.sender.getPrintersAsync();
+  });
+
+  ipcMain.handle("hw:openCashDrawer", async (event, printerName) => {
+    try {
+      console.log(`[IPC:hw:openCashDrawer] Attempting to open drawer on: ${printerName}`);
+      const win = new BrowserWindow({ show: false });
+      win.loadURL("data:text/html;charset=utf-8,<html><body></body></html>");
+      
+      return new Promise((resolve) => {
+        win.webContents.on("did-finish-load", () => {
+          win.webContents.print({
+            silent: true,
+            deviceName: printerName || undefined,
+            margins: { marginType: 'none' }
+          }, (success, errorType) => {
+            win.close();
+            if (success) {
+              resolve({ success: true, message: "Comando enviado (Blank Print)" });
+            } else {
+              console.error("[IPC:hw:openCashDrawer] Error:", errorType);
+              resolve({ success: false, error: errorType });
+            }
+          });
+        });
+      });
+    } catch (err) {
+      console.error("[IPC:hw:openCashDrawer]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle("ticket:print", async (event, orderId, printerName, silent = true) => {
     try {
       const win = await createTicketWindow(orderId);

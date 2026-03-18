@@ -28,7 +28,7 @@ export function Sidebar() {
     { href: "/products", label: "Catálogo", icon: Package2, roles: ["ADMIN"] },
     { href: "/analytics", label: "Analítica", icon: PieChart, roles: ["ADMIN"] },
     { href: "/users", label: "Equipo", icon: Users, roles: ["ADMIN"] },
-    { href: "/settings", label: "Ajustes", icon: Settings, roles: ["ADMIN"] },
+    { href: "/settings", label: "Ajustes", icon: Settings, roles: ["ADMIN", "CASHIER"] },
   ].filter(item => !item.roles || item.roles.includes(user?.role || ""));
 
   return (

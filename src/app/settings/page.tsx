@@ -706,16 +706,20 @@ export default function SettingsPage() {
 
         {/* Contenido scrollable */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-4xl mx-auto w-full space-y-6 pb-24">
-          <Tabs defaultValue="general" className="w-full space-y-6">
+          <Tabs defaultValue={user?.role === "ADMIN" ? "general" : "system"} className="w-full space-y-6">
             <TabsList className="grid w-full grid-cols-3 bg-muted/50 p-1 rounded-xl border border-primary/5 backdrop-blur-sm h-auto flex-wrap gap-1">
-              <TabsTrigger value="general" className="uppercase text-[10px] font-black tracking-widest gap-1.5 focus:bg-primary/20 bg-primary/5 text-primary">
-                <Activity className="w-3 h-3" /> General
-              </TabsTrigger>
-              <TabsTrigger value="business" className="uppercase text-[10px] font-black tracking-widest gap-1.5">
-                <Store className="w-3 h-3" /> Negocio
-              </TabsTrigger>
+              {user?.role === "ADMIN" && (
+                <TabsTrigger value="general" className="uppercase text-[10px] font-black tracking-widest gap-1.5 focus:bg-primary/20 bg-primary/5 text-primary">
+                  <Activity className="w-3 h-3" /> General
+                </TabsTrigger>
+              )}
+              {user?.role === "ADMIN" && (
+                <TabsTrigger value="business" className="uppercase text-[10px] font-black tracking-widest gap-1.5">
+                  <Store className="w-3 h-3" /> Negocio
+                </TabsTrigger>
+              )}
               <TabsTrigger value="system" className="uppercase text-[10px] font-black tracking-widest gap-1.5 hidden sm:flex">
-                <ShieldCheck className="w-3 h-3" /> Sistema y Respaldo
+                <ShieldCheck className="w-3 h-3" /> Temas y Periféricos
               </TabsTrigger>
             </TabsList>
 
@@ -724,28 +728,30 @@ export default function SettingsPage() {
             {/* Se ha fusionado con Negocios */}
 
             {/* ── PESTAÑA: GENERAL ── */}
-            <TabsContent value="general" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <Card className="border-primary/20 bg-primary/5 shadow-xl overflow-hidden">
-                <CardHeader className="flex flex-row items-center gap-4 bg-primary/10 border-b border-primary/10 py-4">
-                  <Activity className="h-6 w-6 text-primary" />
-                  <div>
-                    <CardTitle className="text-primary">
-                      Salud del Motor
-                    </CardTitle>
-                    <CardDescription className="text-primary/70 text-xs font-bold uppercase tracking-widest">
-                      Diagnóstico en tiempo real
-                    </CardDescription>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <DbHealthPanel />
-                </CardContent>
-              </Card>
-
-            </TabsContent>
+            {user?.role === "ADMIN" && (
+              <TabsContent value="general" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <Card className="border-primary/20 bg-primary/5 shadow-xl overflow-hidden">
+                  <CardHeader className="flex flex-row items-center gap-4 bg-primary/10 border-b border-primary/10 py-4">
+                    <Activity className="h-6 w-6 text-primary" />
+                    <div>
+                      <CardTitle className="text-primary">
+                        Salud del Motor
+                      </CardTitle>
+                      <CardDescription className="text-primary/70 text-xs font-bold uppercase tracking-widest">
+                        Diagnóstico en tiempo real
+                      </CardDescription>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <DbHealthPanel />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
 
             {/* ── PESTAÑA: NEGOCIO ── */}
-            <TabsContent value="business" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
+            {user?.role === "ADMIN" && (
+              <TabsContent value="business" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
               <Card className="border-primary/10">
                 <CardHeader className="flex flex-row items-center gap-4">
                   <div className="p-2 bg-primary/10 rounded-lg">
@@ -853,6 +859,7 @@ export default function SettingsPage() {
               {/* Licencia activa al pie del negocio */}
               <LicensePanel />
             </TabsContent>
+            )}
 
             {/* ── PESTAÑA: SISTEMA, HARDWARE Y SEGURIDAD ── */}
             <TabsContent value="system" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -923,8 +930,10 @@ export default function SettingsPage() {
                 </div>
               </Card>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center gap-4">
+              {user?.role === "ADMIN" && (
+                <>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center gap-4">
                   <div className="p-2 bg-primary/10 rounded-lg">
                     <ShieldCheck className="h-6 w-6 text-primary" />
                   </div>
@@ -1070,6 +1079,8 @@ export default function SettingsPage() {
                   </div>
                 </CardContent>
               </Card>
+            </>
+          )}
 
               {/* ── SECCIÓN DE PERIFÉRICOS (antes Hardware) ── */}
               <Card className="border-primary/20 bg-primary/5 mt-6">
@@ -1134,7 +1145,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    <div className="pt-2">
+                    <div className="pt-2 flex items-center gap-4">
                        <Button
                         variant="secondary"
                         onClick={handleSaveBusiness}
@@ -1142,6 +1153,29 @@ export default function SettingsPage() {
                         className="h-9 text-xs"
                       >
                         {isSavingBusiness ? "Guardando..." : "Guardar Preferencias de Impresión"}
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        onClick={async () => {
+                          if (!api) return toast.error("Solo en escritorio");
+                          if (!businessForm.receiptPrinter) return toast.error("Selecciona una impresora primero");
+                          const loadingToast = toast.loading("Enviando pulso a la caja...");
+                          try {
+                            const res = await (api as any).openCashDrawer(businessForm.receiptPrinter);
+                            if (res.success) {
+                              toast.success("Cajón abierto", { id: loadingToast });
+                            } else {
+                              toast.error("Error", { description: res.error, id: loadingToast });
+                            }
+                          } catch (err: any) {
+                            toast.error("Error inesperado", { description: err.message, id: loadingToast });
+                          }
+                        }}
+                        className="h-9 text-xs border-primary/30 text-primary hover:bg-primary/10"
+                      >
+                        <Scan className="w-4 h-4 mr-2" />
+                        Probar Apertura Cajón
                       </Button>
                     </div>
                   </div>
