@@ -9,6 +9,7 @@
 
 import { v4 as uuidv4 } from "uuid";
 import { CashMovement, CashMovementSchema } from "../schema";
+import { AuditService } from "./audit";
 
 function getAPI() {
   if (typeof window === "undefined") return null;
@@ -39,6 +40,14 @@ export const CashService = {
     if (!result.success) {
       throw new Error(result.error ?? "No se pudo registrar el movimiento de caja");
     }
+
+    // Auditoría
+    await AuditService.log(
+      movement.userId || "SYSTEM",
+      "Cajero", // Por defecto, hasta que enlazemos de la UI
+      `CASH_MOVE_${movement.type}`,
+      { amount: movement.amount, concept: movement.concept }
+    );
 
     return newMovement;
   },

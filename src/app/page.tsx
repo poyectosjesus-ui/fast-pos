@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ShoppingCart, Scan, PackageOpen, Wallet } from "lucide-react";
+import { Scan, UserCircle, Calculator, CreditCard, Ticket, Clock, Banknote, ShoppingCart, Tag, Zap, Wallet, PackageOpen, Download, AlertCircle, Trash2, Printer, Unlock } from "lucide-react";
 import { toast } from "sonner";
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
 import { CashService } from "@/lib/services/cash";
@@ -33,7 +33,6 @@ import type { Product, Category } from "@/lib/schema";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { DigitalClock } from "@/components/shared/digital-clock";
 import { useSessionStore } from "@/store/useSessionStore";
-import { UserCircle } from "lucide-react";
 
 export default function POSPage() {
   const { user } = useSessionStore();
@@ -44,6 +43,8 @@ export default function POSPage() {
   const [isCashMovementOpen, setIsCashMovementOpen] = useState(false);
   const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const [businessName, setBusinessName] = useState("FAST POS");
+  const [printerName, setPrinterName] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
   const [isProcessing, setIsProcessing] = useState(false);
@@ -94,6 +95,12 @@ export default function POSPage() {
     setCategories(cats ?? []);
     if (settingsRes?.success && settingsRes.config) {
       setAllowNegativeStock(settingsRes.config["allow_negative_stock"] === "true");
+      if (settingsRes.config["receiptPrinter"]) {
+        setPrinterName(settingsRes.config["receiptPrinter"]);
+      }
+      if (settingsRes.config["store_name"]) {
+        setBusinessName(settingsRes.config["store_name"]);
+      }
     }
 
     // Calcular duración de sesión
@@ -256,6 +263,33 @@ export default function POSPage() {
             >
               <Wallet className="h-4 w-4" />
               <span className="hidden sm:inline-block ml-2 text-xs">Caja</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              className="shrink-0 text-amber-600 border-border hover:bg-amber-600/10"
+              onClick={async () => {
+                if (typeof window === "undefined" || !(window as any).electronAPI) {
+                  return toast.error("Solo en Escritorio");
+                }
+                if (!printerName) {
+                    return toast.error("No hay impresora configurada en Ajustes");
+                }
+                try {
+                  const res = await (window as any).electronAPI.openCashDrawer(printerName);
+                  if (res.success) {
+                    toast.success("Cajón abierto", { description: "Pulso enviado" });
+                  } else {
+                    toast.error("Error al abrir", { description: res.error });
+                  }
+                } catch (err: any) {
+                  toast.error("Error inesperado", { description: err.message });
+                }
+              }}
+              title="Apertura Manual de Caja"
+            >
+              <Unlock className="h-4 w-4" />
+              <span className="hidden sm:inline-block ml-2 font-bold text-xs uppercase tracking-widest">Cajón</span>
             </Button>
 
             <Button

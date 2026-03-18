@@ -387,6 +387,23 @@ function runMigrations(db) {
     console.log("[DB] Migración v11 aplicada: source ampliado con FACEBOOK.");
   }
 
+  if (currentVersion < 12) {
+    // Sprint 14: Auditoría Forense
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id TEXT PRIMARY KEY,
+        userId TEXT NOT NULL,
+        userName TEXT NOT NULL,
+        action TEXT NOT NULL,
+        details TEXT,
+        createdAt INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_logs(createdAt);
+    `);
+    db.pragma("user_version = 12");
+    console.log("[DB] Migración v12 aplicada: Tabla audit_logs configurada para rastreo forense.");
+  }
+
   const newVersion = db.pragma("user_version", { simple: true });
   console.log(`[DB] Esquema actualizado a v${newVersion}. Listo.`);
 }

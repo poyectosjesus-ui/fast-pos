@@ -10,6 +10,7 @@
 
 import { Product, ProductSchema } from '../schema';
 import { v4 as uuidv4 } from 'uuid';
+import { AuditService } from './audit';
 
 // Helper tipado para evitar `any` en cada método
 function getAPI() {
@@ -71,11 +72,38 @@ export const ProductService = {
     const api = getAPI();
     if (!api) throw new Error('Fuera del entorno Electron.');
 
+    const allProducts = await this.getAll();
+    const existing = allProducts.find((p) => p.id === id);
+
     const updatedAt = Date.now();
     const result = await api.updateProduct({ ...data, id, updatedAt, userId }) as { success: boolean; error?: string };
     if (!result.success) {
       throw new Error(result.error ?? 'No se pudo actualizar el producto.');
     }
+
+    // Auditoría Detallada (Extraer deltas)
+    const changes: Record<string, { from: any; to: any }> = {};
+    if (existing) {
+      if (existing.name !== data.name) changes.name = { from: existing.name, to: data.name };
+      if (existing.price !== data.price) changes.price = { from: existing.price, to: data.price };
+      if (existing.costPrice !== data.costPrice) changes.costPrice = { from: existing.costPrice, to: data.costPrice };
+      if (existing.sku !== data.sku) changes.sku = { from: existing.sku, to: data.sku };
+      if (existing.stock !== data.stock) changes.stock = { from: existing.stock, to: data.stock };
+      if (existing.isVisible !== data.isVisible) changes.isVisible = { from: existing.isVisible ? 'Sí' : 'No', to: data.isVisible ? 'Sí' : 'No' };
+    }
+
+    await AuditService.log(
+      userId || "SYSTEM",
+      "Admin", // Remplazar por userName desde la UI más adelante
+      "UPDATE_PRODUCT",
+      { 
+        id, 
+        name: data.name, 
+        hasChanges: Object.keys(changes).length > 0,
+        changes 
+      }
+    );
+
     return { id, ...data, updatedAt } as Product;
   },
 
@@ -102,5 +130,13 @@ export const ProductService = {
     if (!api) throw new Error('Fuera del entorno Electron.');
     const result = await api.deleteProduct({ productId: id, userId }) as { success: boolean; error?: string };
     if (!result.success) throw new Error(result.error ?? 'No se pudo eliminar.');
+
+    // Auditoría
+    await AuditService.log(
+      userId || "SYSTEM",
+      "Admin",
+      "DELETE_PRODUCT",
+      { id }
+    );
   },
 };

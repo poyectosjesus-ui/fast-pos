@@ -116,46 +116,98 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
-/* ── THEMES ── */
+/* ── THEMES (Nombres Internos para Types, Nombres Visuales en Español en UI) ── */
 .theme-rose {
-  --primary: oklch(0.627 0.265 17.151); /* Rose 600 */
-  --primary-foreground: oklch(0.985 0 0);
-  --ring: oklch(0.627 0.265 17.151);
+  --primary: oklch(0.70 0.15 350); /* Rosa Pastel / Cherry Blossom */
+  --primary-foreground: oklch(0.205 0 0); /* Texto oscuro para pasteles claros en modo claro */
+  --ring: oklch(0.70 0.15 350);
 }
 .dark.theme-rose {
-  --primary: oklch(0.627 0.265 17.151);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.70 0.15 350);
+  --primary-foreground: oklch(0.205 0 0);
 }
 
 .theme-blue {
-  --primary: oklch(0.546 0.245 262.881); /* Blue 600 */
-  --primary-foreground: oklch(0.985 0 0);
-  --ring: oklch(0.546 0.245 262.881);
+  --primary: oklch(0.75 0.12 250); /* Azul Acero / Periwinkle Pastel */
+  --primary-foreground: oklch(0.205 0 0);
+  --ring: oklch(0.75 0.12 250);
 }
 .dark.theme-blue {
-  --primary: oklch(0.546 0.245 262.881);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.75 0.12 250);
+  --primary-foreground: oklch(0.205 0 0);
 }
 
 .theme-emerald {
-  --primary: oklch(0.592 0.165 155.109); /* Emerald 600 */
-  --primary-foreground: oklch(0.985 0 0);
-  --ring: oklch(0.592 0.165 155.109);
+  --primary: oklch(0.75 0.14 160); /* Verde Menta / Salvia Pastel */
+  --primary-foreground: oklch(0.205 0 0);
+  --ring: oklch(0.75 0.14 160);
 }
 .dark.theme-emerald {
-  --primary: oklch(0.592 0.165 155.109);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.75 0.14 160);
+  --primary-foreground: oklch(0.205 0 0);
 }
 
 .theme-orange {
-  --primary: oklch(0.612 0.211 40.569); /* Orange 600 */
-  --primary-foreground: oklch(0.985 0 0);
-  --ring: oklch(0.612 0.211 40.569);
+  --primary: oklch(0.80 0.12 60); /* Durazno / Nude Pastel */
+  --primary-foreground: oklch(0.205 0 0);
+  --ring: oklch(0.80 0.12 60);
 }
 .dark.theme-orange {
-  --primary: oklch(0.612 0.211 40.569);
+  --primary: oklch(0.80 0.12 60);
+  --primary-foreground: oklch(0.205 0 0);
+}
+
+/* ── THEMES EXTRA (Modernos, Saturados y Vibrantes) ── */
+.theme-crimson {
+  --primary: oklch(0.55 0.22 25); /* Rojo Carmesí */
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.55 0.22 25);
+}
+.dark.theme-crimson {
+  --primary: oklch(0.55 0.22 25);
   --primary-foreground: oklch(0.985 0 0);
 }
+
+.theme-violet {
+  --primary: oklch(0.50 0.25 300); /* Violeta Eléctrico */
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.50 0.25 300);
+}
+.dark.theme-violet {
+  --primary: oklch(0.50 0.25 300);
+  --primary-foreground: oklch(0.985 0 0);
+}
+
+.theme-cyan {
+  --primary: oklch(0.65 0.15 210); /* Cyan Moderno */
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.65 0.15 210);
+}
+.dark.theme-cyan {
+  --primary: oklch(0.65 0.15 210);
+  --primary-foreground: oklch(0.985 0 0);
+}
+
+.theme-amber {
+  --primary: oklch(0.70 0.18 50); /* Ámbar Intenso */
+  --primary-foreground: oklch(0.145 0 0); 
+  --ring: oklch(0.70 0.18 50);
+}
+.dark.theme-amber {
+  --primary: oklch(0.70 0.18 50);
+  --primary-foreground: oklch(0.145 0 0);
+}
+
+.theme-fuchsia {
+  --primary: oklch(0.60 0.25 330); /* Fucsia Neón */
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.60 0.25 330);
+}
+.dark.theme-fuchsia {
+  --primary: oklch(0.60 0.25 330);
+  --primary-foreground: oklch(0.985 0 0);
+}
+
 
 @layer base {
   * {

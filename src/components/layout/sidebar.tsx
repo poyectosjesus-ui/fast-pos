@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Coffee, Package2, PieChart, Settings, ShoppingBag, ReceiptText, LogOut, Users, Power, Lock, Wallet } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Coffee, Package2, PieChart, Settings, ShoppingBag, ReceiptText, LogOut, Users, Power, Lock, Wallet, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -18,6 +18,7 @@ import { useSessionStore } from "@/store/useSessionStore";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, logout } = useSessionStore();
   
   // Filtrar rutas permitidas. Un ADMIN ve todas, un CASHIER solo algunas.
@@ -28,6 +29,7 @@ export function Sidebar() {
     { href: "/products", label: "Catálogo", icon: Package2, roles: ["ADMIN"] },
     { href: "/analytics", label: "Analítica", icon: PieChart, roles: ["ADMIN"] },
     { href: "/users", label: "Equipo", icon: Users, roles: ["ADMIN"] },
+    { href: "/audit", label: "Auditoría", icon: Eye, roles: ["ADMIN"] },
     { href: "/settings", label: "Ajustes", icon: Settings, roles: ["ADMIN", "CASHIER"] },
   ].filter(item => !item.roles || item.roles.includes(user?.role || ""));
 
@@ -75,7 +77,10 @@ export function Sidebar() {
         <Button 
           variant="ghost" 
           size="icon" 
-          onClick={logout}
+          onClick={() => {
+            logout();
+            router.replace("/login");
+          }}
           className="w-12 h-12 rounded-xl text-neutral-500 hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
           title="Bloquear Sesión"
         >

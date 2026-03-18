@@ -31,8 +31,8 @@ function setupIpcHandlers() {
     try {
       const db = getDb();
       db.prepare(`
-        INSERT INTO audit_logs (id, userId, action, details, createdAt)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO audit_logs (id, userId, userName, action, details, createdAt)
+        VALUES (?, ?, 'Sistema', ?, ?, ?)
       `).run(
         crypto.randomUUID(),
         userId || null,
@@ -625,15 +625,6 @@ function setupIpcHandlers() {
           unitType: p.unitType ?? "PIECE",
         });
 
-        // Auditoría
-        logAudit(p.userId, "PRODUCT_UPDATE", { 
-          id: p.id, 
-          name: p.name, 
-          price: p.price, 
-          costPrice: p.costPrice, 
-          stock: p.stock 
-        });
-
         return { success: true };
       });
       return update(product);
@@ -651,8 +642,6 @@ function setupIpcHandlers() {
       const db = getDb();
       const product = db.prepare("SELECT name, sku FROM products WHERE id = ?").get(productId);
       db.prepare("DELETE FROM products WHERE id = ?").run(productId);
-      
-      logAudit(userId, "PRODUCT_DELETE", { productId, name: product?.name, sku: product?.sku });
       
       return { success: true };
     } catch (err) {
@@ -1617,6 +1606,65 @@ function setupIpcHandlers() {
       return { success: true };
     } catch (err) {
       console.error("[IPC:users:delete]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ──────────────────────────────────────────
+  // DOMINIO: audit_logs (Auditoría Forense)
+  // ──────────────────────────────────────────
+
+  ipcMain.handle("audit:log", async (event, payload) => {
+    try {
+      const { userId, userName, action, details } = payload;
+      if (!userId || !action) throw new Error("Datos de auditoría incompletos");
+      
+      const id = crypto.randomUUID();
+      const stmt = getDb().prepare(
+        "INSERT INTO audit_logs (id, userId, userName, action, details, createdAt) VALUES (?, ?, ?, ?, ?, ?)"
+      );
+      stmt.run(id, userId, userName || "Unknown", action, details ? JSON.stringify(details) : null, Date.now());
+      return { success: true };
+    } catch (err) {
+      console.error("[IPC:audit:log]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("audit:getHistory", async (event, params) => {
+    try {
+      const { page = 1, limit = 50, searchTerm = "" } = params || {};
+      const offset = (page - 1) * limit;
+      
+      let baseQuery = "SELECT id, userId, userName, action, details, createdAt FROM audit_logs";
+      let countQuery = "SELECT count(*) as total FROM audit_logs";
+      let queryParams = [];
+
+      if (searchTerm) {
+        baseQuery += " WHERE userName LIKE ? OR action LIKE ?";
+        countQuery += " WHERE userName LIKE ? OR action LIKE ?";
+        const like = `%${searchTerm}%`;
+        queryParams.push(like, like);
+      }
+
+      baseQuery += " ORDER BY createdAt DESC LIMIT ? OFFSET ?";
+      queryParams.push(limit, offset);
+
+      const items = getDb().prepare(baseQuery).all(...queryParams);
+      
+      const countParams = searchTerm ? queryParams.slice(0, 2) : [];
+      const totalObj = getDb().prepare(countQuery).get(...countParams);
+      const total = totalObj ? totalObj.total : 0;
+
+      return {
+        success: true,
+        items,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit)
+      };
+    } catch (err) {
+      console.error("[IPC:audit:getHistory]", err.message);
       return { success: false, error: err.message };
     }
   });

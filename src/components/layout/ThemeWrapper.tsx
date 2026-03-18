@@ -23,7 +23,12 @@ export function ThemeWrapper({ children }: { children: React.ReactNode }) {
       "theme-rose",
       "theme-blue",
       "theme-emerald",
-      "theme-orange"
+      "theme-orange",
+      "theme-crimson",
+      "theme-violet",
+      "theme-cyan",
+      "theme-amber",
+      "theme-fuchsia"
     );
 
     // Si es zinc (monocromo / default del Shadcn), no agregamos clase

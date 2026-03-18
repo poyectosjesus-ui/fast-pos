@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-type ThemeColor = 'zinc' | 'rose' | 'blue' | 'emerald' | 'orange';
+type ThemeColor = 'zinc' | 'rose' | 'blue' | 'emerald' | 'orange' | 'crimson' | 'violet' | 'cyan' | 'amber' | 'fuchsia';
 type ThemeMode = 'light' | 'dark';
 
 interface ThemeState {
@@ -21,7 +21,7 @@ export const useThemeStore = create<ThemeState>()(
     }),
     {
       name: 'fast-pos-theme',
-      version: 2, // Al incrementar, el cache viejo se descarta y toma el nuevo default
+      version: 3, // Actualizado para soportar 10 colores
       migrate: () => ({ themeColor: 'emerald', themeMode: 'dark' }),
     }
   )

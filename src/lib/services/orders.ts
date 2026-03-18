@@ -11,6 +11,7 @@ import { Order, OrderSchema } from '../schema';
 import { CartItem } from '@/store/useCartStore';
 import { calculateCartTax } from '@/lib/services/tax';
 import { v4 as uuidv4 } from 'uuid';
+import { AuditService } from '@/lib/services/audit';
 
 // Helper tipado para acceder a electronAPI
 function getAPI() {
@@ -193,10 +194,34 @@ export const OrderService = {
    * CA-4.3.3: Anular Venta — operación atómica via electronAPI.
    * El Main Process devuelve el stock automáticamente.
    */
-  async voidOrder(orderId: string, userId?: string): Promise<{ success: boolean; error?: string }> {
+  async voidOrder(orderId: string, userId?: string, userName?: string): Promise<{ success: boolean; error?: string }> {
     const api = getAPI();
     if (!api) return { success: false, error: 'No disponible fuera de Electron.' };
+    
+    // Extraer metadata del ticket para el Tracker antes de anular (Lectura)
+    let total = 0;
+    let itemCount = 0;
+    try {
+      const resp = await this.searchOrders({ offset: 0, limit: 100 });
+      const target = resp.items.find((o: any) => o.id === orderId);
+      if (target) {
+        total = target.total;
+        itemCount = target.items?.reduce((acc: number, i: any) => acc + i.quantity, 0) || 0;
+      }
+    } catch (e) { console.warn("No se pudo pre-cargar metadata", e); }
+
     const result = await (api as any).voidOrder({ orderId, userId }) as { success: boolean; error?: string };
+    
+    // Inyectar auditoría forense si la anulación fue exitosa
+    if (result.success) {
+       await AuditService.log(
+         userId || 'SYSTEM', 
+         userName || 'Desconocido', 
+         'VOID_ORDER', 
+         { orderId, total, itemCount }
+       );
+    }
+    
     return result;
   },
 

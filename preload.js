@@ -48,9 +48,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getTopProducts: (params)  => ipcRenderer.invoke("analytics:getTopProducts", params),
   getProfitStats: (range)   => ipcRenderer.invoke("orders:getProfitStats", range),
 
-  // ==================== Z-REPORT & AUDIT (Sprints 3 y 4) ====================
+  // ==================== Z-REPORT & ANALYTICS (Sprints 3 y 4) ====================
   voidOrder: (params)       => ipcRenderer.invoke("orders:void", params),
   getSummary:     ()        => ipcRenderer.invoke("analytics:getSummary"),
+
+  // ── Auditoría Forense (Sprint 14) ──────────────────────────────────────────
+  logAuditAction: (payload) => ipcRenderer.invoke("audit:log", payload),
+  getAuditHistory:(params)  => ipcRenderer.invoke("audit:getHistory", params),
 
   // ── Imágenes (Bucket Local — EPIC-003) ─────────────────────────────────────
   saveImage:    (base64, filename) => ipcRenderer.invoke("images:save", base64, filename),

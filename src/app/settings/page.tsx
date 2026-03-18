@@ -900,11 +900,16 @@ export default function SettingsPage() {
 
                 <div className="flex flex-wrap gap-4 mt-8 pt-6 border-t border-border/50">
                   {([
-                    { id: "zinc", color: "bg-zinc-500", label: "Monocromo" },
-                    { id: "emerald", color: "bg-emerald-500", label: "Emerald" },
-                    { id: "blue", color: "bg-blue-500", label: "Blue" },
-                    { id: "rose", color: "bg-rose-500", label: "Rose" },
-                    { id: "orange", color: "bg-orange-500", label: "Orange" },
+                    { id: "zinc", color: "bg-zinc-500", label: "Neutro Ágata" },
+                    { id: "emerald", color: "bg-teal-400", label: "Menta Salvia" },
+                    { id: "blue", color: "bg-indigo-400", label: "Azul Cosmos" },
+                    { id: "rose", color: "bg-rose-400", label: "Rosa Cerezo" },
+                    { id: "orange", color: "bg-orange-400", label: "Durazno Suave" },
+                    { id: "crimson", color: "bg-red-600", label: "Rojo Carmesí" },
+                    { id: "amber", color: "bg-amber-500", label: "Ámbar Fuego" },
+                    { id: "cyan", color: "bg-cyan-500", label: "Cyan Neón" },
+                    { id: "violet", color: "bg-violet-600", label: "Violeta Eléctrico" },
+                    { id: "fuchsia", color: "bg-fuchsia-500", label: "Fucsia Intenso" },
                   ] as const).map((theme) => (
                     <button
                       key={theme.id}
