@@ -375,7 +375,7 @@ export function ProductsManager() {
 
   return (
     <>
-    <Card>
+    <Card className="overflow-hidden border shadow-sm">
       <BarcodeHandler onScan={handleBarcodeScanned} profile="catalog" />
       <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b">
         <div className="flex flex-col gap-1 flex-1">
@@ -708,7 +708,7 @@ export function ProductsManager() {
       
       {/* Categories Filter Tabs */}
       {categories && categories.length > 0 && products && products.length > 0 && (
-        <div className="flex items-center flex-nowrap overflow-x-auto gap-2 px-6 py-3 border-b border-border/50 no-scrollbar">
+        <div className="flex items-center w-full overflow-x-auto gap-2 px-6 py-3 border-b border-border/50 scrollbar-hide sm:flex-wrap sm:overflow-visible">
           <Button 
             variant={activeTab === "ALL" ? "default" : "secondary"} 
             size="sm" 
