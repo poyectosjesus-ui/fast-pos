@@ -27,12 +27,14 @@ import { CashMovementDialog } from "@/components/pos/cash-movement-dialog";
 import { GridDensitySelector, type GridDensity, GRID_COLS_MAP, GRID_DENSITY_KEY } from "@/components/pos/grid-density-selector";
 import { SearchInput } from "@/components/ui/search-input";
 import { useCartStore } from "@/store/useCartStore";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Product, Category } from "@/lib/schema";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { DigitalClock } from "@/components/shared/digital-clock";
 import { useSessionStore } from "@/store/useSessionStore";
+import { KbdBadge } from "@/components/ui/kbd-badge";
 
 export default function POSPage() {
   const { user } = useSessionStore();
@@ -189,17 +191,31 @@ export default function POSPage() {
     setIsCheckoutOpen(true);
   }, []);
 
-  // Atajo F2 → Cobrar
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "F2" && !isCheckoutOpen && !isQuickSaleOpen) {
-        e.preventDefault();
+  // Atajos Inteligentes (Fast-Key)
+  useKeyboardShortcuts({
+    onSearch: () => {
+      document.getElementById("pos-search-input")?.focus();
+    },
+    onPay: () => {
+      if (!isCheckoutOpen && !isQuickSaleOpen && cartItemCount > 0) {
         handleCheckout();
+      } else if (isCheckoutOpen) {
+        window.dispatchEvent(new CustomEvent("CONFIRM_PAYMENT"));
+      } else if (isQuickSaleOpen) {
+        window.dispatchEvent(new CustomEvent("CONFIRM_QUICK_SALE"));
       }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [isCheckoutOpen, isQuickSaleOpen, handleCheckout]);
+    },
+    onClearCart: () => {
+      useCartStore.getState().clearCart();
+      toast.success("Carrito abortado", { description: "Se limpiaron todos los artículos." });
+    },
+    onDiscount: () => {
+      window.dispatchEvent(new CustomEvent("OPEN_CART_DISCOUNT"));
+    },
+    onQuickSale: () => {
+      setIsQuickSaleOpen(true);
+    }
+  });
 
   return (
     <ProtectedRoute allowedRoles={["ADMIN", "CASHIER"]}>
@@ -226,14 +242,20 @@ export default function POSPage() {
                 <Scan className="h-4 w-4" />
              </div>
 
-            <SearchInput
-              value={searchTerm}
-              onChange={handleSearchChange}
-              onBarcodeScanned={handleBarcodeScanned}
-              placeholder="Buscar o escanear..."
-              className="flex-1 max-w-[200px] xl:max-w-xs"
-              autoFocus
-            />
+            <div className="relative flex-1 max-w-[200px] xl:max-w-xs">
+              <SearchInput
+                id="pos-search-input"
+                value={searchTerm}
+                onChange={handleSearchChange}
+                onBarcodeScanned={handleBarcodeScanned}
+                placeholder="Buscar o escanear..."
+                className="w-full"
+                autoFocus
+              />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none hidden sm:block opacity-60">
+                <KbdBadge action="FOCUS_SEARCH" variant="ghost" />
+              </div>
+            </div>
 
             {/* Identidad Usuario & Reloj (Premium UX) */}
             <div className="flex items-center gap-4 ml-2 mr-Auto">
@@ -294,12 +316,15 @@ export default function POSPage() {
 
             <Button
               variant="outline"
-              className="shrink-0 text-secondary-foreground border-border bg-secondary hover:bg-secondary/80"
+              className="shrink-0 text-secondary-foreground border-border bg-secondary hover:bg-secondary/80 relative"
               onClick={() => setIsQuickSaleOpen(true)}
               title="Venta Libre"
             >
               <PackageOpen className="h-4 w-4" />
               <span className="hidden sm:inline-block ml-2 font-bold text-xs uppercase tracking-widest">Pase Libre</span>
+              <div className="absolute -top-2.5 -right-2 scale-90 pointer-events-none drop-shadow-sm">
+                 <KbdBadge action="QUICK_SALE" variant="solid" className="bg-background border-primary shadow-sm" />
+              </div>
             </Button>
 
             <Button

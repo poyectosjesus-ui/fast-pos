@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
 
 interface SearchInputProps {
+  id?: string; // Added id prop
   /** Valor del campo de búsqueda (controlled) */
   value: string;
   /** Callback al cambiar el texto de búsqueda */
@@ -25,6 +26,7 @@ interface SearchInputProps {
  * Componente de búsqueda universal reutilizable con soporte para escáner.
  */
 export function SearchInput({
+  id, // Destructure id prop
   value,
   onChange,
   onBarcodeScanned,
@@ -65,6 +67,7 @@ export function SearchInput({
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
       )}
       <Input
+        id={id} // Pass id to the Input component
         ref={inputRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}

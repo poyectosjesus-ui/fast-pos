@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { KbdBadge } from "@/components/ui/kbd-badge";
 
 interface CheckoutDialogProps {
   open: boolean;
@@ -131,6 +132,19 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
       CustomerService.getAll().then(setCustomers);
     }
   }, [paymentMethod]);
+
+  // Escuchar evento mágico del Master Listener (Fast-Key)
+  useEffect(() => {
+    const handleShortcutConfirm = () => {
+      // Solo actuar si estamos en la pestaña de cobro e input listo
+      if (step === "payment" && open && canConfirm && !isProcessing) {
+        handleConfirmPayment();
+      }
+    };
+    window.addEventListener("CONFIRM_PAYMENT", handleShortcutConfirm);
+    return () => window.removeEventListener("CONFIRM_PAYMENT", handleShortcutConfirm);
+  }); // Sin array para atrapar el closure más fresco cada render
+
 
   const currentMethodDef = PAYMENT_METHODS.find(m => m.id === paymentMethod)!;
   const requiresAmount = currentMethodDef.requiresAmount;
@@ -442,12 +456,17 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
             </div>
 
             <Button
-              className="w-full h-11 mt-2"
+              className="w-full h-12 mt-2 font-bold text-base relative"
               onClick={handleConfirmPayment}
               disabled={isProcessing || !canConfirm}
             >
-              <Check className="h-4 w-4 mr-2" />
+              <Check className="h-5 w-5 mr-2" />
               {isProcessing ? "Procesando de forma segura..." : "Confirmar Cobro"}
+              {canConfirm && !isProcessing && (
+                <div className="absolute -top-3 -right-2 scale-100 pointer-events-none drop-shadow-md z-10">
+                  <KbdBadge action="PAY_ORDER" variant="solid" className="bg-background shadow-md border-primary text-primary" />
+                </div>
+              )}
             </Button>
           </>
         ) : (

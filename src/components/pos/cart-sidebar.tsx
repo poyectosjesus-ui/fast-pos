@@ -17,7 +17,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCartStore } from "@/store/useCartStore";
 import { formatCents } from "@/lib/services/tax";
 import {
@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { KbdBadge } from "@/components/ui/kbd-badge";
 
 interface CartSidebarProps {
   onCheckout: () => void;
@@ -158,6 +159,13 @@ export function CartSidebar({ onCheckout, isProcessing, allowNegativeStock = fal
 
   const totalItemDiscounts = items.reduce((acc, i) => acc + (i.discountAmount || 0), 0);
 
+  // Escuchar evento mágico desde el Master Listener para abrir descuento
+  useEffect(() => {
+    const handleOpenDiscount = () => setShowCartDiscount(true);
+    window.addEventListener("OPEN_CART_DISCOUNT", handleOpenDiscount);
+    return () => window.removeEventListener("OPEN_CART_DISCOUNT", handleOpenDiscount);
+  }, []);
+
   const applyCartDiscount = () => {
     const num = parseFloat(cartDiscountInput);
     if (isNaN(num) || num < 0) { setShowCartDiscount(false); return; }
@@ -188,7 +196,24 @@ export function CartSidebar({ onCheckout, isProcessing, allowNegativeStock = fal
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-background border-l">
+      {/* Header del carrito con botón limpiar */}
+      <div className="flex items-center justify-between px-4 py-3 border-b bg-card">
+        <span className="text-sm font-black uppercase tracking-widest text-muted-foreground">Cuenta Actual</span>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="relative h-8 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 px-2"
+          onClick={() => useCartStore.getState().clearCart()}
+        >
+          <Trash2 className="h-3.5 w-3.5 mr-1" />
+          Vaciar
+          <div className="absolute -top-2.5 -right-2 scale-[0.8] pointer-events-none drop-shadow-sm z-10">
+            <KbdBadge action="CLEAR_CART" variant="solid" className="bg-background shadow-sm border-muted-foreground/30 text-muted-foreground" />
+          </div>
+        </Button>
+      </div>
+
       {/* Lista de ítems */}
       <div className="flex-1 overflow-y-auto space-y-2 p-4">
         {items.map((item) => {
@@ -410,20 +435,28 @@ export function CartSidebar({ onCheckout, isProcessing, allowNegativeStock = fal
         ) : (
           <button
             onClick={() => setShowCartDiscount(true)}
-            className="w-full flex items-center justify-center gap-2 text-sm font-bold text-muted-foreground py-3 rounded-lg border-2 border-dashed border-border/60 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-colors cursor-pointer"
+            className="relative w-full flex items-center justify-center gap-2 text-sm font-bold text-muted-foreground py-3 rounded-lg border-2 border-dashed border-border/60 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-colors cursor-pointer"
           >
             <Tag className="h-4 w-4" />
             Otorgar Descuento a Esta Venta
+            <div className="absolute -top-3 -right-2 scale-90 pointer-events-none drop-shadow-sm z-10">
+               <KbdBadge action="ADD_DISCOUNT" variant="solid" className="bg-background shadow-sm border-primary/40 text-primary" />
+            </div>
           </button>
         )}
 
         {/* Botón Cobrar — CA-3.2.5 y CA-3.3.1 */}
         <Button
-          className="w-full h-12 text-base font-bold"
+          className="relative w-full h-12 text-base font-bold"
           onClick={onCheckout}
           disabled={items.length === 0 || isProcessing}
         >
           {isProcessing ? "Procesando..." : `Cobrar ${formatCents(total)}`}
+          {items.length > 0 && (
+            <div className="absolute -top-3 -right-2 scale-100 pointer-events-none drop-shadow-md z-10">
+              <KbdBadge action="PAY_ORDER" variant="solid" className="bg-background shadow-md border-primary text-primary" />
+            </div>
+          )}
         </Button>
       </div>
     </div>

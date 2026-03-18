@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { useCartStore } from "@/store/useCartStore";
 import { PackageOpen } from "lucide-react";
 import { toast } from "sonner";
+import { useEffect } from "react";
+import { KbdBadge } from "@/components/ui/kbd-badge";
 
 interface QuickSaleDialogProps {
   open: boolean;
@@ -23,6 +25,15 @@ export function QuickSaleDialog({ open, onClose }: QuickSaleDialogProps) {
   const [name, setName] = useState("Varios");
   const [priceStr, setPriceStr] = useState("");
   const addItem = useCartStore((s) => s.addItem);
+
+  useEffect(() => {
+    const handleShortcut = () => {
+      // Solo actuar si está abierto el modal y tenemos un precio válido
+      if (open && priceStr) handleAdd();
+    };
+    window.addEventListener("CONFIRM_QUICK_SALE", handleShortcut);
+    return () => window.removeEventListener("CONFIRM_QUICK_SALE", handleShortcut);
+  });
 
   const handleAdd = () => {
     const priceNum = parseFloat(priceStr);
@@ -93,10 +104,13 @@ export function QuickSaleDialog({ open, onClose }: QuickSaleDialogProps) {
           </div>
 
           <Button 
-            className="w-full h-12 text-sm font-bold uppercase tracking-widest bg-primary hover:bg-primary/90 text-primary-foreground border-none shadow-lg shadow-primary/20" 
+            className="w-full h-12 text-sm font-bold uppercase tracking-widest bg-primary hover:bg-primary/90 text-primary-foreground border-none shadow-lg shadow-primary/20 relative" 
             onClick={handleAdd}
           >
             Añadir Total al Ticket
+            <div className="absolute -top-3 -right-2 scale-90 pointer-events-none drop-shadow-md z-10">
+              <KbdBadge action="QUICK_SALE" variant="solid" className="bg-background shadow-md border-primary text-primary" />
+            </div>
           </Button>
         </div>
       </DialogContent>

@@ -209,8 +209,111 @@ function LicensePanel() {
 
 
 // ─────────────────────────────────────────────
+// Sub-componente: Panel de Configuración de Atajos (FAST-KEY)
+// ─────────────────────────────────────────────
+
+import { useShortcutStore, KeyCombo, ShortcutAction } from "@/store/useShortcutStore";
+import { KbdBadge } from "@/components/ui/kbd-badge";
+
+const SHORTCUT_DEFINITIONS: { id: ShortcutAction; label: string; desc: string }[] = [
+  { id: "FOCUS_SEARCH", label: "Buscar Producto", desc: "Enfocar el buscador de catálogo." },
+  { id: "PAY_ORDER",    label: "Cobrar Venta",    desc: "Abre la ventana de cobro (Checkout)." },
+  { id: "CLEAR_CART",   label: "Limpiar Venta",   desc: "Vacía todo el carrito actual." },
+  { id: "ADD_DISCOUNT", label: "Atajo Descuento", desc: "Abre el motor de descuento global." },
+  { id: "QUICK_SALE",   label: "Venta Rápida",    desc: "Cobrador instantáneo de importe exacto." },
+];
+
+function ShortcutConfigPanel() {
+  const { shortcuts, setShortcut, resetToDefaults } = useShortcutStore();
+  const [recordingFor, setRecordingFor] = useState<ShortcutAction | null>(null);
+
+  // Escucha de teclas global cuando se está "grabando"
+  useEffect(() => {
+    if (!recordingFor) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // No registrar si solo son modificadores puros
+      if (["Meta", "Control", "Alt", "Shift"].includes(e.key)) return;
+
+      const combo: KeyCombo = [];
+      if (e.metaKey) combo.push("Meta");
+      if (e.ctrlKey) combo.push("Control");
+      if (e.altKey) combo.push("Alt");
+      if (e.shiftKey) combo.push("Shift");
+      combo.push(e.key);
+
+      // Bloquear atajos reservados peligrosos del OS
+      const keyStr = e.key.toLowerCase();
+      const isDangerous = 
+        (e.metaKey && ["c", "v", "x", "r", "q", "w", "t", "n"].includes(keyStr)) ||
+        (e.ctrlKey && ["c", "v", "x", "r", "w", "t", "n"].includes(keyStr)) ||
+        (keyStr === "f5") || (keyStr === "f11") || (keyStr === "escape");
+
+      if (isDangerous) {
+        toast.error("Atajo Crítico Protegido", {
+          description: "Esa combinación pertenece al sistema operativo base. Intenta usar F-Keys o añade Shift/Alt.",
+        });
+        setRecordingFor(null);
+        return;
+      }
+
+      setShortcut(recordingFor, combo);
+      setRecordingFor(null);
+      toast.success("Atajo asignado correctamente.");
+    };
+
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
+  }, [recordingFor, setShortcut]);
+
+  return (
+    <Card className="border-primary/20 bg-primary/[0.02]">
+      <CardHeader className="flex flex-row items-center justify-between pb-3">
+        <div>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Keyboard className="h-5 w-5 text-primary" /> Atajos de Teclado
+          </CardTitle>
+          <CardDescription>
+            Personaliza el Motor Fast-Key. Presiona para grabar.
+          </CardDescription>
+        </div>
+        <Button variant="outline" size="sm" onClick={resetToDefaults} className="h-8">
+          Restablecer
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {SHORTCUT_DEFINITIONS.map((def) => {
+          const isRecording = recordingFor === def.id;
+          return (
+            <div key={def.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border bg-card gap-4">
+              <div>
+                <p className="text-sm font-bold">{def.label}</p>
+                <p className="text-xs text-muted-foreground">{def.desc}</p>
+              </div>
+              <Button
+                variant={isRecording ? "destructive" : "outline"}
+                className={cn(
+                  "w-full sm:w-auto h-12 sm:h-auto min-w-[140px] transition-all font-mono font-bold tracking-widest",
+                  isRecording && "animate-pulse ring-2 ring-destructive ring-offset-2 ring-offset-background"
+                )}
+                onClick={() => setRecordingFor(isRecording ? null : def.id)}
+              >
+                {isRecording ? "Presiona Teclas..." : <KbdBadge action={def.id} variant="solid" className="scale-125 mx-1" />}
+              </Button>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
+
+// ─────────────────────────────────────────────
 // Sub-componente: Panel de Canales de Venta
-// Sprint-1 E2: Permite editar canales post-wizard
 // ─────────────────────────────────────────────
 
 const ALL_CH = [
@@ -707,7 +810,7 @@ export default function SettingsPage() {
         {/* Contenido scrollable */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-4xl mx-auto w-full space-y-6 pb-24">
           <Tabs defaultValue={user?.role === "ADMIN" ? "general" : "system"} className="w-full space-y-6">
-            <TabsList className="grid w-full grid-cols-3 bg-muted/50 p-1 rounded-xl border border-primary/5 backdrop-blur-sm h-auto flex-wrap gap-1">
+            <TabsList className="grid w-full grid-cols-4 bg-muted/50 p-1 rounded-xl border border-primary/5 backdrop-blur-sm h-auto flex-wrap gap-1">
               {user?.role === "ADMIN" && (
                 <TabsTrigger value="general" className="uppercase text-[10px] font-black tracking-widest gap-1.5 focus:bg-primary/20 bg-primary/5 text-primary">
                   <Activity className="w-3 h-3" /> General
@@ -719,13 +822,21 @@ export default function SettingsPage() {
                 </TabsTrigger>
               )}
               <TabsTrigger value="system" className="uppercase text-[10px] font-black tracking-widest gap-1.5 hidden sm:flex">
-                <ShieldCheck className="w-3 h-3" /> Temas y Periféricos
+                <ShieldCheck className="w-3 h-3" /> Temas
+              </TabsTrigger>
+              <TabsTrigger value="shortcuts" className="uppercase text-[10px] font-black tracking-widest gap-1.5 hidden sm:flex">
+                <Keyboard className="w-3 h-3" /> Atajos
               </TabsTrigger>
             </TabsList>
 
             {/* Se ha movido a /users */}
 
             {/* Se ha fusionado con Negocios */}
+
+            {/* ── PESTAÑA: ATAJOS DE TECLADO ── */}
+            <TabsContent value="shortcuts" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <ShortcutConfigPanel />
+            </TabsContent>
 
             {/* ── PESTAÑA: GENERAL ── */}
             {user?.role === "ADMIN" && (
