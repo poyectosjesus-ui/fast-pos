@@ -130,7 +130,7 @@ export function PaymentList({ data }: { data: Array<{ method: string; totalAmoun
   );
 }
 
-// 4. Gráfica de Progreso Histórico (Área)
+// 4. Gráfica de Progreso Histórico (Lápiz y Papel)
 import { AreaChart, Area } from "recharts";
 
 export function ProgressChart({ data }: { data: Array<{ date: string; revenue: number; cost: number }> }) {
@@ -159,7 +159,6 @@ export function ProgressChart({ data }: { data: Array<{ date: string; revenue: n
 
     return {
       ...d,
-      profit: d.revenue - d.cost,
       displayDate
     };
   });
@@ -167,17 +166,7 @@ export function ProgressChart({ data }: { data: Array<{ date: string; revenue: n
   return (
     <div className="h-[250px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={parsedData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-          <defs>
-            <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-              <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-            </linearGradient>
-            <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-            </linearGradient>
-          </defs>
+        <BarChart data={parsedData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.4} />
           <XAxis 
             dataKey="displayDate" 
@@ -193,22 +182,21 @@ export function ProgressChart({ data }: { data: Array<{ date: string; revenue: n
             width={60}
           />
           <Tooltip 
+            cursor={{ fill: 'var(--muted)', opacity: 0.4 }}
             content={({ active, payload, label }: any) => {
               if (active && payload && payload.length) {
                 return (
                   <div className="bg-background/95 backdrop-blur-md border border-border p-3 rounded-xl shadow-xl">
                     <p className="font-bold text-[10px] text-muted-foreground uppercase">{label}</p>
-                    <p className="font-black text-emerald-500">Ingreso: {formatCurrency(payload[0].value)}</p>
-                    <p className="font-bold text-blue-500 text-xs">Utilidad: {formatCurrency(payload[1].value)}</p>
+                    <p className="font-black text-emerald-500 text-lg">Entró: {formatCurrency(payload[0].value)}</p>
                   </div>
                 );
               }
               return null;
             }} 
           />
-          <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
-          <Area type="monotone" dataKey="profit" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" />
-        </AreaChart>
+          <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
+        </BarChart>
       </ResponsiveContainer>
     </div>
   );

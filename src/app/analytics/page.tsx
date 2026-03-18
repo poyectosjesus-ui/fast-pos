@@ -43,6 +43,10 @@ export default function AnalyticsPage() {
     dailyData: { date: string; revenue: number; cost: number }[];
   } | null>(null);
 
+  const [prevProfitStats, setPrevProfitStats] = useState<{
+    summary: { revenue: number; cost: number; profit: number; orderCount: number };
+  } | null>(null);
+
   const [advancedStats, setAdvancedStats] = useState<{
     byCashier: any[];
     bySource: any[];
@@ -62,22 +66,35 @@ export default function AnalyticsPage() {
       // 2. Stats de rentabilidad según rango (Gráfica y periodos largos)
       let start = 0;
       let end = Date.now();
+      let prevStart = 0;
+      let prevEnd = 0;
       const now = new Date();
       
       if (filterDate === 'WEEK') {
         const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7, 0, 0, 0);
         start = d.getTime();
+        const pd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14, 0, 0, 0);
+        prevStart = pd.getTime();
+        prevEnd = start - 1;
       } else if (filterDate === 'MONTH') {
         const d = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
         start = d.getTime();
+        const pd = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0);
+        prevStart = pd.getTime();
+        prevEnd = start - 1;
       } else if (filterDate === 'YEAR') {
         const d = new Date(now.getFullYear(), 0, 1, 0, 0, 0);
         start = d.getTime();
         end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999).getTime(); // Fuerza 365 días completos
+        
+        const pd = new Date(now.getFullYear() - 1, 0, 1, 0, 0, 0);
+        prevStart = pd.getTime();
+        prevEnd = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59, 999).getTime();
       }
 
-      const [profitRes, top, advancedRes] = await Promise.all([
+      const [profitRes, prevProfitRes, top, advancedRes] = await Promise.all([
         OrderService.getProfitStats(start, end),
+        OrderService.getProfitStats(prevStart, prevEnd),
         OrderService.getTopProducts(start, end, 5),
         OrderService.getAdvancedAnalytics({ startDate: start, endDate: end })
       ]);
@@ -86,6 +103,12 @@ export default function AnalyticsPage() {
         setProfitStats({
           summary: profitRes.summary,
           dailyData: profitRes.dailyData
+        });
+      }
+
+      if (prevProfitRes.success) {
+        setPrevProfitStats({
+          summary: prevProfitRes.summary
         });
       }
       
@@ -116,6 +139,40 @@ export default function AnalyticsPage() {
     return Math.round((profitStats.summary.profit / profitStats.summary.revenue) * 100);
   }, [profitStats]);
 
+  const revenueTrend = useMemo(() => {
+    if (!profitStats || !prevProfitStats) return undefined;
+    const diff = profitStats.summary.revenue - prevProfitStats.summary.revenue;
+    const prev = prevProfitStats.summary.revenue;
+    const period = filterDate === 'WEEK' ? 'la semana pasada' : filterDate === 'MONTH' ? 'el mes pasado' : 'el año pasado';
+    
+    if (prev === 0 && profitStats.summary.revenue > 0) return { text: `🚀 ¡Primeras ventas vs cero!`, pos: true };
+    if (prev === 0) return undefined;
+
+    const pct = (diff / prev) * 100;
+    if (diff > 0) return { text: `↑ Tú superaste por ${formatCurrency(Math.abs(diff))} (+${pct.toFixed(0)}%) a ${period}`, pos: true };
+    if (diff < 0) return { text: `⚠️ Bajaste ${formatCurrency(Math.abs(diff))} (${pct.toFixed(0)}%) contra ${period}`, pos: false };
+    return { text: `➖ Exactamente igual que ${period}`, pos: true };
+  }, [profitStats, prevProfitStats, filterDate]);
+
+  const profitTrend = useMemo(() => {
+    if (!profitStats || !prevProfitStats) return undefined;
+    const diff = profitStats.summary.profit - prevProfitStats.summary.profit;
+    const prev = prevProfitStats.summary.profit;
+    if (prev === 0) return undefined;
+    if (diff > 0) return { text: `🚀 Te sobraron ${formatCurrency(Math.abs(diff))} extra libres`, pos: true };
+    if (diff < 0) return { text: `📉 Te sobraron ${formatCurrency(Math.abs(diff))} menos libres`, pos: false };
+    return undefined;
+  }, [profitStats, prevProfitStats]);
+
+  const countTrend = useMemo(() => {
+    if (!profitStats || !prevProfitStats) return undefined;
+    const diff = profitStats.summary.orderCount - prevProfitStats.summary.orderCount;
+    if (prevProfitStats.summary.orderCount === 0) return undefined;
+    if (diff > 0) return { text: `↑ Atendiste a ${diff} clientes extra`, pos: true };
+    if (diff < 0) return { text: `↓ Atendiste a ${Math.abs(diff)} clientes menos`, pos: false };
+    return undefined;
+  }, [profitStats, prevProfitStats]);
+
   return (
     <div className="flex h-screen bg-muted/20">
       <Sidebar />
@@ -123,8 +180,8 @@ export default function AnalyticsPage() {
       <main className="flex-1 flex flex-col sm:pl-20 overflow-hidden relative">
         <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex flex-col">
-            <h1 className="text-2xl font-black tracking-tight uppercase">Inteligencia de Negocio</h1>
-            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-[0.2em] opacity-70">Métricas, márgenes y reportes</p>
+            <h1 className="text-2xl font-black tracking-tight uppercase">Mi Cuaderno de Ventas</h1>
+            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-[0.2em] opacity-70">Cuentas claras, negocio próspero</p>
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
@@ -151,57 +208,35 @@ export default function AnalyticsPage() {
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 space-y-6 max-w-7xl mx-auto w-full">
           
-          {/* Fila 1: Rentabilidad (Premium) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Fila 1: Hero Cards del Libro DiarIo */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <MetricCard
-              title="Ganancia Libre"
-              value={formatCurrency(profitStats?.summary.profit ?? 0)}
-              description="Lo que te queda en la bolsa después de pagar la mercancía."
-              icon={Wallet}
-              variant="emerald"
-            />
-            <MetricCard
-              title="Rentabilidad"
-              value={`${marginPct}%`}
-              description="Tu desempeño para el periodo seleccionado."
-              icon={TrendingUp}
-              variant="violet"
-              trend="Dinámico"
-              trendPositive={true}
-            />
-            <MetricCard
-              title="Costo de Mercancía"
-              value={formatCurrency(profitStats?.summary.cost ?? 0)}
-              description="El dinero que invertiste en los productos que ya vendiste."
-              icon={ShoppingBag}
-              variant="amber"
-            />
-            <MetricCard
-              title="Total Cobrado"
+              title="Vendimos a la fecha"
               value={formatCurrency(profitStats?.summary.revenue ?? 0)}
-              description="Todo el dinero que entró por las ventas."
+              description="Todo el dinero que ha entrado a tu caja."
+              icon={Coins}
+              variant="emerald"
+              trend={revenueTrend?.text}
+              trendPositive={revenueTrend?.pos}
+            />
+            <MetricCard
+              title="Despachos"
+              value={profitStats?.summary.orderCount?.toString() ?? "0"}
+              description="El total de los tickets de venta exitosos emitidos."
               icon={ReceiptText}
-              variant="blue"
+              variant="violet"
+              trend={countTrend?.text}
+              trendPositive={countTrend?.pos}
             />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Gráfica de Rentabilidad (Principal) */}
+            {/* Gráfica de Progreso Semanal/Mensual */}
             <div className="lg:col-span-3 flex flex-col gap-4 border rounded-2xl bg-card p-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-black uppercase tracking-tight">Ventas vs Costos</h3>
-                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest opacity-60">Visualización del flujo de margen</p>
-                </div>
-                <div className="flex items-center gap-4">
-                   <div className="flex items-center gap-1.5">
-                      <div className="h-2 w-2 rounded-full bg-primary" />
-                      <span className="text-[10px] font-bold uppercase tracking-tighter">Venta</span>
-                   </div>
-                   <div className="flex items-center gap-1.5">
-                      <div className="h-2 w-2 rounded-full bg-indigo-500" />
-                      <span className="text-[10px] font-bold uppercase tracking-tighter">Costo</span>
-                   </div>
+                  <h3 className="text-lg font-black uppercase tracking-tight">El pulso de tus ingresos</h3>
+                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest opacity-60">Dinero que entra en caja día tras día</p>
                 </div>
               </div>
               
@@ -219,24 +254,24 @@ export default function AnalyticsPage() {
               
               <div className="border rounded-2xl bg-card p-6 shadow-sm flex flex-col gap-4">
                 <div>
-                  <h3 className="text-lg font-black uppercase tracking-tight">Rendimiento Cajeros</h3>
-                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest opacity-60">Volumen procesado por usuario</p>
+                  <h3 className="text-lg font-black uppercase tracking-tight">¿Quién cobró más?</h3>
+                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest opacity-60">Ventas por cada cajero</p>
                 </div>
                 {advancedStats ? <CashierChart data={advancedStats.byCashier} /> : <div className="h-[250px] animate-pulse bg-muted/20 rounded-xl" />}
               </div>
 
               <div className="border rounded-2xl bg-card p-6 shadow-sm flex flex-col gap-4">
                 <div>
-                  <h3 className="text-lg font-black uppercase tracking-tight">Canal de Venta</h3>
-                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest opacity-60">Origen de los pedidos</p>
+                  <h3 className="text-lg font-black uppercase tracking-tight">De dónde vienen</h3>
+                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest opacity-60">Mostrador frente a Redes Web</p>
                 </div>
                 {advancedStats ? <SourceList data={advancedStats.bySource} /> : <div className="h-[250px] animate-pulse bg-muted/20 rounded-xl" />}
               </div>
 
               <div className="border rounded-2xl bg-card p-6 shadow-sm flex flex-col gap-4">
                 <div>
-                  <h3 className="text-lg font-black uppercase tracking-tight">Métodos de Cobro</h3>
-                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest opacity-60">Preferencia de pago</p>
+                  <h3 className="text-lg font-black uppercase tracking-tight">Efectivo vs Bancos</h3>
+                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest opacity-60">El origen de la moneda</p>
                 </div>
                 {advancedStats ? <PaymentList data={advancedStats.byPayment} /> : <div className="h-[250px] animate-pulse bg-muted/20 rounded-xl" />}
               </div>

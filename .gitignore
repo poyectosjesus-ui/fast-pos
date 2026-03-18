@@ -55,3 +55,6 @@ out/
 # Cache
 .eslintcache
 .vscode/
+
+# Demos Package
+/demos
