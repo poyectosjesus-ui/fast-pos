@@ -98,6 +98,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getPrinters: () => ipcRenderer.invoke("hw:getPrinters"),
   openCashDrawer: (printerName) => ipcRenderer.invoke("hw:openCashDrawer", printerName),
   
+  // ── Clientes y Fiados ────────────────────────────────────────────────────
+  customers: {
+    getAll: () => ipcRenderer.invoke("customers:getAll"),
+    create: (data) => ipcRenderer.invoke("customers:create", data),
+    update: (data) => ipcRenderer.invoke("customers:update", data),
+    registerPayment: (data) => ipcRenderer.invoke("customers:registerPayment", data),
+  },
+
   // ── Aplicación ───────────────────────────────────────────────────────────
   quitApp: () => ipcRenderer.invoke("app:quit"),
 

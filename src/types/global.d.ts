@@ -81,6 +81,14 @@ declare global {
       getTodayMovements: () => Promise<{ success: boolean; movements?: any[]; error?: string }>;
       getTodayBalance: () => Promise<{ success: boolean; balance?: { opening: number; cashIn: number; cashOut: number; cashSales: number; expectedBalance: number }; error?: string }>;
       getSessionStartTime: () => Promise<{ success: boolean; startTime: number | null; error?: string }>;
+      
+      // ── Clientes y Fiados
+      customers: {
+        getAll: () => Promise<{ success: boolean; customers?: any[]; error?: string }>;
+        create: (data: any) => Promise<{ success: boolean; id?: string; error?: string }>;
+        update: (data: any) => Promise<{ success: boolean; error?: string }>;
+        registerPayment: (data: any) => Promise<{ success: boolean; paymentId?: string; error?: string }>;
+      };
 
       // ── Sistema y Eventos Nativos
       selectStorageFolder: () => Promise<{ success: boolean; canceled?: boolean; path?: string }>;

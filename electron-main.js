@@ -82,7 +82,7 @@ function createWindow() {
     autoHideMenuBar: true,
     title: "FastPOS",
     backgroundColor: "#0f172a",
-    icon: path.join(__dirname, "public", "icon-512x512.png"),
+    icon: path.join(__dirname, "public", "pos.svg"),
   });
 
   mainWindow.once("ready-to-show", () => {
@@ -237,7 +237,7 @@ app.on("ready", () => {
   // Configurar Menú Nativo macOS (Cmd+N, Cmd+S, Editar, Portapapeles)
   const { Menu } = require("electron");
   const isMac = process.platform === 'darwin';
-  
+
   const template = [
     ...(isMac ? [{
       label: app.name,
@@ -256,8 +256,8 @@ app.on("ready", () => {
     {
       label: 'Archivo',
       submenu: [
-        { 
-          label: 'Nuevo Ticket', 
+        {
+          label: 'Nuevo Ticket',
           accelerator: 'CmdOrCtrl+N',
           click: () => { if (mainWindow) mainWindow.webContents.send("menu:new-ticket"); }
         },
@@ -380,11 +380,11 @@ ipcMain.handle("system:selectStorageFolder", async () => {
     title: "Selecciona el directorio de almacenamiento",
     properties: ["openDirectory", "createDirectory", "promptToCreate"]
   });
-  
+
   if (result.canceled || result.filePaths.length === 0) {
     return { success: false, canceled: true };
   }
-  
+
   return { success: true, path: result.filePaths[0] };
 });
 

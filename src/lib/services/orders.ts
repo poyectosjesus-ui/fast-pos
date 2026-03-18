@@ -21,10 +21,11 @@ function getAPI() {
 
 interface CheckoutInput {
   items: CartItem[];
-  paymentMethod: 'CASH' | 'CARD' | 'TRANSFER' | 'OTHER';
+  paymentMethod: 'CASH' | 'CARD' | 'TRANSFER' | 'CREDIT' | 'OTHER';
   /** Sprint-1 E2: Canal de venta. Por defecto COUNTER (mostrador). */
   source?: 'COUNTER' | 'WHATSAPP' | 'INSTAGRAM' | 'FACEBOOK' | 'OTHER';
   userId?: string | null;
+  customerId?: string | null;
 }
 
 interface CheckoutResult {
@@ -80,6 +81,7 @@ export const OrderService = {
       paymentMethod,
       source: input.source ?? 'COUNTER',
       userId: input.userId ?? null,
+      customerId: input.customerId ?? null,
       createdAt: Date.now(),
     });
 

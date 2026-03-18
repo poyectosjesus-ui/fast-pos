@@ -404,6 +404,58 @@ function runMigrations(db) {
     console.log("[DB] Migración v12 aplicada: Tabla audit_logs configurada para rastreo forense.");
   }
 
+  if (currentVersion < 13) {
+    // Sprint 16: Clientes y Fiados (Cuentas por Cobrar)
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS customers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        phone TEXT,
+        address TEXT,
+        isActive INTEGER NOT NULL DEFAULT 1,
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
+      
+      CREATE TABLE IF NOT EXISTS customer_payments (
+        id TEXT PRIMARY KEY,
+        customerId TEXT NOT NULL,
+        amount INTEGER NOT NULL DEFAULT 0,
+        paymentMethod TEXT CHECK(paymentMethod IN ('CASH','CARD','TRANSFER','OTHER')) NOT NULL DEFAULT 'CASH',
+        cashMovementId TEXT,
+        createdAt INTEGER NOT NULL,
+        FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE,
+        FOREIGN KEY (cashMovementId) REFERENCES cash_movements(id) ON DELETE SET NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_customer_payments_client ON customer_payments(customerId);
+
+      CREATE TABLE orders_v13 (
+        id          TEXT PRIMARY KEY,
+        subtotal    INTEGER NOT NULL DEFAULT 0,
+        tax         INTEGER NOT NULL DEFAULT 0,
+        total       INTEGER NOT NULL DEFAULT 0,
+        status      TEXT CHECK(status IN ('PENDING','COMPLETED','CANCELLED')) NOT NULL DEFAULT 'PENDING',
+        paymentMethod TEXT CHECK(paymentMethod IN ('CASH','CARD','TRANSFER','CREDIT','OTHER')) NOT NULL DEFAULT 'CASH',
+        paymentStatus TEXT CHECK(paymentStatus IN ('PAID','PENDING')) NOT NULL DEFAULT 'PAID',
+        source      TEXT CHECK(source IN ('COUNTER','WHATSAPP','INSTAGRAM','FACEBOOK','OTHER')) NOT NULL DEFAULT 'COUNTER',
+        userId      TEXT,
+        customerId  TEXT,
+        createdAt   INTEGER NOT NULL,
+        FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL,
+        FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE SET NULL
+      );
+      INSERT INTO orders_v13 (id, subtotal, tax, total, status, paymentMethod, source, userId, createdAt)
+        SELECT id, subtotal, tax, total, status, paymentMethod, source, userId, createdAt
+        FROM orders;
+      DROP TABLE orders;
+      ALTER TABLE orders_v13 RENAME TO orders;
+      CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customerId);
+    `);
+    db.pragma("user_version = 13");
+    console.log("[DB] Migración v13 aplicada: Módulo de Clientes, Fiados y pagos diferidos establecido.");
+  }
+
   const newVersion = db.pragma("user_version", { simple: true });
   console.log(`[DB] Esquema actualizado a v${newVersion}. Listo.`);
 }

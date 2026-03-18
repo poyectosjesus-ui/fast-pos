@@ -670,8 +670,8 @@ function setupIpcHandlers() {
 
     const checkStock = db.prepare("SELECT stock FROM products WHERE id = ?");
     const insertOrder = db.prepare(`
-      INSERT INTO orders (id, subtotal, tax, total, status, paymentMethod, userId, source, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO orders (id, subtotal, tax, total, status, paymentMethod, paymentStatus, userId, customerId, source, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insertItem = db.prepare(`
       INSERT INTO order_items (orderId, productId, name, price, quantity, subtotal, taxRate, taxIncluded, discountAmount, costPrice)
@@ -695,7 +695,6 @@ function setupIpcHandlers() {
         }
       }
 
-      // 2. Crear la orden
       insertOrder.run(
         orderData.id,
         orderData.subtotal,
@@ -703,7 +702,9 @@ function setupIpcHandlers() {
         orderData.total,
         orderData.status,
         orderData.paymentMethod,
+        orderData.paymentMethod === 'CREDIT' ? 'PENDING' : 'PAID',
         orderData.userId || null,
+        orderData.customerId || null,
         orderData.source ?? 'COUNTER',
         orderData.createdAt
       );
@@ -2050,6 +2051,103 @@ function setupIpcHandlers() {
       return { success: true };
     } catch (err) {
       console.error("[IPC:qa:seed-massive]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // =========================================================================
+  // SPRINT 16: MÓDULO DE CLIENTES (FIADOS Y CUENTAS POR COBRAR)
+  // =========================================================================
+
+  ipcMain.handle("customers:getAll", async () => {
+    try {
+      const db = getDb();
+      const rows = db.prepare(`
+        SELECT c.*, 
+          COALESCE((SELECT SUM(total) FROM orders WHERE customerId = c.id AND paymentMethod = 'CREDIT' AND status = 'COMPLETED'), 0) -
+          COALESCE((SELECT SUM(amount) FROM customer_payments WHERE customerId = c.id), 0) AS currentDebt,
+          (SELECT MAX(createdAt) FROM orders WHERE customerId = c.id AND paymentMethod = 'CREDIT' AND status = 'COMPLETED') AS lastCreditDate
+        FROM customers c
+        ORDER BY currentDebt DESC, c.name ASC
+      `).all();
+      return { success: true, customers: rows };
+    } catch (err) {
+      console.error("[IPC:customers:getAll]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("customers:create", async (event, data) => {
+    try {
+      const db = getDb();
+      const id = crypto.randomUUID();
+      const now = Date.now();
+      db.prepare(`
+        INSERT INTO customers (id, name, phone, address, isActive, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, 1, ?, ?)
+      `).run(id, data.name, data.phone || null, data.address || null, now, now);
+      
+      logAudit(data.userId, "CREATE_CUSTOMER", { customerId: id, name: data.name });
+      return { success: true, id };
+    } catch (err) {
+      console.error("[IPC:customers:create]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("customers:update", async (event, data) => {
+    try {
+      const db = getDb();
+      const now = Date.now();
+      db.prepare(`
+        UPDATE customers 
+        SET name = ?, phone = ?, address = ?, updatedAt = ?
+        WHERE id = ?
+      `).run(data.name, data.phone || null, data.address || null, now, data.id);
+      
+      logAudit(data.userId, "UPDATE_CUSTOMER", { customerId: data.id, name: data.name });
+      return { success: true };
+    } catch (err) {
+      console.error("[IPC:customers:update]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("customers:registerPayment", async (event, data) => {
+    try {
+      const db = getDb();
+      const { customerId, amount, paymentMethod, userId } = data;
+      const now = Date.now();
+      const paymentId = crypto.randomUUID();
+      const cashMoveId = crypto.randomUUID();
+
+      const transaction = db.transaction(() => {
+        db.prepare(`
+          INSERT INTO cash_movements (id, userId, type, amount, description, createdAt)
+          VALUES (?, ?, 'IN', ?, ?, ?)
+        `).run(cashMoveId, userId, amount, "Abono de deuda - Fiado", now);
+
+        db.prepare(`
+          INSERT INTO customer_payments (id, customerId, amount, paymentMethod, cashMovementId, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(paymentId, customerId, amount, paymentMethod || 'CASH', cashMoveId, now);
+
+        const currentDebt = db.prepare(`
+          SELECT 
+            COALESCE((SELECT SUM(total) FROM orders WHERE customerId = ? AND paymentMethod = 'CREDIT' AND status = 'COMPLETED'), 0) -
+            COALESCE((SELECT SUM(amount) FROM customer_payments WHERE customerId = ?), 0) AS debt
+        `).get(customerId, customerId).debt;
+
+        if (currentDebt <= 0) {
+           db.prepare(`UPDATE orders SET paymentStatus = 'PAID' WHERE customerId = ? AND paymentMethod = 'CREDIT'`).run(customerId);
+        }
+      });
+
+      transaction();
+      logAudit(userId, "CUSTOMER_PAYMENT", { customerId, amount, paymentMethod });
+      return { success: true, paymentId };
+    } catch (err) {
+      console.error("[IPC:customers:registerPayment]", err.message);
       return { success: false, error: err.message };
     }
   });

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Coffee, Package2, PieChart, Settings, ShoppingBag, ReceiptText, LogOut, Users, Power, Lock, Wallet, Eye } from "lucide-react";
+import { Coffee, Package2, PieChart, Settings, ShoppingBag, ReceiptText, LogOut, Users, Power, Lock, Wallet, Eye, UserRoundCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -30,6 +30,7 @@ export function Sidebar() {
     { href: "/analytics", label: "Analítica", icon: PieChart, roles: ["ADMIN"] },
     { href: "/users", label: "Equipo", icon: Users, roles: ["ADMIN"] },
     { href: "/audit", label: "Auditoría", icon: Eye, roles: ["ADMIN"] },
+    { href: "/customers", label: "Clientes", icon: UserRoundCheck, roles: ["ADMIN", "CASHIER"] },
     { href: "/settings", label: "Ajustes", icon: Settings, roles: ["ADMIN", "CASHIER"] },
   ].filter(item => !item.roles || item.roles.includes(user?.role || ""));
 

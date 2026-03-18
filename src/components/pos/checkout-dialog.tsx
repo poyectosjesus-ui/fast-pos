@@ -20,7 +20,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
   Check, Banknote, CreditCard, Printer, RotateCcw,
-  ArrowLeftRight, HelpCircle,
+  ArrowLeftRight, HelpCircle, UserRoundCheck, PlusCircle
 } from "lucide-react";
 
 import { OrderService } from "@/lib/services/orders";
@@ -31,6 +31,7 @@ import { formatCents } from "@/lib/services/tax";
 import { BUSINESS_NAME } from "@/lib/constants";
 import { PrintTicketButton } from "@/components/pos/PrintTicketButton";
 import { useSaleChannels, type SaleSource } from "@/hooks/useSaleChannels";
+import { CustomerService, type Customer } from "@/lib/services/customers";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,7 +52,7 @@ interface CheckoutDialogProps {
   onSuccess?: () => void;
 }
 
-type PaymentMethod = "CASH" | "CARD" | "TRANSFER" | "OTHER";
+type PaymentMethod = "CASH" | "CARD" | "TRANSFER" | "CREDIT" | "OTHER";
 type Step = "payment" | "ticket";
 
 const PAYMENT_METHODS: { id: PaymentMethod; label: string; icon: React.ReactNode; requiresAmount: boolean; color: string }[] = [
@@ -71,10 +72,17 @@ const PAYMENT_METHODS: { id: PaymentMethod; label: string; icon: React.ReactNode
   },
   {
     id: "TRANSFER",
-    label: "Transferencia",
+    label: "Transfer",
     icon: <ArrowLeftRight className="h-5 w-5" />,
     requiresAmount: false,
     color: "violet",
+  },
+  {
+    id: "CREDIT",
+    label: "Fiado",
+    icon: <UserRoundCheck className="h-5 w-5" />,
+    requiresAmount: false,
+    color: "amber",
   },
   {
     id: "OTHER",
@@ -89,6 +97,7 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   CASH: "Efectivo",
   CARD: "Tarjeta",
   TRANSFER: "Transferencia Bancaria",
+  CREDIT: "Fiado a Cliente",
   OTHER: "Otro método",
 };
 
@@ -106,10 +115,22 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
   const [isProcessing, setIsProcessing] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
 
+  // Módulo de clientes fiados
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+
   // Sincronizar canal por defecto cuando se cargan las settings
   useEffect(() => {
     setSaleSource(defaultChannel);
   }, [defaultChannel]);
+
+  useEffect(() => {
+    if (paymentMethod === "CREDIT") {
+      CustomerService.getAll().then(setCustomers);
+    }
+  }, [paymentMethod]);
 
   const currentMethodDef = PAYMENT_METHODS.find(m => m.id === paymentMethod)!;
   const requiresAmount = currentMethodDef.requiresAmount;
@@ -117,12 +138,22 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
   // CA-3.3.4: Calcular cambio solo aplica en efectivo
   const amountPaidCents = Math.round(parseFloat(amountPaidStr || "0") * 100);
   const changeCents = amountPaidCents - total;
+  
+  // Validaciones
   const isCashValid = !requiresAmount || amountPaidCents >= total;
+  const isCreditValid = paymentMethod !== "CREDIT" || selectedCustomerId !== "";
+  const canConfirm = isCashValid && isCreditValid;
 
   const handleConfirmPayment = async () => {
     if (!isCashValid) {
       toast.error("Monto insuficiente", {
         description: `El cliente debe dar al menos ${formatCents(total)}. Recibiste ${formatCents(amountPaidCents)}.`,
+      });
+      return;
+    }
+    if (!isCreditValid) {
+      toast.error("Cliente no seleccionado", {
+        description: "Al vender por fiado, debes asignar la cuenta a un cliente.",
       });
       return;
     }
@@ -133,7 +164,8 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
         items, 
         paymentMethod, 
         source: saleSource,
-        userId: user?.id 
+        userId: user?.id,
+        customerId: paymentMethod === "CREDIT" ? selectedCustomerId : undefined
       });
 
       if (!result.success || !result.order) {
@@ -197,13 +229,15 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
 
 
             {/* Selector de Método de Pago (CA-3.3.3) */}
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-5 gap-2">
               {PAYMENT_METHODS.map((method) => (
                 <button
                   key={method.id}
                   onClick={() => {
                     setPaymentMethod(method.id);
                     if (!method.requiresAmount) setAmountPaidStr("");
+                    setIsCreatingCustomer(false);
+                    setNewCustomerName("");
                   }}
                   className={cn(
                     "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center",
@@ -213,7 +247,7 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
                   )}
                 >
                   {method.icon}
-                  <span className="text-[11px] font-bold leading-tight">{method.label}</span>
+                  <span className="text-[10px] font-bold leading-tight">{method.label}</span>
                 </button>
               ))}
             </div>
@@ -315,8 +349,60 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
               </div>
             )}
 
-            {/* Aviso para métodos sin efectivo */}
-            {!requiresAmount && (
+            {/* Selector de Cliente si es Fiado */}
+            {paymentMethod === "CREDIT" && (
+              <div className="space-y-3 p-4 border rounded-2xl bg-amber-500/5 border-amber-500/20">
+                <Label className="font-bold text-amber-600 dark:text-amber-500 uppercase text-xs tracking-wider">
+                  Selecciona la cuenta por cobrar
+                </Label>
+                {isCreatingCustomer ? (
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="Nombre del cliente" 
+                      value={newCustomerName} 
+                      onChange={e => setNewCustomerName(e.target.value)} 
+                      className="bg-background border-amber-500/30"
+                      autoFocus 
+                    />
+                    <Button 
+                      variant="default"
+                      className="bg-amber-500 hover:bg-amber-600 font-bold"
+                      onClick={async () => {
+                        if (!newCustomerName) return;
+                        try {
+                          const id = await CustomerService.create({ name: newCustomerName, userId: user?.id || "" });
+                          setCustomers([{ id, name: newCustomerName } as any, ...customers]);
+                          setSelectedCustomerId(id);
+                          setIsCreatingCustomer(false);
+                          setNewCustomerName("");
+                        } catch(e: any) {
+                          toast.error(e.message);
+                        }
+                      }}
+                    >
+                      Guardar
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <select 
+                      className="flex-1 rounded-xl border bg-background px-3 py-2 text-sm focus:outline-none border-amber-500/30 font-medium text-foreground"
+                      value={selectedCustomerId}
+                      onChange={e => setSelectedCustomerId(e.target.value)}
+                    >
+                      <option value="">-- Buscar o Seleccionar --</option>
+                      {customers.map(c => <option key={c.id} value={c.id}>{c.name} {c.currentDebt ? `(-${formatCents(c.currentDebt)})` : ""}</option>)}
+                    </select>
+                    <Button variant="outline" className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10 font-bold" onClick={() => setIsCreatingCustomer(true)}>
+                      <PlusCircle className="mr-1 h-4 w-4" /> Nuevo
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Aviso para otros métodos rápidos */}
+            {!requiresAmount && paymentMethod !== "CREDIT" && (
               <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-dashed">
                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                   {currentMethodDef.icon}
@@ -353,7 +439,7 @@ export function CheckoutDialog({ open, onClose, onSuccess }: CheckoutDialogProps
             <Button
               className="w-full h-11 mt-2"
               onClick={handleConfirmPayment}
-              disabled={isProcessing || !isCashValid}
+              disabled={isProcessing || !canConfirm}
             >
               <Check className="h-4 w-4 mr-2" />
               {isProcessing ? "Procesando de forma segura..." : "Confirmar Cobro"}

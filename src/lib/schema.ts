@@ -71,12 +71,14 @@ export const OrderSchema = z.object({
   total: z.number().int().nonnegative("Total (subtotal + IVA) en centavos"),
   status: z.enum(["COMPLETED", "CANCELLED"]),
   /** Método de cobro del negocio */
-  paymentMethod: z.enum(["CASH", "CARD", "TRANSFER", "OTHER"]),
+  paymentMethod: z.enum(["CASH", "CARD", "TRANSFER", "CREDIT", "OTHER"]),
   /** Sprint-1 E2: Canal de venta — COUNTER (mostrador) | WHATSAPP | INSTAGRAM | FACEBOOK | OTHER */
   source: z.enum(["COUNTER", "WHATSAPP", "INSTAGRAM", "FACEBOOK", "OTHER"]).default("COUNTER"),
 
   /** ID del usuario que realizó la venta */
   userId: z.string().uuid().nullable().optional(),
+  customerId: z.string().uuid().nullable().optional(),
+  paymentStatus: z.enum(["PAID", "PENDING"]).default("PAID"),
   createdAt: z.number(),
 });
 
