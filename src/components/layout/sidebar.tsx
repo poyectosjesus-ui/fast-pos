@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Coffee, Package2, PieChart, Settings, ShoppingBag, ReceiptText, LogOut, Users, Power, Lock, Wallet, Eye, UserRoundCheck } from "lucide-react";
+import { Coffee, Package2, PieChart, Settings, ShoppingBag, ReceiptText, LogOut, Power, Lock, Wallet, Eye, UserRoundCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -42,7 +42,6 @@ export function Sidebar() {
     {
       groupName: "Sistema Básico",
       items: [
-        { href: "/users", label: "Equipo de Cajeros", icon: Users, roles: ["ADMIN"] },
         { href: "/audit", label: "Registro de Auditoría", icon: Eye, roles: ["ADMIN"] },
         { href: "/settings", label: "Ajustes Básico", icon: Settings, roles: ["ADMIN", "CASHIER"] },
       ]

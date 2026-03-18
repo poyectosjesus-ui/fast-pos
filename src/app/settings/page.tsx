@@ -72,6 +72,7 @@ import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { useThemeStore } from "@/store/useThemeStore";
 import { useSessionStore } from "@/store/useSessionStore";
 import { cn } from "@/lib/utils";
+import { UsersPanel } from "@/components/settings/users-panel";
 
 // ─────────────────────────────────────────────
 // Sub-componente: Panel de Licencia Activa
@@ -810,7 +811,7 @@ export default function SettingsPage() {
         {/* Contenido scrollable */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-4xl mx-auto w-full space-y-6 pb-24">
           <Tabs defaultValue={user?.role === "ADMIN" ? "general" : "system"} className="w-full space-y-6">
-            <TabsList className="grid w-full grid-cols-4 bg-muted/50 p-1 rounded-xl border border-primary/5 backdrop-blur-sm h-auto flex-wrap gap-1">
+            <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 bg-muted/50 p-1 rounded-xl border border-primary/5 backdrop-blur-sm h-auto flex-wrap gap-1">
               {user?.role === "ADMIN" && (
                 <TabsTrigger value="general" className="uppercase text-[10px] font-black tracking-widest gap-1.5 focus:bg-primary/20 bg-primary/5 text-primary">
                   <Activity className="w-3 h-3" /> General
@@ -827,11 +828,19 @@ export default function SettingsPage() {
               <TabsTrigger value="shortcuts" className="uppercase text-[10px] font-black tracking-widest gap-1.5 hidden sm:flex">
                 <Keyboard className="w-3 h-3" /> Atajos
               </TabsTrigger>
+              {user?.role === "ADMIN" && (
+                <TabsTrigger value="users" className="uppercase text-[10px] font-black tracking-widest gap-1.5 focus:bg-primary/20 bg-primary/5 text-primary">
+                  <Users className="w-3 h-3" /> Equipo
+                </TabsTrigger>
+              )}
             </TabsList>
 
-            {/* Se ha movido a /users */}
-
-            {/* Se ha fusionado con Negocios */}
+            {/* ── PESTAÑA: USUARIOS ── */}
+            {user?.role === "ADMIN" && (
+              <TabsContent value="users" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <UsersPanel />
+              </TabsContent>
+            )}
 
             {/* ── PESTAÑA: ATAJOS DE TECLADO ── */}
             <TabsContent value="shortcuts" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">

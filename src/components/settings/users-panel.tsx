@@ -42,9 +42,7 @@ import {
 } from "@/components/ui/select";
 import { useSessionStore } from "@/store/useSessionStore";
 
-import { Sidebar } from "@/components/layout/sidebar";
-
-export default function UsersPage() {
+export function UsersPanel() {
   const [users, setUsers] = useState<User[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
@@ -146,28 +144,8 @@ export default function UsersPage() {
   };
 
   return (
-    <div className="flex h-screen bg-muted/20">
-      <Sidebar />
-      <main className="flex-1 flex flex-col sm:pl-20 overflow-hidden">
-        {/* Header */}
-        <header className="sticky top-0 z-20 bg-background/50 backdrop-blur-xl border-b px-6 py-4">
-          <div className="flex items-center justify-between max-w-4xl mx-auto w-full">
-            <div>
-              <h1 className="text-2xl font-black tracking-tight uppercase">
-                Equipo
-              </h1>
-              <p className="text-sm text-muted-foreground italic">
-                Gestión de Personal y Cajas
-              </p>
-            </div>
-            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
-              NATIVE CORE v2
-            </Badge>
-          </div>
-        </header>
-
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-4xl mx-auto w-full space-y-6 pb-24">
-          <Card className="border-primary/10 shadow-xl overflow-hidden animate-in fade-in zoom-in-95">
+    <div className="space-y-6">
+      <Card className="border-primary/10 shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
             <CardHeader className="flex flex-row items-center justify-between bg-primary/5 py-4 border-b border-primary/10">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
@@ -308,8 +286,6 @@ export default function UsersPage() {
       </AlertDialog>
 
           </Card>
-        </div>
-      </main>
     </div>
   );
 }
