@@ -2,7 +2,10 @@
   "name": "fast-pos",
   "version": "2.0.0",
   "description": "Sistema de Punto de Venta offline first y ultrarrápido",
-  "author": "Yetzapos",
+  "author": {
+    "name": "Yetzapos",
+    "email": "soporte@fastpos.com"
+  },
   "private": true,
   "license": "UNLICENSED",
   "main": "electron-main.js",
@@ -116,8 +119,7 @@
     },
     "linux": {
       "target": [
-        "AppImage",
-        "deb"
+        "AppImage"
       ],
       "category": "Office",
       "icon": "public/icon-512x512.png"
