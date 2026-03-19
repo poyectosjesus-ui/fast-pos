@@ -1221,8 +1221,8 @@ function setupIpcHandlers() {
     });
 
     const ticketUrl = isDev 
-      ? `http://localhost:3000/ticket?orderId=${orderId}`
-      : `app://-/ticket.html?orderId=${orderId}`;
+      ? `http://localhost:3000/ticket?orderId=${orderId}&format=thermal`
+      : `app://-/ticket.html?orderId=${orderId}&format=thermal`;
 
     await win.loadURL(ticketUrl);
     
@@ -1294,10 +1294,26 @@ function setupIpcHandlers() {
     try {
       const win = await createTicketWindow(orderId);
       
+      // ────────────────────────────────────────────────────────
+      // CÁLCULO DINÁMICO DE ALTURA DEL CARRITO (TICKET)
+      // Ajusta la ventana oculta al tamaño real del DOM para 
+      // evitar que la impresora térmica deje papel en blanco extra.
+      // ────────────────────────────────────────────────────────
+      try {
+        const heightPx = await win.webContents.executeJavaScript(`Math.max(document.body.scrollHeight, document.body.offsetHeight)`);
+        if (heightPx > 0) {
+           const currentBounds = win.getBounds();
+           win.setBounds({ width: currentBounds.width, height: Math.ceil(heightPx) + 15 });
+        }
+      } catch (e) {
+        console.error("[IPC:ticket:print] Error leyendo altura", e);
+      }
+
       const printOptions = {
         silent: silent,
         printBackground: true,
-        deviceName: printerName || undefined
+        deviceName: printerName || undefined,
+        margins: { marginType: 'none' }
       };
 
       return new Promise((resolve) => {
@@ -1476,6 +1492,77 @@ function setupIpcHandlers() {
       });
     } catch (err) {
       console.error("[IPC:ticket:printToPdf]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ========== EXPORTADOR NATIVO A4 DE LA VISTA ACTUAL ==========
+  ipcMain.handle("app:exportPdf", async (event, recommendedFileName) => {
+    try {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (!win) return { success: false, error: "No window found" };
+
+      const timestamp = Math.floor(Date.now() / 1000);
+      const safeName = recommendedFileName || `Documento_${timestamp}.pdf`;
+
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        title: "Exportar Documento A4",
+        defaultPath: path.join(app.getPath("documents"), safeName),
+        filters: [{ name: "PDF", extensions: ["pdf"] }]
+      });
+
+      if (canceled || !filePath) return { success: true, canceled: true };
+
+      // Render To PDF without system print dialog (Silent)
+      const pdfData = await win.webContents.printToPDF({
+        marginsType: 0, // No margins, let CSS handle it
+        pageSize: 'A4',
+        printBackground: true,
+        printSelectionOnly: false
+      });
+
+      fs.writeFileSync(filePath, pdfData);
+      return { success: true, filePath };
+    } catch (err) {
+      console.error("[IPC:app:exportPdf]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("report:print", async (event, dateString, title, printerName, silent = true) => {
+    try {
+      const win = await createZReportWindow(dateString, title);
+      
+      // Cálculo Dinámico de Altura para Reporte Z
+      try {
+        const heightPx = await win.webContents.executeJavaScript(`Math.max(document.body.scrollHeight, document.body.offsetHeight)`);
+        if (heightPx > 0) {
+           const currentBounds = win.getBounds();
+           win.setBounds({ width: currentBounds.width, height: Math.ceil(heightPx) + 15 });
+        }
+      } catch (e) {
+        console.error("[IPC:report:print] Error midiendo DOM", e);
+      }
+
+      const printOptions = {
+        silent: silent,
+        printBackground: true,
+        deviceName: printerName || undefined,
+        margins: { marginType: 'none' }
+      };
+
+      return new Promise((resolve) => {
+        win.webContents.print(printOptions, (success, errorType) => {
+          win.close(); 
+          if (success) resolve({ success: true });
+          else {
+            console.error("[IPC:report:print] Error:", errorType);
+            resolve({ success: false, error: errorType });
+          }
+        });
+      });
+    } catch (err) {
+      console.error("[IPC:report:print]", err.message);
       return { success: false, error: err.message };
     }
   });

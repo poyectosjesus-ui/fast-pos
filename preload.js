@@ -65,6 +65,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getPrinters:  () => ipcRenderer.invoke("ticket:getPrinters"),
   printTicket:  (orderId, printerName, silent) => ipcRenderer.invoke("ticket:print", orderId, printerName, silent),
   printTicketToPdf: (orderId) => ipcRenderer.invoke("ticket:printToPdf", orderId),
+  printZReport: (dateString, title, printerName, silent) => ipcRenderer.invoke("report:print", dateString, title, printerName, silent),
   generateZReportPdf: (dateString) => ipcRenderer.invoke("report:zReportPdf", dateString),
 
   // ── Usuarios & Seguridad (EPIC-005) ────────────────────────────────────────
@@ -108,6 +109,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // ── Aplicación ───────────────────────────────────────────────────────────
   quitApp: () => ipcRenderer.invoke("app:quit"),
+  exportCurrentViewToPdf: (filename) => ipcRenderer.invoke("app:exportPdf", filename),
 
   onNewTicket: (callback) => {
     ipcRenderer.on("menu:new-ticket", () => callback());

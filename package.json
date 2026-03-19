@@ -1,6 +1,8 @@
 {
   "name": "fast-pos",
   "version": "2.0.0",
+  "description": "Sistema de Punto de Venta offline first y ultrarrápido",
+  "author": "Yetzapos",
   "private": true,
   "license": "UNLICENSED",
   "main": "electron-main.js",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Printer, FileDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -14,7 +15,7 @@ interface PrintTicketButtonProps {
 
 export function PrintTicketButton({ orderId, variant = "outline", className, asIcon = false }: PrintTicketButtonProps) {
   const [isPrinting, setIsPrinting] = useState(false);
-  const [isPdfing, setIsPdfing] = useState(false);
+  const router = useRouter();
 
   // Helper local para window.electronAPI
   const api = typeof window !== "undefined" ? (window as unknown as { electronAPI?: any }).electronAPI : null;
@@ -51,33 +52,8 @@ export function PrintTicketButton({ orderId, variant = "outline", className, asI
     }
   };
 
-  const handlePdf = async () => {
-    if (!api) {
-      toast.error("Descarga no disponible en la web");
-      return;
-    }
-
-    setIsPdfing(true);
-    const toastId = toast.loading("Generando ticket PDF...");
-    
-    try {
-      const res = await api.printTicketToPdf(orderId);
-      
-      if (res.canceled) {
-        toast.dismiss(toastId);
-        return;
-      }
-
-      if (res.success) {
-        toast.success("Recibo guardado en Documentos", { id: toastId });
-      } else {
-        toast.error("Error al guardar PDF", { description: res.error, id: toastId });
-      }
-    } catch (err: any) {
-      toast.error("Falla al generar PDF", { description: err.message || "", id: toastId });
-    } finally {
-      setIsPdfing(false);
-    }
+  const handlePdf = () => {
+    router.push(`/ticket?orderId=${orderId}&format=pdf`);
   };
 
   if (asIcon) {
@@ -87,7 +63,7 @@ export function PrintTicketButton({ orderId, variant = "outline", className, asI
           variant={variant} 
           size="icon"
           onClick={handlePrint} 
-          disabled={isPrinting || isPdfing}
+          disabled={isPrinting}
           className={className}
           title="Imprimir Térmico"
         >
@@ -97,11 +73,11 @@ export function PrintTicketButton({ orderId, variant = "outline", className, asI
           variant={variant} 
           size="icon"
           onClick={handlePdf} 
-          disabled={isPrinting || isPdfing}
+          disabled={isPrinting}
           className={className}
           title="Descargar PDF"
         >
-          {isPdfing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+          <FileDown className="h-4 w-4" />
         </Button>
       </div>
     );
@@ -111,7 +87,7 @@ export function PrintTicketButton({ orderId, variant = "outline", className, asI
     <div className="grid grid-cols-2 gap-3 w-full my-2">
       <button 
         onClick={handlePrint} 
-        disabled={isPrinting || isPdfing}
+        disabled={isPrinting}
         className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all hover:border-primary/50 hover:bg-muted/30 disabled:opacity-50 disabled:cursor-not-allowed group ${className || ''}`}
       >
         <div className="p-3 bg-muted group-hover:bg-background rounded-full transition-colors">
@@ -122,11 +98,11 @@ export function PrintTicketButton({ orderId, variant = "outline", className, asI
       
       <button 
         onClick={handlePdf} 
-        disabled={isPrinting || isPdfing}
+        disabled={isPrinting}
         className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all border-primary/20 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 disabled:opacity-50 disabled:cursor-not-allowed group shadow-sm ${className || ''}`}
       >
         <div className="p-3 bg-background rounded-full shadow-sm text-primary transition-transform group-hover:scale-110">
-          {isPdfing ? <Loader2 className="h-6 w-6 animate-spin" /> : <FileDown className="h-6 w-6" />}
+          <FileDown className="h-6 w-6" />
         </div>
         <span className="text-[10px] font-black uppercase tracking-widest text-primary">Descargar PDF</span>
       </button>

@@ -1,35 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { OrderService } from "@/lib/services/orders";
 import { Order } from "@/lib/schema";
-import { formatCurrency } from "@/lib/constants";
-import { Suspense } from "react";
-
-/**
- * Plantilla HTML estricta para impresión Térmica (80mm) y PDF.
- * EPIC-004: Ticket de venta con datos de la empresa y branding.
- * EPIC-008 / FASE 8: Lee configuraciones de branding desde settings tabla en SQLite.
- *
- * CLAVES CORRECTAS de settings:
- *  store_name, store_address, store_phone, store_tax_id
- *  store_footer_message, store_policies
- *  store_whatsapp, store_instagram, store_facebook, store_website
- */
-
-const PAYMENT_LABELS: Record<string, string> = {
-  CASH:     "EFECTIVO",
-  CARD:     "TARJETA",
-  TRANSFER: "TRANSFERENCIA",
-  WHATSAPP: "WHATSAPP / LINK",
-  ONLINE:   "PAGO EN LÍNEA",
-  OTHER:    "OTRO MÉTODO",
-};
+import { ThermalTicket } from "@/components/receipts/ThermalTicket";
+import { InvoicePDF } from "@/components/receipts/InvoicePDF";
+import { Button } from "@/components/ui/button";
+import { Printer, FileText, ArrowLeft, Download } from "lucide-react";
+import { toast } from "sonner";
 
 function TicketContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const orderId = searchParams.get("orderId");
+  const format = searchParams.get("format"); // "thermal" | "pdf" | null
 
   const [order, setOrder] = useState<Order | null>(null);
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -66,6 +51,32 @@ function TicketContent() {
     fetchTicketData();
   }, [orderId]);
 
+  const handlePrintThermal = async () => {
+    if (!orderId) return;
+    const api = (window as any).electronAPI;
+    const printerName = settings["receiptPrinter"] || null;
+    await api.printTicket(orderId, printerName, true); // Silent
+  };
+
+  const handlePrintPDF = async () => {
+    if (!order) return;
+    const api = (window as any).electronAPI;
+    if (!api) {
+      window.print();
+      return;
+    }
+    const filename = `Factura_${order.id.split('-')[0]}.pdf`;
+    toast.loading("Exportando Documento...");
+    const result = await api.exportCurrentViewToPdf(filename);
+    if (result.success && !result.canceled) {
+      toast.success("Guardado en Documentos");
+    } else if (result.canceled) {
+      toast.dismiss();
+    } else {
+      toast.error("Cancelado: " + result.error);
+    }
+  };
+
   if (error) {
     return (
       <div className="flex items-center justify-center p-8 text-center font-mono">
@@ -77,171 +88,110 @@ function TicketContent() {
   if (!order) {
     return (
       <div className="flex items-center justify-center p-8 text-center font-mono text-muted-foreground">
-        Cargando recibo...
+        Cargando recibo de venta...
       </div>
     );
   }
 
-  // ── Datos del negocio (claves exactas de la tabla settings) ──
-  const businessName    = settings["store_name"]           || "MI NEGOCIO";
-  const taxId           = settings["store_tax_id"]         || "";
-  const address         = settings["store_address"]        || "";
-  const phone           = settings["store_phone"]          || "";
-  const footerMessage   = settings["store_footer_message"] || "¡Gracias por su compra!";
-  const policies        = settings["store_policies"]       || "";
-  const whatsapp        = settings["store_whatsapp"]       || "";
-  const instagram       = settings["store_instagram"]      || "";
-  const facebook        = settings["store_facebook"]       || "";
-  const website         = settings["store_website"]        || "";
-  const taxName         = settings["tax_name"]             || "IVA";
+  // 1. MODO ORDEN STRICTA (SILENT/BACKEND o EXPLICITO)
+  if (format === "thermal") {
+    return (
+      <div className="h-screen overflow-y-auto w-full bg-muted/20 p-8 flex flex-col items-center">
+        <div className="print:hidden w-full flex justify-center mb-8">
+          <div className="w-full" style={{ maxWidth: settings["receiptPaperSize"] || "80mm" }}>
+            <Button variant="outline" className="bg-white shadow-sm h-8 px-3 text-xs w-full" onClick={() => router.back()}>
+              <ArrowLeft className="w-3 h-3 mr-2" />
+              Volver a Selección
+            </Button>
+          </div>
+        </div>
+        <div className="shadow-2xl print:shadow-none w-max bg-white">
+          <ThermalTicket order={order} settings={settings} />
+        </div>
+      </div>
+    );
+  }
+  if (format === "pdf") {
+    // Para ver solo el PDF limpio e imprimir con CMD+P o Window.Print
+    return (
+      <div className="h-screen overflow-y-auto w-full bg-muted/20 p-8 flex flex-col items-center">
+        <div className="print:hidden w-full max-w-[210mm] flex justify-between items-center mb-8">
+          <Button variant="outline" className="bg-white shadow-sm" onClick={() => router.back()}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Volver
+          </Button>
+          <Button className="shadow-md bg-primary hover:bg-primary/90" onClick={handlePrintPDF}>
+            <Download className="w-4 h-4 mr-2" />
+            Exportar como PDF
+          </Button>
+        </div>
+        <InvoicePDF order={order} settings={settings} />
+      </div>
+    );
+  }
 
-  const dateStr = new Date(order.createdAt).toLocaleString("es-MX", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
-
-  const paymentLabel = PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod;
-
-  // Mostrar redes sociales si hay al menos una
-  const hasSocials = whatsapp || instagram || facebook || website;
-
+  // 2. MODO UI (Selector Frontal para Operador)
   return (
-    <div className="ticket-container w-[80mm] mx-auto bg-white text-black p-4 font-mono text-[12px] leading-tight print:p-0">
-      {/* ── HEADER ── */}
-      <div className="text-center mb-4">
-        <h1 className="text-lg font-black uppercase tracking-widest">{businessName}</h1>
-        {taxId && <p className="uppercase mt-1 text-[10px]">RFC: {taxId}</p>}
-        {address && <p className="text-[10px] mt-1 whitespace-pre-line">{address}</p>}
-        {phone && <p className="text-[10px] mt-1">Tel: {phone}</p>}
-      </div>
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 relative overflow-hidden">
+      {/* Mesh Background */}
+      <div className="absolute inset-0 bg-muted/30 mesh-pattern -z-10" />
 
-      {/* ── META INFO ── */}
-      <div className="border-y border-dashed border-black/50 py-2 mb-4">
-        <div className="flex justify-between">
-          <span>TICKET:</span>
-          <span>{order.id.split("-")[0].toUpperCase()}</span>
+      <div className="w-full max-w-lg space-y-8 bg-card border shadow-2xl p-8 rounded-3xl animate-in fade-in slide-in-from-bottom-6">
+        <div className="text-center space-y-2">
+          <h1 className="text-3xl font-black uppercase tracking-tight text-primary">Recibo Listo</h1>
+          <p className="text-muted-foreground text-sm">
+            La operación <span className="font-mono font-bold">#{order.id.split("-")[0]}</span> ha concluido exitosamente. Elige el formato de salida deseado.
+          </p>
         </div>
-        <div className="flex justify-between">
-          <span>FECHA:</span>
-          <span>{dateStr}</span>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Button 
+            className="flex-col h-auto py-6 gap-3 rounded-2xl shadow-xl hover:scale-[1.02] transition-transform active:scale-95" 
+            variant="default"
+            onClick={handlePrintThermal}
+          >
+            <Printer className="w-10 h-10 mb-1" />
+            <div className="space-y-1">
+              <span className="block font-bold uppercase text-xs tracking-widest">Ticket Rápido</span>
+              <span className="block text-[10px] opacity-70 normal-case font-medium">80mm para Local</span>
+            </div>
+          </Button>
+
+          <Button 
+            className="flex-col h-auto py-6 gap-3 rounded-2xl bg-white text-slate-800 border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 shadow-sm hover:scale-[1.02] transition-transform active:scale-95" 
+            variant="outline"
+            onClick={() => router.push(`/ticket?orderId=${order.id}&format=pdf`)}
+          >
+            <FileText className="w-10 h-10 mb-1 text-red-500" />
+            <div className="space-y-1">
+              <span className="block font-bold uppercase text-xs tracking-widest">Nota de Venta</span>
+              <span className="block text-[10px] opacity-70 normal-case font-medium">Formato PDF A4</span>
+            </div>
+          </Button>
         </div>
-        <div className="flex justify-between">
-          <span>ESTADO:</span>
-          <span className="font-bold">
-            {order.status === "COMPLETED" ? "PAGADO" : "CANCELADO / NULO"}
-          </span>
+
+        <div className="flex justify-center pt-4">
+          <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Continuar sin imprimir
+          </Button>
         </div>
-        <div className="flex justify-between">
-          <span>PAGO:</span>
-          <span>{paymentLabel}</span>
-        </div>
-        {(order as any).userName && (
-          <div className="flex justify-between border-t border-black/10 mt-1 pt-1 italic text-[10px]">
-             <span>LE ATENDIÓ:</span>
-             <span className="uppercase">{(order as any).userName}</span>
+
+        {process.env.NODE_ENV === "development" && (
+          <div className="flex justify-center border-t pt-4">
+            <Button variant="ghost" className="text-xs text-orange-500 hover:text-orange-600 font-mono font-bold" onClick={() => router.push(`/ticket?orderId=${order.id}&format=thermal`)}>
+              [DEV] PREVIEW TÉRMICO EN PANTALLA
+            </Button>
           </div>
         )}
-        {order.source !== "COUNTER" && order.source !== "OTHER" && (
-          <div className="flex justify-between text-[10px] mt-0.5">
-            <span>ORIGEN:</span>
-            <span className="uppercase">{order.source}</span>
-          </div>
-        )}
       </div>
-
-      {/* ── ITEMS ── */}
-      <table className="w-full mb-4">
-        <thead>
-          <tr className="border-b border-black/30">
-            <th className="text-left font-bold pb-1 w-[15%]">CANT</th>
-            <th className="text-left font-bold pb-1 w-[55%]">DESCRIPCIÓN</th>
-            <th className="text-right font-bold pb-1 w-[30%]">IMPORTE</th>
-          </tr>
-        </thead>
-        <tbody>
-          {order.items.map((item, index) => (
-            <tr key={index}>
-              <td className="align-top pt-2 pr-1">{item.quantity}</td>
-              <td className="align-top pt-2 pr-1 leading-snug">{item.name}</td>
-              <td className="align-top pt-2 text-right">{formatCurrency(item.subtotal)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {/* ── TOTALES ── */}
-      <div className="border-t border-dashed border-black/50 pt-2 mb-6">
-        <div className="flex justify-between text-[11px] mb-1">
-          <span>SUBTOTAL:</span>
-          <span>{formatCurrency(order.subtotal)}</span>
-        </div>
-        {order.tax > 0 && (
-          <div className="flex justify-between text-[11px] mb-1">
-            <span>IMPUESTOS ({taxName}):</span>
-            <span>{formatCurrency(order.tax)}</span>
-          </div>
-        )}
-        <div className="flex justify-between text-sm font-black mt-2 pt-1 border-t border-black/30">
-          <span>TOTAL:</span>
-          <span>{formatCurrency(order.total)}</span>
-        </div>
-      </div>
-
-      {/* ── FOOTER — Branding configurable ── */}
-      <div className="text-center text-[10px] mt-6 mb-2">
-        {footerMessage && (
-          <p className="font-bold whitespace-pre-line">{footerMessage}</p>
-        )}
-        {policies && (
-          <p className="mt-2 text-black/60 whitespace-pre-line text-[9px]">{policies}</p>
-        )}
-      </div>
-
-      {/* ── REDES SOCIALES ── */}
-      {hasSocials && (
-        <div className="border-t border-dashed border-black/30 pt-2 mt-2 text-center text-[9px] text-black/60 space-y-0.5">
-          {whatsapp && <p>📱 WhatsApp: {whatsapp}</p>}
-          {instagram && <p>📷 Instagram: {instagram}</p>}
-          {facebook && <p>👍 Facebook: {facebook}</p>}
-          {website && <p>🌐 {website}</p>}
-        </div>
-      )}
-
-      <div className="text-center text-[8px] text-black/30 mt-6 mb-4">--- FIN DE TICKET ---</div>
-
-      {/* CSS de impresión crítico */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        /* @page controla el tamaño del PDF cuando preferCSSPageSize: true */
-        @page {
-          size: 80mm auto;
-          margin: 0;
-        }
-        @media print {
-          html, body {
-            width: 80mm;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: white !important;
-          }
-          .ticket-container {
-            width: 80mm !important;
-            max-width: 80mm !important;
-            margin: 0 !important;
-            padding: 4mm !important;
-          }
-          * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-        }
-      `}} />
     </div>
   );
 }
 
 export default function TicketPage() {
   return (
-    <Suspense fallback={<div className="font-mono text-center p-10 text-xs">Preparando...</div>}>
+    <Suspense fallback={<div className="font-mono text-center p-10 text-xs text-muted-foreground animate-pulse">Cargando motor de impresión...</div>}>
       <TicketContent />
     </Suspense>
   );

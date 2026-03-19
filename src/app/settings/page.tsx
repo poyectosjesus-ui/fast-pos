@@ -676,6 +676,7 @@ export default function SettingsPage() {
     currency_symbol: "$",
     receiptPrinter: "",
     receiptPaperSize: "80mm",
+    receiptFormat: "graphic",
   });
 
   const [printers, setPrinters] = useState<{name: string; isDefault: boolean}[]>([]);
@@ -700,6 +701,7 @@ export default function SettingsPage() {
           currency_symbol: res.config!["currency_symbol"] ?? prev.currency_symbol,
           receiptPrinter:  res.config!["receiptPrinter"] ?? prev.receiptPrinter,
           receiptPaperSize:res.config!["receiptPaperSize"] ?? prev.receiptPaperSize,
+          receiptFormat:   res.config!["receiptFormat"] ?? prev.receiptFormat,
         }));
       }
 
@@ -1293,6 +1295,21 @@ export default function SettingsPage() {
                         >
                           <option value="80mm">80mm (Estándar)</option>
                           <option value="58mm">58mm (Pequeño)</option>
+                        </select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="receiptFormat" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                          Estilo de Renderizado
+                        </Label>
+                        <select
+                          id="receiptFormat"
+                          value={businessForm.receiptFormat}
+                          onChange={(e) => setBusinessForm(p => ({ ...p, receiptFormat: e.target.value }))}
+                          className="flex h-11 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <option value="graphic">Gráfico Moderno (Recomendado)</option>
+                          <option value="text">Alineado a Bloque (Texto ASCII)</option>
                         </select>
                       </div>
                     </div>
