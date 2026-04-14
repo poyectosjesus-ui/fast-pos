@@ -6,6 +6,7 @@ const fs = require("fs");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const { validateLicenseKey } = require("./licensing");
+const cloudBackup = require("./cloud-backup");
 
 /**
  * IPC HANDLERS — Fast-POS 2.0
@@ -206,12 +207,12 @@ function setupIpcHandlers() {
   ipcMain.handle("db:exportSqlite", async () => {
     try {
       const date = new Date().toISOString().split("T")[0];
-      const defaultName = `respaldo-fastpos-${date}.fastpos.db`;
+      const defaultName = `respaldo-fastpos-${date}.fastpos`;
 
       const { canceled, filePath } = await dialog.showSaveDialog({
         title: "Guardar Respaldo de Fast-POS",
         defaultPath: path.join(app.getPath("documents"), defaultName),
-        filters: [{ name: "Respaldo Fast-POS", extensions: ["fastpos.db", "db"] }],
+        filters: [{ name: "Archivo Fast-POS", extensions: ["fastpos", "db"] }],
       });
 
       if (canceled || !filePath) {
@@ -239,7 +240,7 @@ function setupIpcHandlers() {
     try {
       const { canceled, filePaths } = await dialog.showOpenDialog({
         title: "Restaurar Respaldo de Fast-POS",
-        filters: [{ name: "Respaldo Fast-POS", extensions: ["fastpos.db", "db"] }],
+        filters: [{ name: "Archivos Fast-POS", extensions: ["fastpos", "db", "fastpos.db"] }],
         properties: ["openFile"],
       });
 
@@ -1552,10 +1553,22 @@ function setupIpcHandlers() {
       };
 
       return new Promise((resolve) => {
-        win.webContents.print(printOptions, (success, errorType) => {
+        win.webContents.print(printOptions, async (success, errorType) => {
           win.close(); 
-          if (success) resolve({ success: true });
-          else {
+          
+          if (success) {
+             // [BACKUP] Síncrono para prevenir apagones de máquina
+             try {
+                const status = cloudBackup.getStatus();
+                if (status.connected) {
+                   console.log("[Cloud] Corte Z Térmico emitido. Subiendo a Nube de inmediato...");
+                   await cloudBackup.forceBackup();
+                   console.log("[Cloud] Backup subido exitosamente antes del retorno.");
+                }
+             } catch(e) { console.error("[Cloud] Autorespaldo fallido", e); }
+
+             resolve({ success: true });
+          } else {
             console.error("[IPC:report:print] Error:", errorType);
             resolve({ success: false, error: errorType });
           }
@@ -1594,6 +1607,17 @@ function setupIpcHandlers() {
 
       // Registrar auditoría
       logAudit(userId, "REPORT_GENERATED", { type: title, date: dateString });
+
+      // [BACKUP] Síncrono para prevenir apagones de máquina
+      if (title.toUpperCase().includes("CORTE Z")) {
+         try {
+            const status = cloudBackup.getStatus();
+            if (status.connected) {
+               console.log("[Cloud] Corte Z PDF emitido. Subiendo a Nube de inmediato...");
+               await cloudBackup.forceBackup();
+            }
+         } catch(e) { console.error("[Cloud] Error backup PDF", e); }
+      }
 
       return { success: true, filePath };
     } catch (err) {
@@ -2246,6 +2270,35 @@ function setupIpcHandlers() {
   });
 
   console.log("[IPC] Todos los handlers registrados correctamente.");
+
+  // ──────────────────────────────────────────
+  // DOMINIO: Google Drive Backup
+  // ──────────────────────────────────────────
+  ipcMain.handle("cloud:getAuthUrl", async () => {
+    try {
+      return await cloudBackup.getAuthUrl();
+    } catch (err) {
+      console.error("[IPC:cloud:getAuthUrl]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("cloud:getStatus", async () => {
+    return cloudBackup.getStatus();
+  });
+
+  ipcMain.handle("cloud:disconnect", async () => {
+    return cloudBackup.disconnect();
+  });
+
+  ipcMain.handle("cloud:forceBackup", async () => {
+    try {
+      return await cloudBackup.forceBackup();
+    } catch (err) {
+      console.error("[IPC:cloud:forceBackup]", err.message);
+      return { success: false, error: err.message };
+    }
+  });
 
 }
 

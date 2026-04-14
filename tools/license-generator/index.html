@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fast-POS | Generador Oficial de Licencias</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#10b981', // emerald-500
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .glow {
+            text-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4 antialiased selection:bg-primary/30 relative overflow-hidden">
+    
+    <!-- Background Effects -->
+    <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-emerald-500/10 blur-[120px] pointer-events-none"></div>
+    <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-500/10 blur-[120px] pointer-events-none"></div>
+
+    <div class="w-full max-w-2xl">
+        <div class="text-center mb-10">
+            <h1 class="text-3xl font-extrabold tracking-tight mb-2 flex items-center justify-center gap-3">
+                <svg class="w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                Fast-POS <span class="text-emerald-500 glow">Keygen</span>
+            </h1>
+            <p class="text-slate-400 text-sm font-medium">Herramienta interna para emisión comercial de licencias</p>
+        </div>
+
+        <div class="glass-panel rounded-3xl p-8 md:p-10">
+            <form id="keygen-form" class="space-y-6">
+                <!-- Cliente -->
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Nombre del Cliente / Negocio</label>
+                    <input type="text" id="client" required placeholder="Ej. Abarrotes Doña Mary" 
+                           class="w-full bg-slate-900 border border-slate-700 rounded-xl px-5 py-4 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-medium">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Nivel de Plan -->
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Plan Desbloqueado</label>
+                        <div class="relative">
+                            <select id="plan" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-5 py-4 text-slate-100 appearance-none focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-medium cursor-pointer">
+                                <option value="BASIC">Básico (Sin Analytics)</option>
+                                <option value="PRO">PRO (Caja + Empleados)</option>
+                                <option value="PREMIUM" selected>Premium (Full Acces)</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 flex items-center px-5 pointer-events-none text-slate-400">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Duración -->
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Vigencia de la Licencia</label>
+                        <div class="relative">
+                            <select id="duration" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-5 py-4 text-slate-100 appearance-none focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-medium cursor-pointer">
+                                <option value="30">Mensual (30 Días)</option>
+                                <option value="180">Semestral (180 Días)</option>
+                                <option value="365">Anual (365 Días)</option>
+                                <option value="LIFETIME" selected>Vitalicia (Sin caducidad)</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 flex items-center px-5 pointer-events-none text-slate-400">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold uppercase tracking-widest py-4 md:py-5 rounded-xl transition-all hover:scale-[1.01] active:scale-[0.98] shadow-lg shadow-emerald-500/20 mt-4">
+                    Forjar Llave Criptográfica
+                </button>
+            </form>
+
+            <!-- Result Section -->
+            <div id="result-section" class="mt-8 pt-8 border-t border-slate-800 hidden animate-fade-in">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-bold uppercase tracking-widest text-emerald-500">Llave Generada:</span>
+                    <button type="button" onclick="copyKey()" class="text-xs font-bold text-slate-400 hover:text-white transition-colors bg-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                        Copiar
+                    </button>
+                </div>
+                
+                <div class="bg-slate-950 rounded-xl p-4 md:p-5 mb-4 border border-slate-800/50 shadow-inner group relative">
+                    <div id="key-output" class="font-mono text-sm md:text-base text-emerald-400 break-all select-all font-semibold tracking-wider">
+                        FAST-••••••••••••
+                    </div>
+                </div>
+
+                <button type="button" onclick="downloadKey()" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold uppercase tracking-widest py-4 rounded-xl transition-all border border-slate-700 hover:border-slate-500 flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Descargar archivo .fastkey
+                </button>
+            </div>
+        </div>
+
+        <div class="mt-8 text-center text-slate-600 text-xs font-medium uppercase tracking-widest">
+            Asegura el acceso a esta herramienta. Operación 100% Offline.
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl transition-all opacity-0 translate-y-4 pointer-events-none font-medium text-sm flex items-center gap-2 border border-slate-700">
+        <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+        <span id="toast-msg">Mensaje</span>
+    </div>
+
+    <script>
+        // La misma llave simétrica definida en src/main/licensing.js
+        const SECRET_KEY = "F4ST_P0S_ULT1M4T3_S3CR3T_K3Y_2026_X0";
+        let generatedKeyString = "";
+        let generatedClientName = "";
+
+        // Encode UTF-8 safely to Base64 (para soportar ñ, acentos, etc)
+        function base64EncodeUnicode(str) {
+            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
+                function toSolidBytes(match, p1) {
+                    return String.fromCharCode('0x' + p1);
+            }));
+        }
+
+        document.getElementById('keygen-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const client = document.getElementById('client').value.trim();
+            const plan = document.getElementById('plan').value;
+            const durationInput = document.getElementById('duration').value;
+            
+            if(!client) return;
+
+            generatedClientName = client;
+
+            // Calcular expiración
+            let exp = "LIFETIME";
+            if (durationInput !== "LIFETIME") {
+                const days = parseInt(durationInput);
+                const now = new Date();
+                now.setDate(now.getDate() + days);
+                exp = now.getTime();
+            }
+
+            // Crear Payload (idéntico al formato esperado por licensing.js)
+            const payload = {
+                client: client,
+                plan: plan,
+                exp: exp,
+                stores: 1 // Por defecto 1 sucursal en esta versión
+            };
+
+            const payloadStr = JSON.stringify(payload);
+            const payloadBase64 = base64EncodeUnicode(payloadStr);
+            
+            // Generar Firma HMAC-SHA256 (Truncada a 16 hex chars)
+            // Se encripta el Base64 directamente igual que en Node: crypto.createHmac("sha256", KEY).update(payloadBase64).digest("hex")
+            const hmac = CryptoJS.HmacSHA256(payloadBase64, SECRET_KEY).toString(CryptoJS.enc.Hex);
+            const signatureText = hmac.substring(0, 16);
+            
+            // Llave Ensamblada
+            generatedKeyString = `FAST-${payloadBase64}-${signatureText}`;
+            
+            // Mostrar en UI
+            document.getElementById('key-output').innerText = generatedKeyString;
+            document.getElementById('result-section').classList.remove('hidden');
+            
+            // Efecto scroll suave si está cortado
+            document.getElementById('result-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            
+            showToast("Llave generada exitosamente");
+        });
+
+        function copyKey() {
+            if(!generatedKeyString) return;
+            navigator.clipboard.writeText(generatedKeyString).then(() => {
+                showToast("Llave copiada al portapapeles");
+            });
+        }
+
+        function downloadKey() {
+            if(!generatedKeyString || !generatedClientName) return;
+            
+            const safeName = generatedClientName.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            const filename = `${safeName}_license.fastkey`;
+            
+            const blob = new Blob([generatedKeyString], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showToast("Archivo .fastkey descargado");
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            toast.style.opacity = '1';
+            toast.style.transform = 'translate(-50%, 0)';
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translate(-50%, 16px)';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

@@ -119,7 +119,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   onExportBackup: (callback) => {
     ipcRenderer.on("menu:export-backup", () => callback());
-  }
+  },
+
+  // ── Respaldos en la Nube (Google Drive) ──────────────────────────────────
+  getCloudAuthUrl: () => ipcRenderer.invoke("cloud:getAuthUrl"),
+  getCloudStatus: () => ipcRenderer.invoke("cloud:getStatus"),
+  disconnectCloud: () => ipcRenderer.invoke("cloud:disconnect"),
+  forceCloudBackup: () => ipcRenderer.invoke("cloud:forceBackup"),
 });
 
 console.log("[Preload] Fast-POS 2.0 — electronAPI disponible.");

@@ -65,7 +65,10 @@ import {
   Clock,
   CircleAlert,
   ShoppingBag,
-  HelpCircle
+  HelpCircle,
+  Cloud,
+  CloudOff,
+  CloudIcon
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { BarcodeHandler } from "@/components/shared/barcode-handler";
@@ -661,6 +664,65 @@ export default function SettingsPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [isSavingBusiness, setIsSavingBusiness] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  
+  // ── ESTADO CLOUD (Google Drive) ──
+  const [cloudStatus, setCloudStatus] = useState({ connected: false, email: "Desconectado" });
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+
+  useEffect(() => {
+    const api = typeof window !== "undefined" ? (window as any).electronAPI : null;
+    if (api && api.getCloudStatus) {
+      api.getCloudStatus().then((res: any) => {
+        if (res) setCloudStatus(res);
+      });
+    }
+  }, []);
+
+  const handleConnectCloud = async () => {
+    const api = (window as any).electronAPI;
+    if (!api) return;
+    try {
+      await api.getCloudAuthUrl();
+      toast.info("Completa el inicio de sesión en tu navegador Chrome.");
+      const interval = setInterval(async () => {
+        const s = await api.getCloudStatus();
+        if (s && s.connected) {
+          setCloudStatus(s);
+          clearInterval(interval);
+          toast.success("¡Google Drive Vinculado exitosamente!");
+        }
+      }, 3000);
+      setTimeout(() => clearInterval(interval), 120000);
+    } catch(e: any) {
+      toast.error("Error conectando", { description: e.message });
+    }
+  };
+
+  const handleDisconnectCloud = async () => {
+    const api = (window as any).electronAPI;
+    if (!api) return;
+    await api.disconnectCloud();
+    setCloudStatus({ connected: false, email: "Desconectado" });
+    toast.info("Desvinculado de Drive.");
+  };
+
+  const handleForceCloudBackup = async () => {
+    const api = (window as any).electronAPI;
+    setIsCloudSyncing(true);
+    const toastId = toast.loading("Empaquetando y subiendo a Google Drive...");
+    try {
+      const res = await api.forceCloudBackup();
+      if (res && res.success) {
+         toast.success("Respaldo completado", { id: toastId, description: "Subido a Google Drive de forma segura." });
+      } else {
+         toast.error("Falló el respaldo", { id: toastId, description: "Verifica tu sesión de Google o el internet." });
+      }
+    } catch(err: any) {
+      toast.error("Falló el respaldo", { id: toastId, description: err.message });
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  };
   const [showNukeDialog, setShowNukeDialog] = useState(false);
 
   // Diagnóstico de escáner
@@ -840,7 +902,7 @@ export default function SettingsPage() {
         {/* Contenido scrollable */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-4xl mx-auto w-full space-y-6 pb-24">
           <Tabs defaultValue={user?.role === "ADMIN" ? "general" : "system"} className="w-full space-y-6">
-            <TabsList id="tour-settings-tabs" className="grid w-full grid-cols-2 md:grid-cols-5 bg-muted/50 p-1 rounded-xl border border-primary/5 backdrop-blur-sm h-auto flex-wrap gap-1">
+            <TabsList id="tour-settings-tabs" className="grid w-full grid-cols-2 md:grid-cols-6 bg-muted/50 p-1 rounded-xl border border-primary/5 backdrop-blur-sm h-auto flex-wrap gap-1">
               {user?.role === "ADMIN" && (
                 <TabsTrigger value="general" className="uppercase text-[10px] font-black tracking-widest gap-1.5 focus:bg-primary/20 bg-primary/5 text-primary">
                   <Activity className="w-3 h-3" /> General
@@ -852,7 +914,7 @@ export default function SettingsPage() {
                 </TabsTrigger>
               )}
               <TabsTrigger value="system" className="uppercase text-[10px] font-black tracking-widest gap-1.5 hidden sm:flex">
-                <ShieldCheck className="w-3 h-3" /> Temas
+                <ShieldCheck className="w-3 h-3" /> Hardware/Vista
               </TabsTrigger>
               <TabsTrigger value="shortcuts" className="uppercase text-[10px] font-black tracking-widest gap-1.5 hidden sm:flex">
                 <Keyboard className="w-3 h-3" /> Atajos
@@ -860,6 +922,11 @@ export default function SettingsPage() {
               {user?.role === "ADMIN" && (
                 <TabsTrigger id="tour-settings-users" value="users" className="uppercase text-[10px] font-black tracking-widest gap-1.5 focus:bg-primary/20 bg-primary/5 text-primary">
                   <Users className="w-3 h-3" /> Equipo
+                </TabsTrigger>
+              )}
+              {user?.role === "ADMIN" && (
+                <TabsTrigger value="backups" className="uppercase text-[10px] font-black tracking-widest gap-1.5 focus:bg-primary/20 bg-primary/5 text-indigo-500">
+                  <Cloud className="w-3 h-3" /> Nube / DB
                 </TabsTrigger>
               )}
             </TabsList>
@@ -1083,7 +1150,10 @@ export default function SettingsPage() {
                   ))}
                 </div>
               </Card>
+            </TabsContent>
 
+            {/* ── PESTAÑA: NUBE / DB (NUEVA) ── */}
+            <TabsContent value="backups" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
               {user?.role === "ADMIN" && (
                 <>
                   <Card>
@@ -1099,17 +1169,65 @@ export default function SettingsPage() {
                     </CardDescription>
                   </div>
                 </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <CardContent className="space-y-6">
+                
+                  {/* ====== GOOGLE DRIVE BACKUP PANEL ====== */}
+                  <div className="border border-indigo-500/30 bg-gradient-to-br from-indigo-500/10 to-transparent p-6 rounded-2xl relative overflow-hidden">
+                    <CloudIcon className="absolute -right-8 -top-8 h-48 w-48 text-indigo-500/5 rotate-12 pointer-events-none" />
+                    
+                    <div className="flex flex-col sm:flex-row gap-5 items-start sm:items-center justify-between relative z-10">
+                      <div>
+                        <h4 className="font-black uppercase tracking-widest text-indigo-700 dark:text-indigo-400 flex items-center gap-2 mb-1">
+                          <Cloud className="h-5 w-5" />
+                          Nube (Google Drive)
+                        </h4>
+                        <p className="text-xs text-muted-foreground max-w-md leading-relaxed">
+                          Sube copias de tu base de datos directamente a un Google Drive privado para protegerte contra robos o fallas en el disco duro. Se activa automáticamente con los Cortes Z.
+                        </p>
+                        
+                        <div className="mt-4 flex items-center gap-2">
+                           <span className="flex h-2 w-2 rounded-full bg-border">
+                             <span className={cn("inline-flex h-full w-full rounded-full opacity-75", cloudStatus.connected ? "bg-emerald-500 animate-ping" : "bg-destructive")}></span>
+                           </span>
+                           <span className={cn("text-[10px] uppercase font-bold tracking-widest", cloudStatus.connected ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
+                              {cloudStatus.connected ? "Enlazado" : "Sin conexión activa"}
+                           </span>
+                           <span className="text-[10px] text-muted-foreground ml-2">
+                              {cloudStatus.email}
+                           </span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col gap-2 w-full sm:w-auto shrink-0">
+                         {cloudStatus.connected ? (
+                           <>
+                             <Button onClick={handleForceCloudBackup} disabled={isCloudSyncing} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl shadow-indigo-600/20 font-black tracking-widest text-[10px] uppercase">
+                               {isCloudSyncing ? "Subiendo..." : "Respaldar Ahora"}
+                             </Button>
+                             <Button onClick={handleDisconnectCloud} variant="ghost" className="text-destructive hover:bg-destructive/10 hover:text-destructive font-bold text-[10px] uppercase tracking-widest border-destructive/20 border">
+                               Desvincular Cuenta
+                             </Button>
+                           </>
+                         ) : (
+                           <Button onClick={handleConnectCloud} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl shadow-indigo-600/20 font-black tracking-widest text-[10px] uppercase h-11 px-8">
+                             Vincular Drive
+                           </Button>
+                         )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Exportar */}
                   <div className="space-y-3 border p-6 rounded-xl bg-muted/20">
                     <p className="font-bold text-sm flex items-center gap-2 uppercase tracking-tight">
                       <Download className="h-4 w-4 text-primary" /> Exportar
                     </p>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Guarda una copia de tu base de datos en el lugar que elijas.
-                      El archivo{" "}
-                      <span className="font-mono font-bold">.fastpos.db</span> incluye
-                      todo tu inventario, ventas e historial.
+                      Guarda un paquete de datos en el lugar que elijas.
+                      El archivo opaco{" "}
+                      <span className="font-mono font-bold text-indigo-500 bg-indigo-500/10 px-1 rounded">.fastpos</span> incluye
+                      todo tu inventario, ventas e historial interno.
                     </p>
                     <Button
                       className="w-full h-11 uppercase text-[10px] font-black tracking-widest"
@@ -1160,6 +1278,7 @@ export default function SettingsPage() {
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
+                  </div>
                   </div>
                 </CardContent>
               </Card>
@@ -1235,7 +1354,9 @@ export default function SettingsPage() {
               </Card>
             </>
           )}
+            </TabsContent>
 
+            <TabsContent value="system" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
               {/* ── SECCIÓN DE PERIFÉRICOS (antes Hardware) ── */}
               <Card className="border-primary/20 bg-primary/5 mt-6">
                 <CardHeader className="flex flex-row items-center gap-4">
