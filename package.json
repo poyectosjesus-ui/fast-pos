@@ -104,7 +104,10 @@
     "mac": {
       "category": "public.app-category.business",
       "target": [
-        "dmg"
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
       ],
       "icon": "public/icon-512x512.png",
       "hardenedRuntime": true,
@@ -112,7 +115,10 @@
     },
     "win": {
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": ["x64", "ia32"]
+        }
       ],
       "icon": "public/icon-512x512.png"
     },
@@ -127,7 +133,10 @@
     },
     "linux": {
       "target": [
-        "AppImage"
+        {
+          "target": "AppImage",
+          "arch": ["x64", "arm64", "armv7l"]
+        }
       ],
       "category": "Office",
       "icon": "public/icon-512x512.png"
