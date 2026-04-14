@@ -13,6 +13,7 @@
  */
 
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const isDev = process.env.NODE_ENV === "development";
 
@@ -213,6 +214,29 @@ app.on("ready", () => {
   Logger.info(`Plataforma: ${process.platform}`);
   Logger.info(`Electron: ${process.versions.electron}`);
   Logger.info("═".repeat(80));
+
+  // ── Inicializar Auto-Updater ──
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('update-available', (info) => {
+    Logger.info(`[OTA] 🌟 Actualización disponible: ${info.version}`);
+    if (mainWindow) mainWindow.webContents.send('updater:available', info);
+  });
+
+  autoUpdater.on('download-progress', (progressObj) => {
+    if (mainWindow) mainWindow.webContents.send('updater:progress', progressObj);
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    Logger.info('[OTA] ✅ Actualización descargada con éxito.');
+    if (mainWindow) mainWindow.webContents.send('updater:downloaded', info);
+  });
+
+  autoUpdater.on('error', (err) => {
+    Logger.error('[OTA] ❌ Error en autoUpdater.: ' + err.message);
+  });
+  
   // ── Inicializar DB e IPC handlers PRIMERO (app.getPath ya está disponible) ──
   try {
     const { initDatabase } = require("./src/main/database");
@@ -232,7 +256,27 @@ app.on("ready", () => {
 
   createWindow();
 
-  createWindow();
+  // Buscar actualizaciones discretamente a los 5 segundos (solo en Prod)
+  setTimeout(() => {
+    try {
+      if (!isDev) {
+        const { getDb } = require("./src/main/database");
+        const db = getDb();
+        const autoUpdateSetting = db.prepare("SELECT value FROM settings WHERE key = 'auto_update_enabled'").get();
+        
+        // Si el usuario lo desactivó manualmente, silenciamos el autoUpdater
+        if (autoUpdateSetting && autoUpdateSetting.value === "0") {
+          Logger.info("[OTA] Búsqueda automática deshabilitada por configuración del negocio.");
+          return;
+        }
+
+        Logger.info("[OTA] Buscando actualizaciones en el servidor maestro...");
+        autoUpdater.checkForUpdatesAndNotify();
+      }
+    } catch (e) {
+      Logger.error("[OTA] Falló la búsqueda de actualizaciones:", e.message);
+    }
+  }, 5000);
 
   // Configurar Menú Nativo macOS (Cmd+N, Cmd+S, Editar, Portapapeles)
   const { Menu } = require("electron");

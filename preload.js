@@ -126,6 +126,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getCloudStatus: () => ipcRenderer.invoke("cloud:getStatus"),
   disconnectCloud: () => ipcRenderer.invoke("cloud:disconnect"),
   forceCloudBackup: () => ipcRenderer.invoke("cloud:forceBackup"),
+
+  // ── Actualizaciones (OTA) ──────────────────────────────────────────────────
+  onUpdaterEvent: (callback) => {
+    ipcRenderer.on("updater:message", (event, data) => callback("message", data));
+    ipcRenderer.on("updater:available", (event, data) => callback("available", data));
+    ipcRenderer.on("updater:progress", (event, data) => callback("progress", data));
+    ipcRenderer.on("updater:downloaded", (event, data) => callback("downloaded", data));
+    ipcRenderer.on("updater:error", (event, err) => callback("error", err));
+  },
+  applyUpdate: () => ipcRenderer.invoke("app:applyUpdate"),
 });
 
 console.log("[Preload] Fast-POS 2.0 — electronAPI disponible.");

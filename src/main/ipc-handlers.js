@@ -2300,6 +2300,13 @@ function setupIpcHandlers() {
     }
   });
 
+  // ── Actualizaciones Automáticas (OTA) ──────────────────────────────────────
+  ipcMain.handle("app:applyUpdate", () => {
+    const { autoUpdater } = require("electron-updater");
+    autoUpdater.quitAndInstall(false, true); 
+    // isSilent=false, isForceRunAfter=true
+  });
+
 }
 
 module.exports = { setupIpcHandlers };

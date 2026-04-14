@@ -59,6 +59,7 @@ import {
   Image as ImageIcon,
   Sun,
   Moon,
+  CloudDownload,
   KeyRound,
   BadgeCheck,
   Calendar,
@@ -440,6 +441,70 @@ function SalesChannelsPanel() {
 // ─────────────────────────────────────────────
 // Sub-componente: Panel de salud de la DB
 // ─────────────────────────────────────────────
+
+function OtaConfigPanel() {
+  const [enabled, setEnabled] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const api = (window as any).electronAPI;
+    if (!api) return;
+    api.getAllSettings().then((res: any) => {
+      if (res && res.config && res.config["auto_update_enabled"] === "0") {
+        setEnabled(false);
+      }
+    });
+  }, []);
+
+  const toggleOta = async () => {
+    const nextVal = !enabled;
+    setEnabled(nextVal);
+    setSaving(true);
+    try {
+      const api = (window as any).electronAPI;
+      if (api) {
+        await api.setBulkSettings({ auto_update_enabled: nextVal ? "1" : "0" });
+        toast.success(
+          nextVal ? "Actualizaciones Automáticas Habilitadas" : "Actualizaciones Automáticas Pausadas",
+          { description: nextVal ? "El sistema buscará nuevas versiones en segundo plano." : "A partir de ahora, tendrás que actualizar manualmente." }
+        );
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card className="border-primary/20 bg-primary/5 shadow-xl overflow-hidden mb-6">
+      <CardHeader className="flex flex-row items-center gap-4 bg-primary/10 border-b border-primary/10 py-4">
+        <CloudDownload className="h-6 w-6 text-primary" />
+        <div>
+          <CardTitle className="text-primary">
+            Actualizaciones OTA
+          </CardTitle>
+          <CardDescription className="text-primary/70 text-xs font-bold uppercase tracking-widest">
+            (Over-The-Air) Distribución de Software
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between">
+          <div>
+             <p className="font-bold text-foreground">Actualizaciones Automáticas</p>
+             <p className="text-xs text-muted-foreground mt-1 max-w-sm">Si está desactivado, el sistema dejará de buscar nuevas versiones por la red. Usa esta opción si tu internet es limitado o prefieres estabilidad.</p>
+          </div>
+          <Button 
+            variant={enabled ? "default" : "secondary"} 
+            onClick={toggleOta} 
+            disabled={saving}
+          >
+            {enabled ? "Habilitado" : "Pausado"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function DbHealthPanel() {
   const [status, setStatus] = useState<{
@@ -946,6 +1011,8 @@ export default function SettingsPage() {
             {/* ── PESTAÑA: GENERAL ── */}
             {user?.role === "ADMIN" && (
               <TabsContent value="general" className="space-y-6 outline-none animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <OtaConfigPanel />
+
                 <Card id="tour-settings-advanced" className="border-primary/20 bg-primary/5 shadow-xl overflow-hidden">
                   <CardHeader className="flex flex-row items-center gap-4 bg-primary/10 border-b border-primary/10 py-4">
                     <Activity className="h-6 w-6 text-primary" />
