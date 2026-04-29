@@ -5,13 +5,19 @@ const path = require('path');
 const fs = require('fs');
 const { getDb, getDbPath } = require('./database');
 
+// Carga .env solo en desarrollo (en producción las vars ya están resueltas en el binario)
+if (process.env.NODE_ENV === 'development') {
+  try { require('dotenv').config(); } catch(e) { /* dotenv no instalado, continuar */ }
+}
+
 // ==========================================
 // CONFIGURACIÓN OAUTH2 (GOOGLE CLOUD)
 // ==========================================
-// Las credenciales se leen desde variables de entorno.
-// Crea un archivo .env en la raíz del proyecto con GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET.
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+// En DESARROLLO: se leen de .env (ver .env.example).
+// En PRODUCCIÓN: electron-builder inyecta las vars del entorno CI al compilar,
+//   o bien se setean en la máquina de build antes de ejecutar dist:mac/win.
+const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const REDIRECT_URI = 'http://localhost:3546/oauth2callback';
 
 let oauth2Client = null;
