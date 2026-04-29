@@ -8,9 +8,10 @@ const { getDb, getDbPath } = require('./database');
 // ==========================================
 // CONFIGURACIÓN OAUTH2 (GOOGLE CLOUD)
 // ==========================================
-// TODO: Reemplaza estas credenciales creando un proyecto de Escritorio en Google Cloud Console.
-const CLIENT_ID = 'REDACTED_CLIENT_ID';
-const CLIENT_SECRET = 'REDACTED_CLIENT_SECRET';
+// Las credenciales se leen desde variables de entorno.
+// Crea un archivo .env en la raíz del proyecto con GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET.
+const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const REDIRECT_URI = 'http://localhost:3546/oauth2callback';
 
 let oauth2Client = null;
