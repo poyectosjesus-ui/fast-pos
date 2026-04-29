@@ -1657,7 +1657,7 @@ function setupIpcHandlers() {
   ipcMain.handle("users:getAll", async () => {
     try {
       // Nunca regresar los PIN hashes a frontend
-      const rows = getDb().prepare("SELECT id, name, role, isActive, createdAt FROM users").all();
+      const rows = getDb().prepare("SELECT id, name, role, isActive, canManageProducts, createdAt FROM users").all();
       return { success: true, users: rows };
     } catch (err) {
       console.error("[IPC:users:getAll]", err.message);
@@ -1671,9 +1671,9 @@ function setupIpcHandlers() {
       const id = crypto.randomUUID();
       
       const stmt = getDb().prepare(
-        "INSERT INTO users (id, name, pin, role, isActive, createdAt) VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO users (id, name, pin, role, isActive, canManageProducts, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)"
       );
-      stmt.run(id, user.name, pinHash, user.role, user.isActive || 1, Date.now());
+      stmt.run(id, user.name, pinHash, user.role, user.isActive || 1, user.canManageProducts || 0, Date.now());
       return { success: true, id };
     } catch (err) {
       console.error("[IPC:users:create]", err.message);
@@ -1687,15 +1687,15 @@ function setupIpcHandlers() {
         // También actualiza pin
         const pinHash = bcrypt.hashSync(user.pin, 10);
         const stmt = getDb().prepare(
-          "UPDATE users SET name = ?, pin = ?, role = ?, isActive = ? WHERE id = ?"
+          "UPDATE users SET name = ?, pin = ?, role = ?, isActive = ?, canManageProducts = ? WHERE id = ?"
         );
-        stmt.run(user.name, pinHash, user.role, user.isActive, user.id);
+        stmt.run(user.name, pinHash, user.role, user.isActive, user.canManageProducts || 0, user.id);
       } else {
         // Solo datos
         const stmt = getDb().prepare(
-          "UPDATE users SET name = ?, role = ?, isActive = ? WHERE id = ?"
+          "UPDATE users SET name = ?, role = ?, isActive = ?, canManageProducts = ? WHERE id = ?"
         );
-        stmt.run(user.name, user.role, user.isActive, user.id);
+        stmt.run(user.name, user.role, user.isActive, user.canManageProducts || 0, user.id);
       }
       return { success: true };
     } catch (err) {

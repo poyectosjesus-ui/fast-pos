@@ -66,7 +66,10 @@ export function Sidebar() {
         <nav className="flex flex-col gap-6 w-full">
           {navGroups.map((group, groupIdx) => {
             // Un Cajero puede no tener permisos para ningún item del grupo 2, por lo que ocultamos el grupo entero
-            const activeItems = group.items.filter(item => !item.roles || item.roles.includes(user?.role || ""));
+            const activeItems = group.items.filter(item => {
+              if (item.href === "/products" && user?.canManageProducts === 1) return true;
+              return !item.roles || item.roles.includes(user?.role || "");
+            });
             
             if (activeItems.length === 0) return null;
 

@@ -31,7 +31,7 @@ export default function ProductsPage() {
   }, []);
 
   return (
-    <ProtectedRoute allowedRoles={["ADMIN"]}>
+    <ProtectedRoute requireProductPermission>
     <div className="flex h-screen bg-muted/40">
       <Sidebar />
       <div className="flex flex-col sm:gap-4 sm:py-4 sm:pl-20 flex-1 overflow-hidden">

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 export type UserRole = 'ADMIN' | 'CASHIER';
 
@@ -8,6 +8,7 @@ export interface User {
   name: string;
   role: UserRole;
   isActive: number;
+  canManageProducts: number;
 }
 
 interface SessionState {
@@ -50,7 +51,8 @@ export const useSessionStore = create<SessionState>()(
       },
     }),
     {
-      name: 'fast-pos-session', // Llave en localStorage
+      name: 'fast-pos-session', // Llave
+      storage: createJSONStorage(() => sessionStorage), // Expira al cerrar la app
     }
   )
 );

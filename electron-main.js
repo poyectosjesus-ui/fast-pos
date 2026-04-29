@@ -129,12 +129,7 @@ function createWindow() {
     mainWindow = null;
   });
 
-  mainWindow.on("close", (event) => {
-    if (!isAppQuitting) {
-      event.preventDefault();
-      Logger.warn("⚠️ Intento de cierre bloqueado");
-    }
-  });
+  // Cierre normal habilitado por petición del cliente
 
   // Seguridad
   setupSecurityListeners();

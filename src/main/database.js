@@ -467,6 +467,16 @@ function runMigrations(db) {
     console.log("[DB] Migración v14 aplicada: Columna userName restaurada en audit_logs.");
   }
 
+  // ── v14 → v15: Permisos granulares de Catálogo para Vendedoras ─────────────
+  if (currentVersion < 15) {
+    try {
+      db.exec(`ALTER TABLE users ADD COLUMN canManageProducts INTEGER NOT NULL DEFAULT 0;`);
+    } catch(e) { /* En caso de fallas silenciosas previas */ }
+    
+    db.pragma("user_version = 15");
+    console.log("[DB] Migración v15 aplicada: Añadida columna canManageProducts en tabla users.");
+  }
+
   const newVersion = db.pragma("user_version", { simple: true });
   console.log(`[DB] Esquema actualizado a v${newVersion}. Listo.`);
 }

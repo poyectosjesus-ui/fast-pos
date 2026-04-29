@@ -55,11 +55,13 @@ export function UsersPanel() {
     pin: string;
     role: UserRole;
     isActive: number;
+    canManageProducts: number;
   }>({
     name: "",
     pin: "",
     role: "CASHIER",
     isActive: 1,
+    canManageProducts: 0,
   });
 
   const loadUsers = async () => {
@@ -87,9 +89,10 @@ export function UsersPanel() {
         pin: "", // No se muestra el PIN anterior, se envía en blanco a SQLite a menos que se quiera cambiar
         role: user.role,
         isActive: user.isActive,
+        canManageProducts: user.canManageProducts || 0,
       });
     } else {
-      setFormData({ name: "", pin: "", role: "CASHIER", isActive: 1 });
+      setFormData({ name: "", pin: "", role: "CASHIER", isActive: 1, canManageProducts: 0 });
     }
     setIsDialogOpen(true);
   };
@@ -256,6 +259,23 @@ export function UsersPanel() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Perfíl de Catálogo (Solo Vendedoras)</Label>
+              <Select 
+                disabled={formData.role === "ADMIN"} 
+                value={formData.role === "ADMIN" ? "1" : formData.canManageProducts.toString()} 
+                onValueChange={(val) => setFormData({ ...formData, canManageProducts: parseInt(val || "0") })}
+              >
+                <SelectTrigger className="rounded-xl h-11 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Solo Cobro (Lectura)</SelectItem>
+                  <SelectItem value="1">Puede Modificar y Cargar Productos</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
           </div>

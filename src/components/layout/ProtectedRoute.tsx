@@ -8,9 +8,10 @@ import { Loader2 } from "lucide-react";
 interface ProtectedRouteProps {
   children: React.ReactNode;
   allowedRoles?: UserRole[];
+  requireProductPermission?: boolean;
 }
 
-export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, allowedRoles, requireProductPermission }: ProtectedRouteProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated, user } = useSessionStore();
@@ -29,15 +30,23 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       return;
     }
 
-    // 2. Si está logeado pero la ruta exige roles que el usuario no tiene
-    if (isAuthenticated && user && allowedRoles && allowedRoles.length > 0) {
-      if (!allowedRoles.includes(user.role)) {
-        // Redirigir a la pantalla principal si es cajero asomándose donde no debe
-        router.replace("/");
-        return;
+    // 2. Si está logeado pero la ruta exige permisos especiales
+    if (isAuthenticated && user) {
+      if (requireProductPermission) {
+        const canManage = user.role === "ADMIN" || user.canManageProducts === 1;
+        if (!canManage) {
+          router.replace("/");
+          return;
+        }
+      } else if (allowedRoles && allowedRoles.length > 0) {
+        if (!allowedRoles.includes(user.role)) {
+          // Redirigir a la pantalla principal si es cajero asomándose donde no debe
+          router.replace("/");
+          return;
+        }
       }
     }
-  }, [isAuthenticated, user, pathname, allowedRoles, router, isClient]);
+  }, [isAuthenticated, user, pathname, allowedRoles, requireProductPermission, router, isClient]);
 
   // Mostrar un loader mínimo mientras hidratamos el cliente local
   if (!isClient) {
@@ -50,7 +59,11 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
   // Prevenir flash de contenido protegido
   if (!isAuthenticated && pathname !== "/login") return null;
-  if (isAuthenticated && user && allowedRoles && !allowedRoles.includes(user.role)) return null;
+  
+  if (isAuthenticated && user) {
+    if (requireProductPermission && user.role !== "ADMIN" && user.canManageProducts !== 1) return null;
+    if (!requireProductPermission && allowedRoles && !allowedRoles.includes(user.role)) return null;
+  }
 
   return <>{children}</>;
 }
